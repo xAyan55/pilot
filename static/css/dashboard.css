@@ -48,6 +48,24 @@
   font-weight: 500;
   color: var(--color-text-muted);
   transition: var(--transition-smooth);
+  position: relative;
+}
+
+.db-menu-item a::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 60%;
+  background-color: var(--color-accent);
+  border-radius: 0 3px 3px 0;
+  transition: transform 0.25s ease;
+}
+
+.db-menu-item.active a::before {
+  transform: translateY(-50%) scaleY(1);
 }
 
 .db-menu-item a:hover, .db-menu-item.active a {
@@ -149,15 +167,15 @@
 /* Tabs panels inside dashboards */
 .db-tab-panel {
   display: none;
-  animation: fadeIn 0.25s ease-out forwards;
 }
 
 .db-tab-panel.active {
   display: block;
+  animation: panelSlideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+@keyframes panelSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -178,6 +196,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: var(--transition-smooth);
+  animation: cardEntrance 0.4s ease both;
+}
+
+.db-stat-card:nth-child(1) { animation-delay: 0.04s; }
+.db-stat-card:nth-child(2) { animation-delay: 0.08s; }
+.db-stat-card:nth-child(3) { animation-delay: 0.12s; }
+.db-stat-card:nth-child(4) { animation-delay: 0.16s; }
+
+.db-stat-card:hover {
+  border-color: var(--color-secondary);
+  box-shadow: 0 6px 20px rgba(24, 35, 30, 0.06);
+  transform: translateY(-2px);
+}
+
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .db-stat-info label {
@@ -220,6 +262,17 @@
   border-radius: var(--radius-lg);
   padding: 32px;
   box-shadow: 0 4px 15px var(--color-shadow);
+  transition: var(--transition-smooth);
+  animation: blockFadeIn 0.45s ease both;
+}
+
+.db-block:hover {
+  box-shadow: 0 8px 28px rgba(24, 35, 30, 0.06);
+}
+
+@keyframes blockFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .db-block-header {
@@ -247,10 +300,13 @@
   padding: 24px;
   box-shadow: 0 2px 10px var(--color-shadow);
   transition: var(--transition-smooth);
+  animation: cardEntrance 0.4s ease both;
 }
 
 .vps-control-card:hover {
   border-color: var(--color-secondary);
+  box-shadow: 0 8px 24px rgba(24, 35, 30, 0.06);
+  transform: translateY(-2px);
 }
 
 .vps-card-main {
@@ -338,9 +394,25 @@
 
 .meter-bar {
   height: 100%;
-  background-color: var(--color-accent);
+  background: linear-gradient(90deg, var(--color-accent), var(--color-cool));
   border-radius: 4px;
-  transition: width 0.5s ease;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.meter-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .meter-bar.high {
@@ -385,6 +457,7 @@
 
 .db-table tr:hover td {
   background-color: var(--color-action-bg);
+  transition: background-color 0.2s ease;
 }
 
 .badge {
@@ -393,6 +466,7 @@
   font-size: 11px;
   font-weight: 600;
   border-radius: 4px;
+  transition: var(--transition-smooth);
 }
 
 .badge-open {
@@ -506,6 +580,12 @@
 
 .modal-overlay.active .modal-card {
   transform: translateY(0);
+  animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes modalPop {
+  from { transform: translateY(20px) scale(0.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .modal-header {
