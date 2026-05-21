@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, emit
@@ -869,10 +872,11 @@ def handle_terminal_connect(data):
 
         emit('terminal_output', {'output': ''})  # Signal connection success
 
-        # Start background reader thread
+        # Start background reader task
         def read_output():
             while True:
                 try:
+                    socketio.sleep(0.01)
                     if process.poll() is not None:
                         socketio.emit('terminal_output', {'output': '\r\n[Session ended]\r\n'}, room=sid)
                         break
@@ -890,8 +894,7 @@ def handle_terminal_connect(data):
             # Cleanup
             cleanup_terminal(sid)
 
-        thread = threading.Thread(target=read_output, daemon=True)
-        thread.start()
+        socketio.start_background_task(read_output)
 
     except Exception as e:
         emit('terminal_output', {'output': f'\r\n[ERROR] Failed to open terminal: {str(e)}\r\n'})
