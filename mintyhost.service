@@ -1,0 +1,15 @@
+[Unit]
+Description=MintyHost LXC Control Panel
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/lxc
+ExecStart=/root/lxc/venv/bin/gunicorn -w 1 --threads 100 -b 0.0.0.0:5000 app:app
+Restart=always
+RestartSec=5
+Environment=PATH=/root/lxc/venv/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
