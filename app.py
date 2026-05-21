@@ -854,7 +854,7 @@ def handle_terminal_connect(data):
         master_fd, slave_fd = pty.openpty()
 
         process = subprocess.Popen(
-            [LXC_BIN, 'exec', container_name, '--', '/bin/bash'],
+            [LXC_BIN, 'exec', container_name, '--env', 'TERM=xterm-256color', '--', '/bin/bash'],
             stdin=slave_fd,
             stdout=slave_fd,
             stderr=slave_fd,

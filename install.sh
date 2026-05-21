@@ -22,6 +22,9 @@ sudo snap install lxd
 echo "[*] Initializing LXD bridge configuration..."
 sudo lxd init --auto
 
+echo "[*] Setting active community images remote URL..."
+sudo /snap/bin/lxc remote set-url images https://images.lxd.canonical.com/ || true
+
 # If running as non-root user, ensure they belong to the lxd group
 if [ "$USER" != "root" ]; then
     echo "[*] Adding user $USER to the 'lxd' group..."

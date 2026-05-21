@@ -43,8 +43,14 @@ class LXCManager:
     @classmethod
     def deploy_container(cls, name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback=None):
         """Launches a real LXC container and configures resource limits."""
+        # Use official ubuntu: remote for Ubuntu, fallback to images: remote for community distros
+        if os_image.startswith('ubuntu/'):
+            image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
+        else:
+            image_source = f"images:{os_image}"
+
         steps = [
-            ('Downloading and launching container image...', ['lxc', 'launch', f'images:{os_image}', name]),
+            ('Downloading and launching container image...', ['lxc', 'launch', image_source, name]),
             ('Setting CPU core limit...', ['lxc', 'config', 'set', name, 'limits.cpu', str(cpu_cores)]),
             ('Setting RAM memory limit...', ['lxc', 'config', 'set', name, 'limits.memory', f'{ram_mb}MB']),
             ('Configuring root storage limit...', ['lxc', 'config', 'device', 'override', name, 'root', f'size={disk_gb}GB']),
