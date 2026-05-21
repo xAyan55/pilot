@@ -1,12 +1,21 @@
 import subprocess
+import shutil
 import json
 import re
+import os
+
+# Auto-detect lxc binary path (snap installs to /snap/bin/lxc)
+LXC_BIN = shutil.which('lxc') or '/snap/bin/lxc'
+if not os.path.exists(LXC_BIN):
+    LXC_BIN = 'lxc'  # fallback
 
 
 class LXCManager:
     @staticmethod
     def _run(cmd, check=True):
-        """Execute a shell command and return stdout."""
+        """Execute a shell command and return stdout. Replaces 'lxc' with full path."""
+        if cmd and cmd[0] == 'lxc':
+            cmd = [LXC_BIN] + cmd[1:]
         result = subprocess.run(cmd, capture_output=True, text=True, check=check)
         return result.stdout
 

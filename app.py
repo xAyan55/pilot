@@ -9,7 +9,7 @@ import subprocess
 import random
 import threading
 from database import get_db_connection, init_db
-from lxc_manager import LXCManager
+from lxc_manager import LXCManager, LXC_BIN
 
 # Linux-only modules for real PTY terminal bridge
 try:
@@ -499,7 +499,7 @@ def client_vps_backups(vps_id):
 
     try:
         subprocess.run(
-            ['lxc', 'export', vps_row['container_name'], export_path],
+            [LXC_BIN, 'export', vps_row['container_name'], export_path],
             capture_output=True, text=True, check=True, timeout=300
         )
         # Get real file size
@@ -851,7 +851,7 @@ def handle_terminal_connect(data):
         master_fd, slave_fd = pty.openpty()
 
         process = subprocess.Popen(
-            ['lxc', 'exec', container_name, '--', '/bin/bash'],
+            [LXC_BIN, 'exec', container_name, '--', '/bin/bash'],
             stdin=slave_fd,
             stdout=slave_fd,
             stderr=slave_fd,
