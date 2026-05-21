@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Close terminal session if switching tabs
         if (targetId !== 'panel-console' && socketObj) {
-          socketObj.close();
+          socketObj.disconnect();
           socketObj = null;
         }
 
@@ -328,7 +328,7 @@ function initResourceChart() {
   });
 }
 
-// 5. Web Console Connections
+// 5. Web Console Connections via Socket.IO + Real PTY
 window.connectTerminal = function() {
   const container = document.getElementById('terminal-container');
   const activeVpsName = getActiveVPSContainerName();
@@ -339,8 +339,8 @@ window.connectTerminal = function() {
   }
 
   container.innerHTML = '';
-  
-  // Create terminal
+
+  // Create xterm.js terminal
   terminalObj = new Terminal({
     cursorBlink: true,
     fontFamily: 'Courier New, monospace',
@@ -362,38 +362,54 @@ window.connectTerminal = function() {
     fitAddon.fit();
   }
 
-  terminalObj.write('Connecting to Virtual KVM Server...\r\n');
+  terminalObj.write('Connecting to real LXC container shell...\r\n');
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws/terminal/${activeVpsName}`;
+  // Disconnect previous socket if exists
+  if (socketObj) {
+    socketObj.disconnect();
+    socketObj = null;
+  }
 
-  if (socketObj) socketObj.close();
-  socketObj = new WebSocket(wsUrl);
+  // Connect via Socket.IO
+  socketObj = io();
 
-  socketObj.onopen = () => {
-    terminalObj.write('\x1b[32mDirect secure connection active.\x1b[0m\r\n');
-  };
+  socketObj.on('connect', () => {
+    terminalObj.write('\x1b[32mSocket connected. Attaching to container...\x1b[0m\r\n');
+    socketObj.emit('terminal_connect', { container_name: activeVpsName });
+  });
 
-  socketObj.onmessage = (event) => {
-    terminalObj.write(event.data);
-  };
+  socketObj.on('terminal_output', (data) => {
+    terminalObj.write(data.output);
+  });
 
-  socketObj.onclose = () => {
+  socketObj.on('disconnect', () => {
     terminalObj.write('\r\n\x1b[31m*** Console connection terminated ***\x1b[0m\r\n');
-  };
+  });
 
-  socketObj.onerror = () => {
-    terminalObj.write('\r\n\x1b[31m*** Terminal handshake failure ***\x1b[0m\r\n');
-  };
+  socketObj.on('connect_error', () => {
+    terminalObj.write('\r\n\x1b[31m*** Terminal connection failure ***\x1b[0m\r\n');
+  });
 
+  // Send keyboard input to backend PTY
   terminalObj.onData((data) => {
-    if (socketObj && socketObj.readyState === WebSocket.OPEN) {
-      socketObj.send(data);
+    if (socketObj && socketObj.connected) {
+      socketObj.emit('terminal_input', { input: data });
     }
   });
 
-  window.addEventListener('resize', () => {
+  // Handle terminal resize
+  const sendResize = () => {
     if (fitAddon) fitAddon.fit();
+    if (socketObj && socketObj.connected && terminalObj) {
+      socketObj.emit('terminal_resize', { cols: terminalObj.cols, rows: terminalObj.rows });
+    }
+  };
+
+  window.addEventListener('resize', sendResize);
+  terminalObj.onResize(({ cols, rows }) => {
+    if (socketObj && socketObj.connected) {
+      socketObj.emit('terminal_resize', { cols, rows });
+    }
   });
 };
 

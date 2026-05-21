@@ -30,12 +30,13 @@ fi
 
 echo "[*] Cloning repository to $INSTALL_DIR..."
 if [ -d "$INSTALL_DIR" ]; then
-    echo "[!] Directory $INSTALL_DIR already exists. Backing up..."
-    sudo mv "$INSTALL_DIR" "${INSTALL_DIR}_backup_$(date +%s)"
+    echo "[!] Directory $INSTALL_DIR already exists. Pulling latest..."
+    cd "$INSTALL_DIR"
+    git pull origin main
+else
+    git clone "$REPO_URL" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
 fi
-sudo git clone "$REPO_URL" "$INSTALL_DIR"
-
-cd "$INSTALL_DIR"
 
 echo "[*] Setting up virtual environment..."
 python3 -m venv venv
@@ -43,7 +44,7 @@ source venv/bin/activate
 
 echo "[*] Installing Python packages..."
 pip install --upgrade pip
-pip install -r requirements.txt gunicorn
+pip install -r requirements.txt
 
 echo "[*] Seeding database schema..."
 python seed.py
@@ -52,11 +53,12 @@ echo "[*] Registering and starting systemd service..."
 sudo cp "$INSTALL_DIR/mintyhost.service" /etc/systemd/system/mintyhost.service
 sudo systemctl daemon-reload
 sudo systemctl enable mintyhost.service
-sudo systemctl start mintyhost.service
+sudo systemctl restart mintyhost.service
 
 echo "=========================================================="
 echo " Installation Complete!"
 echo " The panel is now running under systemd (port 5000)."
+echo " Access it at: http://YOUR_SERVER_IP:5000"
 echo " Check status with: systemctl status mintyhost.service"
 echo "=========================================================="
 sudo systemctl status mintyhost.service
