@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{% endblock %} - {{ settings.get('site_name', 'MintyHost') }}</title>
+  
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_css %}{% endblock %}
+
+  <!-- Injected Dynamic Theme Colors -->
+  <style>
+    :root {
+      --color-primary: {{ settings.get('color_primary', '#ECF4E8') }};
+      --color-secondary: {{ settings.get('color_secondary', '#CBF3BB') }};
+      --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
+      --color-cool: {{ settings.get('color_cool', '#93BFC7') }};
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="/" class="logo">
+        <div class="logo-icon">M</div>
+        <span>{{ settings.get('site_name', 'MintyHost') }}</span>
+      </a>
+      
+      <ul class="nav-links">
+        <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Home</a></li>
+        <li><a href="/plans" class="nav-link {% if request.path == '/plans' %}active{% endif %}">VPS Plans</a></li>
+        <li><a href="/about" class="nav-link {% if request.path == '/about' %}active{% endif %}">About Us</a></li>
+        <li><a href="/faq" class="nav-link {% if request.path == '/faq' %}active{% endif %}">FAQ</a></li>
+        <li><a href="/tos" class="nav-link {% if request.path == '/tos' %}active{% endif %}">Terms</a></li>
+      </ul>
+      
+      <div class="nav-btns">
+        {% if session.get('user_id') %}
+          {% if session.get('is_admin') %}
+            <a href="/admin" class="btn btn-secondary"><i data-lucide="shield"></i> Admin Panel</a>
+          {% else %}
+            <a href="/client" class="btn btn-secondary"><i data-lucide="layout-dashboard"></i> Client Area</a>
+          {% endif %}
+          <a href="/logout" class="btn btn-outline">Logout</a>
+        {% else %}
+          <a href="/auth" class="btn btn-primary">Get Started</a>
+        {% endif %}
+      </div>
+
+      <button class="mobile-nav-toggle" aria-label="Toggle Navigation">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Block -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer Section -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="/" class="logo">
+            <div class="logo-icon">M</div>
+            <span>{{ settings.get('site_name', 'MintyHost') }}</span>
+          </a>
+          <p>Ultra-clean, high-performance virtual private servers built for modern developers.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Hosting</h4>
+          <ul class="footer-links">
+            <li><a href="/plans" class="footer-link">VPS Plans</a></li>
+            <li><a href="/plans" class="footer-link">NVMe VPS</a></li>
+            <li><a href="/plans" class="footer-link">Developer VPS</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul class="footer-links">
+            <li><a href="/about" class="footer-link">About Us</a></li>
+            <li><a href="/faq" class="footer-link">FAQ Accordion</a></li>
+            <li><a href="/tos" class="footer-link">Terms of Service</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Contact</h4>
+          <ul class="footer-links">
+            <li><a href="/client" class="footer-link">Support Desk</a></li>
+            <li><a href="#" class="footer-link">system@mintyhost.net</a></li>
+            <li><a href="#" class="footer-link">sales@mintyhost.net</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div>&copy; 2026 {{ settings.get('site_name', 'MintyHost') }}. All rights reserved.</div>
+        <div>Designed with a clean, flat aesthetic.</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification Wrapper -->
+  <div class="toast-container"></div>
+
+  <!-- Lucide Icons Library -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Global Application Scripts -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  
+  <!-- Flash Messaging Engine -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          {% for category, message in messages %}
+            window.showToast("{{ message }}", "{{ 'success' if category == 'success' else 'error' }}");
+          {% endfor %};
+        });
+      </script>
+    {% endif %}
+  {% endwith %}
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}VPS Hosting Plans & Pricing{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>High-Performance VPS Plans</h2>
+      <p>Configure and launch dedicated virtual environments instantly. Select a configuration that satisfies your throughput, compute, and memory criteria.</p>
+    </div>
+
+    <div class="plans-grid">
+      {% for plan in plans %}
+        <div class="plan-card {% if plan.name == 'Pro VPS' %}popular{% endif %}">
+          {% if plan.name == 'Pro VPS' %}
+            <span class="popular-badge">Most Popular</span>
+          {% endif %}
+          
+          <h3 class="plan-name">{{ plan.name }}</h3>
+          <div class="plan-price-wrapper">
+            <span class="plan-price">${{ "%.2f"|format(plan.price) }}</span>
+            <span style="font-size: 13px; color: var(--color-text-muted); margin-left: 8px; margin-right: 4px;">({{ plan.price_credits }} Credits)</span>
+            <span class="plan-period">/ month</span>
+          </div>
+
+          <ul class="plan-specs">
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.ram }}</strong> Dedicated RAM</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.cpu }}</strong> vCPU Core Allocation</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.storage }}</strong> NVMe Storage Unit</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.bandwidth }}</strong> Data Bandwidth Limit</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span>Root shell console & KVM virtualization</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span>Global IP address (IPv4 + IPv6 subnet)</span>
+            </li>
+          </ul>
+
+          {% if session.get('user_id') %}
+            <!-- Logged in: redirect to client panel, passing parameters to trigger deploy modal -->
+            <a href="/client?deploy_plan_id={{ plan.id }}&deploy_plan_name={{ plan.name|urlencode }}" class="btn {% if plan.name == 'Pro VPS' %}btn-primary{% else %}btn-outline{% endif %} plan-action">
+              Deploy VPS Instance <i data-lucide="cpu"></i>
+            </a>
+          {% else %}
+            <!-- Guest: redirect to authentication page, remembering redirection -->
+            <a href="/auth?redirect=/plans" class="btn {% if plan.name == 'Pro VPS' %}btn-primary{% else %}btn-outline{% endif %} plan-action">
+              Login to Deploy <i data-lucide="log-in"></i>
+            </a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Features details below -->
+    <div style="margin-top: 80px; padding: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background-color: var(--color-white);">
+      <h3 style="font-size: 20px; margin-bottom: 24px; text-align: center;">Frequently compared plan characteristics</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px;">
+        <div>
+          <h4 style="font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;"><i data-lucide="layers" style="width: 18px; color: var(--color-cool);"></i> Virtualization Layer</h4>
+          <p style="font-size: 13px; color: var(--color-text-muted);">Native Kernel-based Virtual Machine (KVM) technology provides low latency hardware accesses and total kernel isolation configurations.</p>
+        </div>
+        <div>
+          <h4 style="font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;"><i data-lucide="network" style="width: 18px; color: var(--color-cool);"></i> Network Adapters</h4>
+          <p style="font-size: 13px; color: var(--color-text-muted);">Each server is provisioned with a private primary IPv4 endpoint, secondary IPv6, and has a dedicated reverse DNS controller.</p>
+        </div>
+        <div>
+          <h4 style="font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;"><i data-lucide="refresh-cw" style="width: 18px; color: var(--color-cool);"></i> Reboot Automation</h4>
+          <p style="font-size: 13px; color: var(--color-text-muted);">Trigger remote system shutdowns, boot loads, or custom kernel installations with a single click from your web panel dashboard.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

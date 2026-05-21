@@ -1,0 +1,8 @@
+mintyhost.db
+__pycache__/
+*.pyc
+.system_generated/
+.idea/
+.vscode/
+venv/
+.env

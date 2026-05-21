@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client Area - MintyHost LXC</title>
+  
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+  <!-- xterm.js for web terminal -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  
+  <style>
+    :root {
+      --color-primary: #ECF4E8;
+      --color-secondary: #CBF3BB;
+      --color-accent: #ABE7B2;
+      --color-cool: #93BFC7;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="db-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="db-sidebar">
+      <div class="db-sidebar-header">
+        <a href="/" class="logo">
+          <div class="logo-icon">L</div>
+          <span>MintyHost LXC</span>
+        </a>
+      </div>
+      
+      <ul class="db-menu">
+        <li class="db-menu-item active">
+          <a href="#" data-target="panel-overview"><i data-lucide="layout-dashboard"></i> Overview</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-console"><i data-lucide="terminal"></i> Web Console</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-snapshots"><i data-lucide="camera"></i> Snapshots</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-backups"><i data-lucide="archive"></i> Backups</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-firewall"><i data-lucide="shield-alert"></i> Firewall</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-rebuild"><i data-lucide="refresh-cw"></i> Reinstall</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-settings"><i data-lucide="sliders"></i> Settings</a>
+        </li>
+        <li class="db-menu-item" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+          <a href="/logout" style="color: var(--color-danger);"><i data-lucide="log-out"></i> Log Out</a>
+        </li>
+      </ul>
+
+      <div class="db-sidebar-footer">
+        <div class="db-user-avatar">
+          {{ username[:2]|upper }}
+        </div>
+        <div class="db-user-info">
+          <div class="db-user-name" title="{{ username }}">{{ username }}</div>
+          <div class="db-user-role">Client Account</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <div class="db-main">
+      <header class="db-header">
+        <div class="db-title-area">
+          <button class="db-menu-toggle" aria-label="Toggle Sidebar Menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <h2 style="font-size: 20px; font-weight: 700;">Client Control Dashboard</h2>
+        </div>
+        <div class="db-actions-area" id="vps-selector-container" style="display: none;">
+          <span style="font-size: 13px; color: var(--color-text-muted);">Active Container:</span>
+          <select id="vps-selector" class="form-input" style="width: auto; padding: 4px 12px; margin-left: 8px;">
+            <!-- Seeded dynamically via JS -->
+          </select>
+        </div>
+      </header>
+
+      <div class="db-content">
+        
+        <!-- VPS Empty State Panel -->
+        <div id="vps-empty-state" class="text-center" style="display: none; padding: 60px; background-color: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-top: 24px;">
+          <i data-lucide="server" style="width: 64px; height: 64px; color: var(--color-cool); margin-bottom: 20px;"></i>
+          <h3 style="font-size: 22px; font-weight: 700; margin-bottom: 8px;">No virtual servers provisioned yet</h3>
+          <p style="color: var(--color-text-muted); max-width: 500px; margin: 0 auto 24px auto; font-size: 15px;">
+            An administrator has not allocated any LXC containers to your account yet. Please contact the administrator at <strong style="color: var(--color-text-main);">admin@mintyhost.local</strong> to configure your resources.
+          </p>
+        </div>
+
+        <!-- Main VPS Content Wrapper (Toggled by selector) -->
+        <div id="vps-active-wrapper" style="display: none;">
+          
+          <!-- Panel 1: Overview -->
+          <div class="db-tab-panel active" id="panel-overview">
+            
+            <!-- System metrics header -->
+            <div class="db-stats-grid">
+              <div class="db-stat-card">
+                <div class="db-stat-info">
+                  <label>Power Status</label>
+                  <div class="db-stat-value" id="status-val" style="display: flex; align-items: center; gap: 8px;">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Pending</span>
+                  </div>
+                </div>
+                <div class="db-stat-icon" id="status-icon"><i data-lucide="power"></i></div>
+              </div>
+              <div class="db-stat-card">
+                <div class="db-stat-info">
+                  <label>IPv4 Address</label>
+                  <div class="db-stat-value" id="ip-val" style="font-size: 18px; font-family: monospace;">Fetching...</div>
+                </div>
+                <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="globe"></i></div>
+              </div>
+              <div class="db-stat-card">
+                <div class="db-stat-info">
+                  <label>Container Uptime</label>
+                  <div class="db-stat-value" id="uptime-val" style="font-size: 18px;">Pending</div>
+                </div>
+                <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="clock"></i></div>
+              </div>
+            </div>
+
+            <!-- Quick power deck -->
+            <div class="db-block" style="margin-bottom: 24px;">
+              <div class="db-block-header" style="border-bottom: none; margin-bottom: 0;">
+                <h3>Container Power Options</h3>
+                <div style="display: flex; gap: 10px;">
+                  <button class="btn btn-secondary" id="btn-start" onclick="triggerVPSAction('start')"><i data-lucide="play"></i> Start</button>
+                  <button class="btn btn-outline" id="btn-stop" onclick="triggerVPSAction('stop')" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;"><i data-lucide="square"></i> Stop</button>
+                  <button class="btn btn-primary" id="btn-reboot" onclick="triggerVPSAction('restart')"><i data-lucide="refresh-cw"></i> Restart</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="db-grid" style="grid-template-columns: 2fr 1fr;">
+              <!-- Usage Meters -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Real-time Resource Allocations</h3>
+                </div>
+                
+                <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 24px;">
+                  <div class="meter-group">
+                    <label style="display: flex; justify-content: space-between;">
+                      <span>CPU Utilization (<span id="cpu-core-count">1</span> Core)</span>
+                      <strong id="cpu-percent">0%</strong>
+                    </label>
+                    <div class="meter-track">
+                      <div class="meter-bar" id="cpu-bar" style="width: 0%;"></div>
+                    </div>
+                  </div>
+                  <div class="meter-group">
+                    <label style="display: flex; justify-content: space-between;">
+                      <span>Memory Load (<span id="ram-limit-text">0 MB</span> Allocated)</span>
+                      <strong id="ram-usage-text">0 MB / 0 MB</strong>
+                    </label>
+                    <div class="meter-track">
+                      <div class="meter-bar" id="ram-bar" style="width: 0%;"></div>
+                    </div>
+                  </div>
+                  <div class="meter-group">
+                    <label style="display: flex; justify-content: space-between;">
+                      <span>Disk Space Capacity (<span id="disk-limit-text">0 GB</span> Total)</span>
+                      <strong id="disk-usage-text">0 GB / 0 GB</strong>
+                    </label>
+                    <div class="meter-track">
+                      <div class="meter-bar" id="disk-bar" style="width: 0%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- General Container Info -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Container Details</h3>
+                </div>
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                    <span style="color: var(--color-text-muted);">OS Template</span>
+                    <strong id="info-os">Debian 11</strong>
+                  </li>
+                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                    <span style="color: var(--color-text-muted);">Bridge Interface</span>
+                    <strong style="font-family: monospace;">lxdbr0</strong>
+                  </li>
+                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                    <span style="color: var(--color-text-muted);">Network Gateway</span>
+                    <strong style="font-family: monospace;">10.155.88.1</strong>
+                  </li>
+                  <li style="display: flex; justify-content: space-between; padding-bottom: 8px;">
+                    <span style="color: var(--color-text-muted);">Created At</span>
+                    <strong id="info-created">Pending</strong>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Resource Chart -->
+            <div class="db-block" style="margin-top: 24px;">
+              <div class="db-block-header">
+                <h3>CPU & RAM Performance Load Graph</h3>
+              </div>
+              <div class="chart-container" style="height: 220px; position: relative;">
+                <canvas id="resourceChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 2: Web Console -->
+          <div class="db-tab-panel" id="panel-console">
+            <div class="db-block">
+              <div class="db-block-header">
+                <h3>Virtual Browser Console</h3>
+                <button class="btn btn-secondary btn-small" id="btn-terminal-connect" onclick="connectTerminal()"><i data-lucide="terminal"></i> Connect Terminal</button>
+              </div>
+              <div style="background-color: #000; padding: 12px; border-radius: var(--radius-sm); margin-top: 16px; min-height: 380px;" id="terminal-container">
+                <!-- Terminal rendered here -->
+              </div>
+              <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 12px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="info" style="width: 14px; height: 14px;"></i> Connected directly to container environment root terminal via standard KVM security interface.
+              </p>
+            </div>
+          </div>
+
+          <!-- Panel 3: Snapshots -->
+          <div class="db-tab-panel" id="panel-snapshots">
+            <div class="db-grid" style="grid-template-columns: 1fr 2fr;">
+              <!-- Add Snapshot Card -->
+              <div class="db-block" style="height: fit-content;">
+                <div class="db-block-header">
+                  <h3>Take State Snapshot</h3>
+                </div>
+                <form id="createSnapshotForm" onsubmit="handleCreateSnapshot(event)" style="margin-top: 16px;">
+                  <div class="form-group">
+                    <label for="snapName">Snapshot Name (Alphanumeric)</label>
+                    <input type="text" id="snapName" class="form-input" placeholder="backupCleanState" required pattern="[a-zA-Z0-9]+">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="camera"></i> Save Snapshot</button>
+                </form>
+              </div>
+
+              <!-- Snapshots Table -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Container Snapshots</h3>
+                </div>
+                <table class="db-table" style="margin-top: 16px;">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Created Date</th>
+                      <th class="text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="snapshots-table-body">
+                    <!-- Insert dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 4: Backups -->
+          <div class="db-tab-panel" id="panel-backups">
+            <div class="db-block">
+              <div class="db-block-header">
+                <h3>Backups Tarball Manager</h3>
+                <button class="btn btn-primary" onclick="triggerBackup()"><i data-lucide="plus"></i> Run System Backup</button>
+              </div>
+              <table class="db-table" style="margin-top: 24px;">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Backup Size</th>
+                    <th>Date Generated</th>
+                    <th class="text-right">Download</th>
+                  </tr>
+                </thead>
+                <tbody id="backups-table-body">
+                  <!-- Insert dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Panel 5: Firewall Rules -->
+          <div class="db-tab-panel" id="panel-firewall">
+            <div class="db-grid" style="grid-template-columns: 1fr 2fr;">
+              <div class="db-block" style="height: fit-content;">
+                <div class="db-block-header">
+                  <h3>Add Protocol Rule</h3>
+                </div>
+                <form id="firewallForm" onsubmit="handleAddFirewall(event)" style="margin-top: 16px;">
+                  <div class="form-group">
+                    <label for="fwProtocol">Protocol</label>
+                    <select id="fwProtocol" class="form-input">
+                      <option value="TCP">TCP</option>
+                      <option value="UDP">UDP</option>
+                      <option value="ICMP">ICMP</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="fwPortGroup">
+                    <label for="fwPort">Port</label>
+                    <input type="number" id="fwPort" class="form-input" placeholder="80" required min="1" max="65535">
+                  </div>
+                  <div class="form-group">
+                    <label for="fwAction">Action</label>
+                    <select id="fwAction" class="form-input">
+                      <option value="ALLOW">ALLOW</option>
+                      <option value="DENY">DENY</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="plus-circle"></i> Save Firewall Rule</button>
+                </form>
+              </div>
+
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Active Inbound/Outbound Rules</h3>
+                </div>
+                <table class="db-table" style="margin-top: 16px;">
+                  <thead>
+                    <tr>
+                      <th>Protocol</th>
+                      <th>Port</th>
+                      <th>Action</th>
+                      <th>Created At</th>
+                      <th class="text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="firewall-table-body">
+                    <!-- Insert dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 6: Reinstall -->
+          <div class="db-tab-panel" id="panel-rebuild">
+            <div class="db-block" style="max-width: 600px; margin: 0 auto;">
+              <div class="db-block-header">
+                <h3>Reinstall OS (Full Format)</h3>
+              </div>
+              <div style="background-color: #fff9f0; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: var(--radius-sm); font-size: 13px; color: #78350f; display: flex; gap: 10px; align-items: start;">
+                <i data-lucide="alert-triangle" style="width: 20px; height: 20px; flex-shrink: 0;"></i>
+                <div>
+                  <strong>WARNING:</strong> Reinstalling deletes the container root device permanently. Make sure to back up or download crucial configurations before triggering.
+                </div>
+              </div>
+              <form id="reinstallForm" onsubmit="handleReinstall(event)">
+                <div class="form-group">
+                  <label for="reinstallOS">Select Operating System Template</label>
+                  <select id="reinstallOS" class="form-input">
+                    <option value="ubuntu/22.04">Ubuntu 22.04 LTS (images:ubuntu/22.04)</option>
+                    <option value="debian/11">Debian 11 Bullseye (images:debian/11)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="reinstallPassword">New Root Password</label>
+                  <input type="password" id="reinstallPassword" class="form-input" placeholder="••••••••" required minlength="6">
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label" style="margin-top: 10px;">
+                    <input type="checkbox" id="reinstallConfirm" required>
+                    <span>I confirm I want to wipe this server completely and reinstall the OS.</span>
+                  </label>
+                </div>
+                <button type="submit" class="btn btn-secondary" style="width: 100%;"><i data-lucide="refresh-cw"></i> Rebuild Container</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Panel 7: Settings -->
+          <div class="db-tab-panel" id="panel-settings">
+            <div class="db-grid" style="grid-template-columns: 1fr 1fr;">
+              <!-- Rename -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Rename Server Instance</h3>
+                </div>
+                <form id="renameForm" onsubmit="handleRename(event)" style="margin-top: 16px;">
+                  <div class="form-group">
+                    <label for="vpsNewName">New Alphanumeric Name</label>
+                    <input type="text" id="vpsNewName" class="form-input" placeholder="webSandbox" required pattern="[a-zA-Z0-9]+">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="edit-3"></i> Apply Rename</button>
+                </form>
+              </div>
+
+              <!-- Root Password -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Change Root Password</h3>
+                </div>
+                <form id="passwordForm" onsubmit="handleChangePassword(event)" style="margin-top: 16px;">
+                  <div class="form-group">
+                    <label for="rootPassword">New Root Credentials</label>
+                    <input type="password" id="rootPassword" class="form-input" placeholder="••••••••" required minlength="6">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="key"></i> Update Root Password</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js for real-time graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- xterm.js scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

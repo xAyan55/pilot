@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Frequently Asked Questions{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Frequently Asked Questions</h2>
+      <p>Have questions about virtual private servers, billing protocols, or resource limits? Find fast answers to standard developer questions below.</p>
+    </div>
+
+    <!-- Accordion FAQ List -->
+    <div class="faq-list">
+      {% for faq in faqs %}
+        <div class="faq-item" id="faq-item-{{ faq.id }}">
+          <button class="faq-question">
+            <span>{{ faq.question }}</span>
+            <i data-lucide="chevron-down" class="faq-icon-chevron" style="width: 18px; height: 18px; flex-shrink: 0;"></i>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              <p>{{ faq.answer }}</p>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="text-center" style="padding: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background-color: var(--color-white);">
+          <i data-lucide="help-circle" style="width: 48px; height: 48px; color: var(--color-text-muted); margin-bottom: 16px;"></i>
+          <p style="color: var(--color-text-muted);">No FAQs have been set up yet. Check back soon!</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Sub-CTA for Support desk -->
+    <div class="text-center" style="margin-top: 60px;">
+      <p style="color: var(--color-text-muted); font-size: 15px; margin-bottom: 16px;">Can't find the answer you are looking for?</p>
+      {% if session.get('user_id') %}
+        <a href="/client" class="btn btn-secondary"><i data-lucide="message-square"></i> Open a Support Ticket</a>
+      {% else %}
+        <a href="/auth" class="btn btn-secondary"><i data-lucide="log-in"></i> Login to Contact Support</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

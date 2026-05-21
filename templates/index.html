@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Modern VPS Hosting Built For Performance{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-content">
+        <h1>Modern VPS Hosting Built For Performance</h1>
+        <p>Deploy lightning-fast KVM virtual private servers with enterprise-grade NVMe drives, dedicated RAM, and high-speed bandwidth in under 55 seconds. No bloat, no hidden fees.</p>
+        <div class="hero-actions">
+          <a href="/auth" class="btn btn-primary btn-lg"><i data-lucide="cpu"></i> Get Started</a>
+          <a href="/plans" class="btn btn-outline btn-lg"><i data-lucide="layers"></i> View Plans</a>
+        </div>
+      </div>
+      <div class="hero-graphic">
+        <div class="hero-card-preview">
+          <div class="hero-card-header">
+            <div>
+              <h3 style="font-size: 16px; font-weight: 700;">Instance: starter-vps-01</h3>
+              <span style="font-size: 12px; color: var(--color-text-muted);">IP: 198.51.100.42</span>
+            </div>
+            <div class="hero-card-status">
+              <span class="status-dot"></span>
+              <span>Running</span>
+            </div>
+          </div>
+          <div class="hero-card-details">
+            <div class="details-box">
+              <label>RAM</label>
+              <span>2 GB Dedicated</span>
+            </div>
+            <div class="details-box">
+              <label>vCPU</label>
+              <span>1 Core KVM</span>
+            </div>
+            <div class="details-box">
+              <label>Storage</label>
+              <span>40 GB NVMe</span>
+            </div>
+            <div class="details-box">
+              <label>Bandwidth</label>
+              <span>2 TB Allocation</span>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 12px; color: var(--color-text-muted);">
+              Uptime: <strong>14d 6h 22m</strong>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; cursor: default;"><i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Reboot</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Company Intro & VPS Features Section -->
+<section class="section" style="background-color: var(--color-primary);">
+  <div class="container">
+    <div class="section-header">
+      <h2>Engineered For Developers</h2>
+      <p>We build our nodes on bare-metal architectures with high-spec physical resources. Enjoy full root access and complete virtualization isolation.</p>
+    </div>
+    
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-icon">
+          <i data-lucide="zap"></i>
+        </div>
+        <h3>NVMe Storage Arrays</h3>
+        <p>We use high-throughput PCIe Gen4 NVMe enterprise storage modules to provide up to 10x the reading speed of traditional SSDs.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <i data-lucide="shield-check"></i>
+        </div>
+        <h3>Pure KVM Virtualization</h3>
+        <p>No oversold nodes. KVM virtualization guarantees your RAM, vCPU cores, and storage are fully isolated and dedicated to your workspace.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <i data-lucide="globe"></i>
+        </div>
+        <h3>10 Gbps Uplinks</h3>
+        <p>Our host hypervisors connect to redundant carrier-grade uplinks to maintain high network throughput and ultra-low ping times worldwide.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing Preview Section -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Simple, Flat-rate Pricing</h2>
+      <p>Choose the plan that suits your application needs. Scale upward at any time without downtime or IP reallocations.</p>
+    </div>
+    
+    <div class="plans-grid">
+      {% for plan in plans[:3] %}
+        <div class="plan-card {% if plan.name == 'Pro VPS' %}popular{% endif %}">
+          {% if plan.name == 'Pro VPS' %}
+            <span class="popular-badge">Recommended</span>
+          {% endif %}
+          <h3 class="plan-name">{{ plan.name }}</h3>
+          <div class="plan-price-wrapper">
+            <span class="plan-price">${{ "%.2f"|format(plan.price) }}</span>
+            <span class="plan-period">/ month</span>
+          </div>
+          
+          <ul class="plan-specs">
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.ram }}</strong> Dedicated RAM</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.cpu }}</strong> AMD EPYC Core</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.storage }}</strong> NVMe Storage</span>
+            </li>
+            <li class="plan-spec-item">
+              <span class="spec-icon"><i data-lucide="check" style="width: 12px; height: 12px;"></i></span>
+              <span><strong>{{ plan.bandwidth }}</strong> Data Bandwidth</span>
+            </li>
+          </ul>
+          
+          <a href="/plans" class="btn {% if plan.name == 'Pro VPS' %}btn-primary{% else %}btn-outline{% endif %} plan-action">
+            Deploy Now <i data-lucide="arrow-right"></i>
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+    
+    <div class="text-center mt-4">
+      <a href="/plans" style="font-weight: 600; color: var(--color-text-muted); display: inline-flex; align-items: center; gap: 6px;" class="footer-link">
+        View all hosting configurations <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Statistics Section -->
+<section class="section" style="padding-top: 0;">
+  <div class="container">
+    <div class="stats-bar">
+      <div class="stat-item">
+        <h3>99.99%</h3>
+        <p>Uptime SLA Guarantee</p>
+      </div>
+      <div class="stat-item">
+        <h3>55s</h3>
+        <p>Average Provisioning Time</p>
+      </div>
+      <div class="stat-item">
+        <h3>15k+</h3>
+        <p>Virtual Nodes Deployed</p>
+      </div>
+      <div class="stat-item">
+        <h3>3</h3>
+        <p>Global Datacenters</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Why Choose Us / Value Proposition -->
+<section class="section" style="background-color: var(--color-primary); border-radius: var(--radius-lg); margin: 0 24px;">
+  <div class="container">
+    <div class="hero-grid" style="grid-template-columns: 0.9fr 1.1fr;">
+      <div>
+        <h2 style="font-size: 32px; margin-bottom: 24px;">Why developers trust {{ settings.get('site_name', 'MintyHost') }}</h2>
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <div style="display: flex; gap: 16px;">
+            <div class="spec-icon" style="background-color: var(--color-cool); color: var(--color-white); flex-shrink: 0;"><i data-lucide="arrow-up" style="width: 14px; height: 14px;"></i></div>
+            <div>
+              <h4 style="font-size: 16px; margin-bottom: 4px;">Uptime Monitoring</h4>
+              <p style="font-size: 13px; color: var(--color-text-muted);">We continually verify the state of physical hypervisors and host nodes 24/7/365.</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 16px;">
+            <div class="spec-icon" style="background-color: var(--color-cool); color: var(--color-white); flex-shrink: 0;"><i data-lucide="lock" style="width: 14px; height: 14px;"></i></div>
+            <div>
+              <h4 style="font-size: 16px; margin-bottom: 4px;">DDoS Shield Mitigation</h4>
+              <p style="font-size: 13px; color: var(--color-text-muted);">Free basic protection shields client servers from high-volume traffic bursts and floods.</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 16px;">
+            <div class="spec-icon" style="background-color: var(--color-cool); color: var(--color-white); flex-shrink: 0;"><i data-lucide="terminal" style="width: 14px; height: 14px;"></i></div>
+            <div>
+              <h4 style="font-size: 16px; margin-bottom: 4px;">Root Shell Control</h4>
+              <p style="font-size: 13px; color: var(--color-text-muted);">Full root and VNC capability allows complete OS modifications and application installs.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; justify-content: center; padding-left: 20px;">
+        <h3 style="font-size: 20px; margin-bottom: 16px;">No Overselling. Period.</h3>
+        <p style="color: var(--color-text-muted); font-size: 15px; margin-bottom: 24px;">Many VPS providers sell up to 150% of their actual host node CPU and RAM resources, betting that clients won't use them all at once. When usage spikes, everyone's performance tanks.</p>
+        <p style="color: var(--color-text-muted); font-size: 15px;">At MintyHost, we operate on a strict allocation policy. Every gigabyte of RAM and every CPU cycle you rent is locked and assigned to your instance. Your server will run at 100% efficiency, day and night.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Testimonials Section -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>What Developers Say</h2>
+      <p>Read opinions and feedback from software developers, devops teams, and startups who run their workloads with us.</p>
+    </div>
+    
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+        </div>
+        <p class="testimonial-text">"Deploying nodes is incredibly fast. The NVMe performance is solid, and I've seen zero CPU throttling compared to our old cloud host. Truly a minimal developer-first platform."</p>
+        <div class="testimonial-user">
+          <div class="testimonial-avatar">JD</div>
+          <div>
+            <div class="user-name">Josh Davis</div>
+            <div class="user-company">Backend Lead, CloudSync</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+          <i data-lucide="star" style="fill: var(--color-accent);"></i>
+        </div>
+        <p class="testimonial-text">"I love the clean, flat UI dashboard. Managing tickets and server reboots is snappy. Best of all, their flat-rate plans mean our billing is predictable every month."</p>
+        <div class="testimonial-user">
+          <div class="testimonial-avatar">EM</div>
+          <div>
+            <div class="user-name">Elena Moretti</div>
+            <div class="user-company">Co-Founder, MintyApp</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="section" style="padding-bottom: 0;">
+  <div class="container">
+    <div class="cta-banner">
+      <h2>Build Your Sandbox Today</h2>
+      <p>Experience the performance of pure KVM virtualization. Choose your plan, select an OS, and get online in less than 55 seconds.</p>
+      <a href="/plans" class="btn btn-primary btn-lg"><i data-lucide="rocket"></i> Deploy Your VPS Now</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

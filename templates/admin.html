@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Control - MintyHost LXC</title>
+  
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+  <style>
+    :root {
+      --color-primary: #ECF4E8;
+      --color-secondary: #CBF3BB;
+      --color-accent: #ABE7B2;
+      --color-cool: #93BFC7;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="db-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="db-sidebar">
+      <div class="db-sidebar-header">
+        <a href="/" class="logo">
+          <div class="logo-icon">M</div>
+          <span>MintyHost LXC</span>
+        </a>
+      </div>
+      
+      <ul class="db-menu">
+        <li class="db-menu-item active">
+          <a href="#" data-target="panel-overview"><i data-lucide="bar-chart-2"></i> Overview</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-deploy"><i data-lucide="plus-circle"></i> Deploy VPS</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-containers"><i data-lucide="server"></i> Virtual Servers</a>
+        </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-logs"><i data-lucide="file-text"></i> Audit Logs</a>
+        </li>
+        <li class="db-menu-item" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+          <a href="/logout" style="color: var(--color-danger);"><i data-lucide="log-out"></i> Log Out</a>
+        </li>
+      </ul>
+
+      <div class="db-sidebar-footer">
+        <div class="db-user-avatar" style="background-color: var(--color-accent);">
+          AD
+        </div>
+        <div class="db-user-info">
+          <div class="db-user-name" title="{{ username }}">{{ username }}</div>
+          <div class="db-user-role">Administrator</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <div class="db-main">
+      <header class="db-header">
+        <div class="db-title-area">
+          <button class="db-menu-toggle" aria-label="Toggle Sidebar Menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <h2 style="font-size: 20px; font-weight: 700;">Host Node Administrator</h2>
+        </div>
+      </header>
+
+      <div class="db-content">
+        
+        <!-- Panel 1: Overview -->
+        <div class="db-tab-panel active" id="panel-overview">
+          <div class="db-stats-grid">
+            <div class="db-stat-card">
+              <div class="db-stat-info">
+                <label>Active Virtual Servers</label>
+                <div class="db-stat-value" id="stats-vps-count">0</div>
+              </div>
+              <div class="db-stat-icon"><i data-lucide="server"></i></div>
+            </div>
+            <div class="db-stat-card">
+              <div class="db-stat-info">
+                <label>Total CPU Cores Allocated</label>
+                <div class="db-stat-value" id="stats-cpu-count">0 Cores</div>
+              </div>
+              <div class="db-stat-icon"><i data-lucide="cpu"></i></div>
+            </div>
+            <div class="db-stat-card">
+              <div class="db-stat-info">
+                <label>Total RAM Allocated</label>
+                <div class="db-stat-value" id="stats-ram-allocated">0 MB</div>
+              </div>
+              <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="layers"></i></div>
+            </div>
+            <div class="db-stat-card">
+              <div class="db-stat-info">
+                <label>Registered Clients</label>
+                <div class="db-stat-value" id="stats-clients-count">0</div>
+              </div>
+              <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="users"></i></div>
+            </div>
+          </div>
+
+          <!-- Host Node Stats -->
+          <div class="db-grid" style="grid-template-columns: 2fr 1fr; margin-bottom: 32px;">
+            <div class="db-block">
+              <div class="db-block-header">
+                <h3>Host Node Resource Utilization</h3>
+              </div>
+              <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 24px;">
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Host Hypervisor CPU Core Usage</span>
+                    <strong id="node-cpu-percent">0%</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="node-cpu-bar" style="width: 0%;"></div>
+                  </div>
+                </div>
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Host Node Memory Allocation Load</span>
+                    <strong id="node-ram-usage">0 MB / 16384 MB</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="node-ram-bar" style="width: 0%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="db-block">
+              <div class="db-block-header">
+                <h3>LXD Environment</h3>
+              </div>
+              <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                  <span style="color: var(--color-text-muted);">LXC Version</span>
+                  <strong>5.0+ LTS</strong>
+                </li>
+                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                  <span style="color: var(--color-text-muted);">Bridge Interface</span>
+                  <strong style="font-family: monospace;">lxdbr0</strong>
+                </li>
+                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+                  <span style="color: var(--color-text-muted);">IP Gateway</span>
+                  <strong style="font-family: monospace;">10.155.88.1</strong>
+                </li>
+                <li style="display: flex; justify-content: space-between; padding-bottom: 8px;">
+                  <span style="color: var(--color-text-muted);">Mock Fallback</span>
+                  <strong id="mock-badge" style="color: var(--color-cool);">Checking...</strong>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Quick logs -->
+          <div class="db-block">
+            <div class="db-block-header">
+              <h3>Recent Audit Log Actions</h3>
+              <a href="#" onclick="showAuditTab()" style="font-size: 13px; color: var(--color-cool); font-weight: 600;">View All Logs</a>
+            </div>
+            <div class="db-table-wrapper">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>Log ID</th>
+                    <th>User</th>
+                    <th>Action Activity</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="quick-logs-body">
+                  <!-- JS Injection -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Deploy VPS -->
+        <div class="db-tab-panel" id="panel-deploy">
+          <div class="db-block" style="max-width: 700px; margin: 0 auto;">
+            <div class="db-block-header">
+              <h3>Provision Virtual Server Instance</h3>
+            </div>
+            
+            <form id="deployVPSForm" onsubmit="handleDeployVPS(event)" style="margin-top: 16px;">
+              <div class="form-group">
+                <label for="deployName">Virtual Server Hostname (e.g. webserver)</label>
+                <input type="text" id="deployName" class="form-input" placeholder="webserver" required pattern="[a-zA-Z0-9\-]+">
+                <small style="font-size: 11px; color: var(--color-text-muted);">Alphanumeric name. The backend automatically appends random suffix.</small>
+              </div>
+
+              <div class="form-group">
+                <label for="deployOwner">Owner Client Account</label>
+                <select id="deployOwner" class="form-input" required>
+                  <option value="" disabled selected>Select client...</option>
+                  <!-- Populated from users api -->
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="deployOS">OS Installation Template</label>
+                <select id="deployOS" class="form-input" required>
+                  <option value="ubuntu/22.04">Ubuntu 22.04 LTS (images:ubuntu/22.04)</option>
+                  <option value="debian/11">Debian 11 Bullseye (images:debian/11)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label style="display: flex; justify-content: space-between;">
+                  <span>vCPU Cores limit</span>
+                  <strong id="cpu-slider-val">2 Cores</strong>
+                </label>
+                <input type="range" id="deployCPU" min="1" max="8" value="2" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployCPUVal(this.value)">
+              </div>
+
+              <div class="form-group">
+                <label style="display: flex; justify-content: space-between;">
+                  <span>RAM Memory limit (MB)</span>
+                  <strong id="ram-slider-val">2048 MB</strong>
+                </label>
+                <input type="range" id="deployRAM" min="512" max="8192" step="512" value="2048" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployRAMVal(this.value)">
+              </div>
+
+              <div class="form-group">
+                <label style="display: flex; justify-content: space-between;">
+                  <span>NVMe Root Storage size (GB)</span>
+                  <strong id="disk-slider-val">20 GB</strong>
+                </label>
+                <input type="range" id="deployDisk" min="10" max="100" step="5" value="20" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployDiskVal(this.value)">
+              </div>
+
+              <div class="form-group">
+                <label for="deployPassword">Default Root Password</label>
+                <input type="password" id="deployPassword" class="form-input" placeholder="••••••••" required minlength="6">
+              </div>
+
+              <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
+                <i data-lucide="play-circle"></i> Deploy Container Instance
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Panel 3: Virtual Servers Table -->
+        <div class="db-tab-panel" id="panel-containers">
+          <div class="db-block">
+            <div class="db-block-header">
+              <h3>Active Containers Cluster</h3>
+            </div>
+            
+            <div class="db-table-wrapper" style="margin-top: 16px;">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>Container Name</th>
+                    <th>Client Owner</th>
+                    <th>OS Template</th>
+                    <th>Hardware Profile</th>
+                    <th>IPv4 Address</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="containers-table-body">
+                  <!-- Populate dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 4: Audit Logs -->
+        <div class="db-tab-panel" id="panel-logs">
+          <div class="db-block">
+            <div class="db-block-header">
+              <h3>Security & Operation Logs</h3>
+            </div>
+            <div class="db-table-wrapper" style="margin-top: 16px;">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>Log ID</th>
+                    <th>Target User</th>
+                    <th>Executed Action</th>
+                    <th>Action Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody id="full-logs-body">
+                  <!-- Populate dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- SSE Provisioning Overlay Modal -->
+  <div class="modal-overlay" id="deployLogModal">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>LXD Provisioning logs</h3>
+        <button class="modal-close" id="closeDeployModal" style="display: none;" onclick="closeDeployModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="deploy-progress-container" style="margin-bottom: 16px;">
+          <div class="deploy-progress-bar" style="height: 6px; background-color: var(--color-border); border-radius: 3px; overflow: hidden;">
+            <div id="deploy-progress-fill" style="height: 100%; width: 0%; background-color: var(--color-cool); transition: width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <div style="background-color: #000; color: #fff; padding: 16px; border-radius: var(--radius-sm); font-family: monospace; font-size: 13px; min-height: 250px; max-height: 350px; overflow-y: auto;" id="deploy-terminal-logs">
+          <!-- Dynamically populated stream lines -->
+        </div>
+        
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary" id="btn-close-deploy" style="display: none;" onclick="closeDeployModal()">Close Console</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>
