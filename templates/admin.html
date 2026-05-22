@@ -15,6 +15,32 @@
       --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
       --color-cool: {{ settings.get('color_cool', '#93BFC7') }};
     }
+
+    .theme-preset-card {
+      position: relative;
+      border: 1px solid var(--color-border);
+      padding: 12px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: var(--transition-smooth);
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .theme-preset-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--color-accent);
+      box-shadow: 0 4px 12px var(--color-shadow);
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .theme-preset-card.active {
+      border-color: var(--color-accent);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 0 2px var(--color-accent);
+    }
   </style>
 </head>
 <body>
@@ -324,6 +350,54 @@
                   <label for="brandSiteName">Hosting Brand Name</label>
                   <input type="text" id="brandSiteName" class="form-input" value="{{ settings.get('site_name', 'MintyHost LXC') }}" required>
                 </div>
+
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 20px;">
+                  <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--color-text-main);">Quick Theme Presets</label>
+                  <div class="theme-presets-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    
+                    <div class="theme-preset-card" data-primary="#6367FF" data-secondary="#8494FF" data-accent="#C9BEFF" data-cool="#FFDBFD">
+                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Indigo Lavender</div>
+                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
+                        <div style="flex: 1; background-color: #6367FF;" title="Primary: #6367FF"></div>
+                        <div style="flex: 1; background-color: #8494FF;" title="Secondary: #8494FF"></div>
+                        <div style="flex: 1; background-color: #C9BEFF;" title="Accent: #C9BEFF"></div>
+                        <div style="flex: 1; background-color: #FFDBFD;" title="Cool: #FFDBFD"></div>
+                      </div>
+                    </div>
+
+                    <div class="theme-preset-card" data-primary="#280905" data-secondary="#740A03" data-accent="#C3110C" data-cool="#E6501B">
+                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Crimson Sunset</div>
+                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
+                        <div style="flex: 1; background-color: #280905;" title="Primary: #280905"></div>
+                        <div style="flex: 1; background-color: #740A03;" title="Secondary: #740A03"></div>
+                        <div style="flex: 1; background-color: #C3110C;" title="Accent: #C3110C"></div>
+                        <div style="flex: 1; background-color: #E6501B;" title="Cool: #E6501B"></div>
+                      </div>
+                    </div>
+
+                    <div class="theme-preset-card" data-primary="#2C5EAD" data-secondary="#1591DC" data-accent="#4BB8FA" data-cool="#C4E2F5">
+                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Classic Ocean</div>
+                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
+                        <div style="flex: 1; background-color: #2C5EAD;" title="Primary: #2C5EAD"></div>
+                        <div style="flex: 1; background-color: #1591DC;" title="Secondary: #1591DC"></div>
+                        <div style="flex: 1; background-color: #4BB8FA;" title="Accent: #4BB8FA"></div>
+                        <div style="flex: 1; background-color: #C4E2F5;" title="Cool: #C4E2F5"></div>
+                      </div>
+                    </div>
+
+                    <div class="theme-preset-card" data-primary="#404258" data-secondary="#474E68" data-accent="#50577A" data-cool="#6B728E">
+                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Slate Charcoal</div>
+                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
+                        <div style="flex: 1; background-color: #404258;" title="Primary: #404258"></div>
+                        <div style="flex: 1; background-color: #474E68;" title="Secondary: #474E68"></div>
+                        <div style="flex: 1; background-color: #50577A;" title="Accent: #50577A"></div>
+                        <div style="flex: 1; background-color: #6B728E;" title="Cool: #6B728E"></div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
                   <div class="form-group">
                     <label for="brandColorPrimary">Primary Color</label>

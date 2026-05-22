@@ -93,6 +93,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // 3b. Bind Theme Presets
+  const presetCards = document.querySelectorAll('.theme-preset-card');
+  if (presetCards.length > 0) {
+    function highlightActivePreset() {
+      const currentPrimary = document.getElementById('brandColorPrimaryText')?.value?.toUpperCase();
+      const currentSecondary = document.getElementById('brandColorSecondaryText')?.value?.toUpperCase();
+      const currentAccent = document.getElementById('brandColorAccentText')?.value?.toUpperCase();
+      const currentCool = document.getElementById('brandColorCoolText')?.value?.toUpperCase();
+
+      presetCards.forEach(card => {
+        const primary = card.getAttribute('data-primary')?.toUpperCase();
+        const secondary = card.getAttribute('data-secondary')?.toUpperCase();
+        const accent = card.getAttribute('data-accent')?.toUpperCase();
+        const cool = card.getAttribute('data-cool')?.toUpperCase();
+
+        if (currentPrimary === primary &&
+            currentSecondary === secondary &&
+            currentAccent === accent &&
+            currentCool === cool) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
+      });
+    }
+
+    presetCards.forEach(card => {
+      card.addEventListener('click', () => {
+        const primary = card.getAttribute('data-primary');
+        const secondary = card.getAttribute('data-secondary');
+        const accent = card.getAttribute('data-accent');
+        const cool = card.getAttribute('data-cool');
+
+        const colorMapping = {
+          Primary: primary,
+          Secondary: secondary,
+          Accent: accent,
+          Cool: cool
+        };
+
+        for (const [name, color] of Object.entries(colorMapping)) {
+          const picker = document.getElementById(`brandColor${name}`);
+          const text = document.getElementById(`brandColor${name}Text`);
+          if (picker && text && color) {
+            picker.value = color;
+            text.value = color.toUpperCase();
+          }
+        }
+        highlightActivePreset();
+      });
+    });
+
+    // Run active highlight on page load
+    highlightActivePreset();
+
+    // Listen to changes to dynamically update preset highlight state
+    ['Primary', 'Secondary', 'Accent', 'Cool'].forEach(colorName => {
+      const picker = document.getElementById(`brandColor${colorName}`);
+      const text = document.getElementById(`brandColor${colorName}Text`);
+      if (picker) picker.addEventListener('input', highlightActivePreset);
+      if (text) text.addEventListener('input', highlightActivePreset);
+    });
+  }
+
   // Mobile Sidebar Toggle
   const dbToggle = document.querySelector('.db-menu-toggle');
   const dbSidebar = document.querySelector('.db-sidebar');
