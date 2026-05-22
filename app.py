@@ -1,5 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
+import eventlet.debug
+eventlet.debug.hub_prevent_multiple_readers(False)
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
