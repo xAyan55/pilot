@@ -279,16 +279,29 @@
 
           <!-- Panel 2: Web Console -->
           <div class="db-tab-panel" id="panel-console">
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Virtual Browser Console</h3>
-                <button class="btn btn-secondary btn-small" id="btn-terminal-connect" onclick="connectTerminal()"><i data-lucide="terminal"></i> Connect Terminal</button>
+            <div class="db-block" style="padding: 0; border: none; background: transparent; box-shadow: none;">
+              <div class="terminal-toolbar">
+                <div class="terminal-toolbar-title" style="color: var(--color-white); display: flex; align-items: center; gap: 12px;">
+                  <span class="active-os-icon os-ubuntu" id="console-os-badge" style="width: 24px; height: 24px; font-size: 12px; box-shadow: none;">U</span>
+                  <span id="console-os-text" style="font-weight: 700; color: var(--color-white);">OS: Ubuntu</span>
+                  <span class="vps-status-badge running" id="console-status-badge" style="padding: 2px 8px; font-size: 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; background-color: var(--color-white); border: 2px solid var(--color-border); color: var(--color-text-main); font-weight: bold; box-shadow: 1px 1px 0px var(--color-border);">
+                    <span class="status-dot"></span>
+                    <span id="console-status-text" style="text-transform: uppercase;">CONNECTED</span>
+                  </span>
+                </div>
+                <div class="terminal-controls">
+                  <button class="terminal-control-btn" onclick="connectTerminal()"><i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Reconnect</button>
+                  <button class="terminal-control-btn" onclick="clearTerminal()"><i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Clear</button>
+                  <button class="terminal-control-btn" onclick="adjustTerminalFont(-1)"><i data-lucide="zoom-out" style="width: 12px; height: 12px;"></i> A-</button>
+                  <button class="terminal-control-btn" onclick="adjustTerminalFont(1)"><i data-lucide="zoom-in" style="width: 12px; height: 12px;"></i> A+</button>
+                  <button class="terminal-control-btn" id="btn-terminal-fullscreen" onclick="toggleTerminalFullscreen()"><i data-lucide="maximize" style="width: 12px; height: 12px;"></i> Fullscreen</button>
+                </div>
               </div>
-              <div style="background-color: #000; padding: 12px; border-radius: var(--radius-sm); margin-top: 16px; min-height: 380px;" id="terminal-container">
+              <div id="terminal-container" style="min-height: 600px;">
                 <!-- Terminal rendered here -->
               </div>
-              <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 12px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="info" style="width: 14px; height: 14px;"></i> Connected directly to container environment root terminal via standard KVM security interface.
+              <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 16px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="info" style="width: 14px; height: 14px;"></i> Connected directly to container environment root terminal via standard KVM security interface. If terminal feels laggy, use standard SSH.
               </p>
             </div>
           </div>

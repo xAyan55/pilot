@@ -7,6 +7,7 @@ let gridStatsInterval = null;
 let resourceChart = null;
 let terminalObj = null;
 let socketObj = null;
+let fitAddonObj = null;
 let isChartPrepopulated = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,6 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetId !== 'panel-console' && socketObj) {
           socketObj.disconnect();
           socketObj = null;
+        }
+
+        // Auto-connect terminal when clicking console tab
+        if (targetId === 'panel-console') {
+          setTimeout(() => {
+            connectTerminal();
+          }, 150);
         }
 
         // Mobile close sidebar
@@ -458,6 +466,15 @@ window.selectAndManageVPS = function(vpsId) {
     osIcon.className = `active-os-icon ${isUbuntu ? 'os-ubuntu' : 'os-debian'}`;
   }
 
+  // Update Console Tab Toolbar OS Details
+  const consoleOsBadge = document.getElementById('console-os-badge');
+  const consoleOsText = document.getElementById('console-os-text');
+  if (consoleOsBadge && consoleOsText) {
+    consoleOsBadge.textContent = osLetter;
+    consoleOsBadge.className = `active-os-icon ${isUbuntu ? 'os-ubuntu' : 'os-debian'}`;
+    consoleOsText.textContent = `OS: ${isUbuntu ? 'Ubuntu' : 'Debian'}`;
+  }
+
   const activeCard = document.getElementById('active-server-card');
   if (activeCard) activeCard.style.display = 'flex';
 
@@ -815,6 +832,7 @@ window.connectTerminal = function() {
   if (window.FitAddon && window.FitAddon.FitAddon) {
     fitAddon = new window.FitAddon.FitAddon();
     terminalObj.loadAddon(fitAddon);
+    fitAddonObj = fitAddon;
   }
 
   terminalObj.open(container);
@@ -830,12 +848,24 @@ window.connectTerminal = function() {
     socketObj = null;
   }
 
+  // Set console status toolbar to CONNECTING
+  const statusText = document.getElementById('console-status-text');
+  const statusBadge = document.getElementById('console-status-badge');
+  if (statusText) statusText.textContent = 'CONNECTING';
+  if (statusBadge) {
+    statusBadge.className = 'vps-status-badge suspended';
+  }
+
   // Connect via Socket.IO
   socketObj = io();
 
   socketObj.on('connect', () => {
     terminalObj.write('\x1b[32mSocket connected. Attaching to container...\x1b[0m\r\n');
     socketObj.emit('terminal_connect', { container_name: activeVpsName });
+    if (statusText) statusText.textContent = 'CONNECTED';
+    if (statusBadge) {
+      statusBadge.className = 'vps-status-badge running';
+    }
   });
 
   socketObj.on('terminal_output', (data) => {
@@ -844,10 +874,18 @@ window.connectTerminal = function() {
 
   socketObj.on('disconnect', () => {
     terminalObj.write('\r\n\x1b[31m*** Console connection terminated ***\x1b[0m\r\n');
+    if (statusText) statusText.textContent = 'DISCONNECTED';
+    if (statusBadge) {
+      statusBadge.className = 'vps-status-badge stopped';
+    }
   });
 
   socketObj.on('connect_error', () => {
     terminalObj.write('\r\n\x1b[31m*** Terminal connection failure ***\x1b[0m\r\n');
+    if (statusText) statusText.textContent = 'FAILED';
+    if (statusBadge) {
+      statusBadge.className = 'vps-status-badge stopped';
+    }
   });
 
   // Send keyboard input to backend PTY
@@ -859,7 +897,7 @@ window.connectTerminal = function() {
 
   // Handle terminal resize
   const sendResize = () => {
-    if (fitAddon) fitAddon.fit();
+    if (fitAddonObj) fitAddonObj.fit();
     if (socketObj && socketObj.connected && terminalObj) {
       socketObj.emit('terminal_resize', { cols: terminalObj.cols, rows: terminalObj.rows });
     }
@@ -871,6 +909,46 @@ window.connectTerminal = function() {
       socketObj.emit('terminal_resize', { cols, rows });
     }
   });
+};
+
+// Console toolbar action helper functions
+window.clearTerminal = function() {
+  if (terminalObj) {
+    terminalObj.clear();
+  }
+};
+
+window.adjustTerminalFont = function(delta) {
+  if (terminalObj) {
+    let currentSize = terminalObj.options.fontSize || 13;
+    let newSize = currentSize + delta;
+    if (newSize >= 10 && newSize <= 24) {
+      terminalObj.options.fontSize = newSize;
+      if (fitAddonObj) {
+        fitAddonObj.fit();
+      }
+    }
+  }
+};
+
+window.toggleTerminalFullscreen = function() {
+  const container = document.getElementById('terminal-container');
+  if (container) {
+    container.classList.toggle('fullscreen-terminal');
+    const isFullscreen = container.classList.contains('fullscreen-terminal');
+    const btn = document.getElementById('btn-terminal-fullscreen');
+    if (btn) {
+      btn.innerHTML = isFullscreen ? '<i data-lucide="minimize" style="width: 12px; height: 12px;"></i> Minimize' : '<i data-lucide="maximize" style="width: 12px; height: 12px;"></i> Fullscreen';
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+    setTimeout(() => {
+      if (fitAddonObj) {
+        fitAddonObj.fit();
+      }
+    }, 150);
+  }
 };
 
 // 6. Snapshots
