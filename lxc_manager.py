@@ -3,17 +3,26 @@ import shutil
 import json
 import re
 import os
+import sys
+import time
 
-# Auto-detect lxc binary path (snap installs to /snap/bin/lxc)
+# Auto-detect if we should run in mock mode
+# True if on non-Linux platform, or if lxc command is not found
 LXC_BIN = shutil.which('lxc') or '/snap/bin/lxc'
+IS_MOCK_LXC = (sys.platform != 'linux') or (shutil.which('lxc') is None and not os.path.exists('/snap/bin/lxc'))
+
 if not os.path.exists(LXC_BIN):
     LXC_BIN = 'lxc'  # fallback
 
 
 class LXCManager:
+    _cpu_cache = {}  # Tracks {container_name: (timestamp, cpu_seconds)}
+
     @staticmethod
     def _run(cmd, check=True):
         """Execute a shell command and return stdout. Replaces 'lxc' with full path."""
+        if IS_MOCK_LXC:
+            return ""
         if cmd and cmd[0] == 'lxc':
             cmd = [LXC_BIN] + cmd[1:]
         result = subprocess.run(cmd, capture_output=True, text=True, check=check)
@@ -22,6 +31,9 @@ class LXCManager:
     @classmethod
     def get_container_ip(cls, name):
         """Retrieves the IPv4 address of the LXC container from lxc list."""
+        if IS_MOCK_LXC:
+            ip_suffix = sum(ord(c) for c in name) % 250 + 4
+            return f"10.155.88.{ip_suffix}"
         try:
             out = cls._run(['lxc', 'list', name, '--format=json'])
             data = json.loads(out)
@@ -43,6 +55,22 @@ class LXCManager:
     @classmethod
     def deploy_container(cls, name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback=None):
         """Launches a real LXC container and configures resource limits."""
+        if IS_MOCK_LXC:
+            steps = [
+                ('Downloading and launching container image...', 0.5),
+                ('Setting CPU core limit...', 0.2),
+                ('Setting RAM memory limit...', 0.2),
+                ('Configuring root storage limit...', 0.2),
+                ('Setting root password...', 0.3),
+            ]
+            for desc, delay in steps:
+                if log_callback:
+                    log_callback(f'[INFO] {desc}')
+                time.sleep(delay)
+            if log_callback:
+                log_callback('[SUCCESS] Container deployed successfully!')
+            return True
+
         # Use official ubuntu: remote for Ubuntu, fallback to images: remote for community distros
         if os_image.startswith('ubuntu/'):
             image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
@@ -74,6 +102,8 @@ class LXCManager:
     @classmethod
     def destroy_container(cls, name):
         """Force-stops and deletes a container."""
+        if IS_MOCK_LXC:
+            return True
         subprocess.run(['lxc', 'stop', '-f', name], capture_output=True)
         subprocess.run(['lxc', 'delete', '-f', name], capture_output=True, check=True)
         return True
@@ -81,6 +111,8 @@ class LXCManager:
     @classmethod
     def execute_action(cls, name, action):
         """Power state controls: start, stop, restart, suspend, resume."""
+        if IS_MOCK_LXC:
+            return True
         action_map = {
             'start': ['lxc', 'start', name],
             'stop': ['lxc', 'stop', '-f', name],
@@ -99,12 +131,60 @@ class LXCManager:
     @classmethod
     def change_password(cls, name, new_password):
         """Sets root password inside the container."""
+        if IS_MOCK_LXC:
+            return True
         cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f'echo root:{new_password} | chpasswd'])
         return True
 
     @classmethod
-    def get_container_stats(cls, name, plan_cpu=1, plan_ram=512, plan_disk=10):
+    def get_container_stats(cls, name, plan_cpu=1, plan_ram=512, plan_disk=10, db_status='running'):
         """Retrieves real container stats from lxc info and lxc exec."""
+        if IS_MOCK_LXC:
+            import random
+            status = db_status
+            if status == 'running':
+                cpu_pct = round(random.uniform(2.0, 12.0), 1)
+                used_ram = int(plan_ram * random.uniform(0.18, 0.32))
+                used_disk = round(plan_disk * 0.12, 1)
+                now = time.time()
+                net_in_mb = round((now % 1000) * 0.5 + 45.2, 1)
+                net_out_mb = round((now % 1000) * 0.3 + 12.1, 1)
+                ip_suffix = sum(ord(c) for c in name) % 250 + 4
+                ip_addr = f"10.155.88.{ip_suffix}"
+                uptime_str = "2 days 4 hours 12 minutes"
+            elif status == 'suspended':
+                cpu_pct = 0.0
+                used_ram = int(plan_ram * 0.22)
+                used_disk = round(plan_disk * 0.12, 1)
+                net_in_mb = 45.2
+                net_out_mb = 12.1
+                ip_suffix = sum(ord(c) for c in name) % 250 + 4
+                ip_addr = f"10.155.88.{ip_suffix}"
+                uptime_str = "Suspended"
+            else:
+                status = 'stopped'
+                cpu_pct = 0.0
+                used_ram = 0
+                used_disk = round(plan_disk * 0.12, 1)
+                net_in_mb = 0.0
+                net_out_mb = 0.0
+                ip_addr = 'N/A'
+                uptime_str = 'Offline'
+
+            return {
+                'name': name,
+                'status': status,
+                'ip': ip_addr,
+                'cpu': cpu_pct,
+                'ram_used': used_ram,
+                'ram_limit': plan_ram,
+                'disk_used': used_disk,
+                'disk_limit': plan_disk,
+                'net_in': net_in_mb,
+                'net_out': net_out_mb,
+                'uptime': uptime_str
+            }
+
         try:
             info_out = cls._run(['lxc', 'info', name])
         except Exception:
@@ -157,8 +237,22 @@ class LXCManager:
         net_in_mb = round(net_in / (1024 * 1024), 1)
         net_out_mb = round(net_out / (1024 * 1024), 1)
 
-        # CPU usage as a simple percentage approximation
-        cpu_pct = round(cpu_seconds % 100, 1) if status == 'running' else 0.0
+        # Real CPU usage calculation using delta from cache
+        cpu_pct = 0.0
+        if status == 'running' and cpu_seconds > 0:
+            now = time.time()
+            if name in cls._cpu_cache:
+                last_time, last_cpu_seconds = cls._cpu_cache[name]
+                delta_time = now - last_time
+                delta_cpu = cpu_seconds - last_cpu_seconds
+                if delta_time > 0 and delta_cpu >= 0:
+                    cores = max(1, plan_cpu)
+                    raw_pct = (delta_cpu / delta_time) * 100.0
+                    cpu_pct = round(max(0.0, min(100.0, raw_pct / cores)), 1)
+            else:
+                cpu_pct = 1.5  # default baseline on first poll
+            # Update cache
+            cls._cpu_cache[name] = (now, cpu_seconds)
 
         # Disk usage via df inside container
         used_disk = 0.0
@@ -213,15 +307,22 @@ class LXCManager:
 
     @classmethod
     def create_snapshot(cls, container_name, snap_name):
+        if IS_MOCK_LXC:
+            return True
         cls._run(['lxc', 'snapshot', container_name, snap_name])
         return True
 
     @classmethod
     def restore_snapshot(cls, container_name, snap_name):
+        if IS_MOCK_LXC:
+            return True
         cls._run(['lxc', 'restore', container_name, snap_name])
         return True
 
     @classmethod
     def delete_snapshot(cls, container_name, snap_name):
+        if IS_MOCK_LXC:
+            return True
         cls._run(['lxc', 'snapshot', 'delete', container_name, snap_name])
         return True
+

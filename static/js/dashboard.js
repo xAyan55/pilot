@@ -3,9 +3,11 @@
 let currentVpsId = null;
 let vpsList = [];
 let statsInterval = null;
+let gridStatsInterval = null;
 let resourceChart = null;
 let terminalObj = null;
 let socketObj = null;
+let isChartPrepopulated = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Sidebar Tab Transitions
@@ -58,8 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const selector = document.getElementById('vps-selector');
   if (selector) {
     selector.addEventListener('change', (e) => {
-      currentVpsId = parseInt(e.target.value);
-      loadVPSDetails(currentVpsId);
+      const selectedId = parseInt(e.target.value);
+      selectAndManageVPS(selectedId);
     });
   }
 
@@ -104,11 +106,11 @@ async function fetchClientVPSList() {
     }
 
     // Show panel wrapper
-    selectorContainer.style.display = 'flex';
+    selectorContainer.style.display = 'none'; // Keep dropdown wrapper hidden
     activeWrapper.style.display = 'block';
     emptyState.style.display = 'none';
 
-    // Populate drop select
+    // Populate drop select for legacy/compatibility reasons
     selector.innerHTML = '';
     vpsList.forEach(vps => {
       const opt = document.createElement('option');
@@ -117,14 +119,377 @@ async function fetchClientVPSList() {
       selector.appendChild(opt);
     });
 
-    // Default select
-    currentVpsId = vpsList[0].id;
-    loadVPSDetails(currentVpsId);
+    // Render the grid cards
+    renderVPSGrid();
+
+    // Start background stats polling for the grid
+    startGridStatsPolling();
 
   } catch (err) {
     showToast(`Failed to load server list: ${err.message}`, 'error');
   }
 }
+
+// Render the grid layout of VPS cards
+function renderVPSGrid() {
+  const gridContainer = document.getElementById('vps-grid-container');
+  if (!gridContainer) return;
+
+  gridContainer.innerHTML = '';
+
+  vpsList.forEach(vps => {
+    const isUbuntu = vps.os.toLowerCase().includes('ubuntu');
+    const osName = isUbuntu ? 'Ubuntu' : 'Debian';
+    const osClass = isUbuntu ? 'os-ubuntu' : 'os-debian';
+    const osLetter = isUbuntu ? 'U' : 'D';
+
+    const cardHtml = `
+      <div class="vps-grid-card" id="vps-card-${vps.id}">
+        <!-- Card Header -->
+        <div class="vps-card-header">
+          <div class="vps-card-os-badge ${osClass}">
+            <span class="os-icon-logo">${osLetter}</span>
+            <span>${osName}</span>
+          </div>
+          <div class="vps-card-status-badge status-${vps.status}" id="card-status-badge-${vps.id}">
+            <span class="status-dot"></span>
+            <span class="status-text">${vps.status}</span>
+          </div>
+        </div>
+        
+        <!-- Card Body -->
+        <div class="vps-card-body">
+          <h4 class="vps-card-name" title="${vps.container_name}">${vps.container_name}</h4>
+          
+          <div class="vps-card-ip-section">
+            <code class="vps-card-ip" id="card-ip-${vps.id}">Fetching IP...</code>
+            <button class="btn-copy-ip" onclick="copyCardIP(event, ${vps.id})" title="Copy IP Address">
+              <i data-lucide="copy"></i>
+            </button>
+          </div>
+          
+          <!-- Specs -->
+          <div class="vps-card-specs-row">
+            <div class="spec-item" title="CPU Limit">
+              <i data-lucide="cpu"></i>
+              <span>${vps.cpu} Core${vps.cpu > 1 ? 's' : ''}</span>
+            </div>
+            <div class="spec-item" title="Disk Capacity">
+              <i data-lucide="hard-drive"></i>
+              <span>${vps.disk} GB</span>
+            </div>
+            <div class="spec-item" title="RAM Allocation">
+              <i data-lucide="layers"></i>
+              <span>${vps.ram} MB</span>
+            </div>
+          </div>
+          
+          <!-- Live Resource Bars -->
+          <div class="vps-card-meters" id="card-meters-${vps.id}">
+            <div class="card-meter-item">
+              <div class="meter-label">
+                <span>CPU Utilization</span>
+                <span class="meter-val" id="card-cpu-val-${vps.id}">--</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-bar" id="card-cpu-bar-${vps.id}" style="width: 0%"></div>
+              </div>
+            </div>
+            <div class="card-meter-item">
+              <div class="meter-label">
+                <span>RAM Usage</span>
+                <span class="meter-val" id="card-ram-val-${vps.id}">--</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-bar" id="card-ram-bar-${vps.id}" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Card Footer -->
+        <div class="vps-card-footer">
+          <div class="vps-card-power-controls">
+            <button class="btn-power start" id="card-btn-start-${vps.id}" onclick="triggerCardAction(event, ${vps.id}, 'start')" title="Start Server">
+              <i data-lucide="play"></i>
+            </button>
+            <button class="btn-power stop" id="card-btn-stop-${vps.id}" onclick="triggerCardAction(event, ${vps.id}, 'stop')" title="Stop Server">
+              <i data-lucide="square"></i>
+            </button>
+            <button class="btn-power reboot" id="card-btn-reboot-${vps.id}" onclick="triggerCardAction(event, ${vps.id}, 'restart')" title="Reboot Server">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+          
+          <button class="btn btn-secondary btn-manage" onclick="selectAndManageVPS(${vps.id})">
+            <i data-lucide="sliders"></i> Manage
+          </button>
+        </div>
+      </div>
+    `;
+    gridContainer.insertAdjacentHTML('beforeend', cardHtml);
+  });
+
+  if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+  }
+}
+
+// Start polling status/metrics for grid view
+function startGridStatsPolling() {
+  if (gridStatsInterval) clearInterval(gridStatsInterval);
+  
+  // Initial quick poll
+  vpsList.forEach(vps => {
+    fetchSingleCardStats(vps.id);
+  });
+
+  gridStatsInterval = setInterval(() => {
+    vpsList.forEach(vps => {
+      fetchSingleCardStats(vps.id);
+    });
+  }, 4000);
+}
+
+// Fetch stats for a single card in grid
+async function fetchSingleCardStats(vpsId) {
+  try {
+    const response = await fetch(`/api/client/vps/${vpsId}/stats`);
+    if (!response.ok) return;
+    const stats = await response.json();
+
+    // Update IP in card
+    const ipEl = document.getElementById(`card-ip-${vpsId}`);
+    if (ipEl) ipEl.textContent = stats.ip || 'N/A';
+
+    // Update Status Badge in card
+    const badge = document.getElementById(`card-status-badge-${vpsId}`);
+    if (badge) {
+      badge.className = `vps-card-status-badge status-${stats.status}`;
+      const txt = badge.querySelector('.status-text');
+      if (txt) txt.textContent = stats.status;
+    }
+
+    // Update power button states
+    const startBtn = document.getElementById(`card-btn-start-${vpsId}`);
+    const stopBtn = document.getElementById(`card-btn-stop-${vpsId}`);
+    const rebootBtn = document.getElementById(`card-btn-reboot-${vpsId}`);
+
+    if (startBtn && stopBtn && rebootBtn) {
+      if (stats.status === 'running') {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        rebootBtn.disabled = false;
+      } else if (stats.status === 'stopped') {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        rebootBtn.disabled = true;
+      } else {
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        rebootBtn.disabled = true;
+      }
+    }
+
+    // Update meters
+    const cpuValEl = document.getElementById(`card-cpu-val-${vpsId}`);
+    const cpuBarEl = document.getElementById(`card-cpu-bar-${vpsId}`);
+    const ramValEl = document.getElementById(`card-ram-val-${vpsId}`);
+    const ramBarEl = document.getElementById(`card-ram-bar-${vpsId}`);
+
+    const cpuVal = stats.status === 'running' ? stats.cpu : 0.0;
+    const ramMB = stats.status === 'running' ? stats.ram_used : 0;
+    const ramPercent = Math.min(100, Math.round((ramMB / stats.ram_limit) * 100));
+
+    if (cpuValEl) cpuValEl.textContent = stats.status === 'running' ? `${cpuVal}%` : 'Offline';
+    if (cpuBarEl) {
+      cpuBarEl.style.width = `${cpuVal}%`;
+      if (cpuVal > 80) cpuBarEl.className = 'meter-bar high';
+      else cpuBarEl.className = 'meter-bar';
+    }
+    if (ramValEl) ramValEl.textContent = stats.status === 'running' ? `${ramMB} MB / ${stats.ram_limit} MB` : 'Offline';
+    if (ramBarEl) {
+      ramBarEl.style.width = `${ramPercent}%`;
+      if (ramPercent > 80) ramBarEl.className = 'meter-bar high';
+      else ramBarEl.className = 'meter-bar';
+    }
+
+  } catch (err) {
+    console.error(`Error polling stats for VPS ${vpsId}:`, err);
+  }
+}
+
+// Power action trigger for a card in grid
+window.triggerCardAction = async function(event, vpsId, action) {
+  if (event) {
+    event.stopPropagation();
+  }
+  
+  // Disable buttons temporarily
+  const startBtn = document.getElementById(`card-btn-start-${vpsId}`);
+  const stopBtn = document.getElementById(`card-btn-stop-${vpsId}`);
+  const rebootBtn = document.getElementById(`card-btn-reboot-${vpsId}`);
+  
+  if (startBtn) startBtn.disabled = true;
+  if (stopBtn) stopBtn.disabled = true;
+  if (rebootBtn) rebootBtn.disabled = true;
+
+  showToast(`Initiating power state request: ${action}...`, 'info');
+
+  try {
+    const response = await fetch(`/api/client/vps/${vpsId}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    });
+    const data = await window.handleFetchResponse(response);
+    showToast(data.message, 'success');
+    
+    // Quick reload
+    setTimeout(() => {
+      fetchSingleCardStats(vpsId);
+    }, 1000);
+  } catch (err) {
+    showToast(err.message, 'error');
+    fetchSingleCardStats(vpsId);
+  }
+};
+
+// Clipboard copy helpers
+window.copyCardIP = function(event, vpsId) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const ipText = document.getElementById(`card-ip-${vpsId}`).textContent;
+  if (!ipText || ipText.includes('Fetching') || ipText === 'N/A') return;
+  navigator.clipboard.writeText(ipText).then(() => {
+    showToast("IP Address copied to clipboard!", "success");
+  }).catch(err => {
+    showToast("Failed to copy IP address.", "error");
+  });
+};
+
+window.copyOverviewIP = function() {
+  const ipText = document.getElementById('ip-val').textContent;
+  if (!ipText || ipText.includes('Fetching') || ipText === 'N/A') return;
+  navigator.clipboard.writeText(ipText).then(() => {
+    showToast("IP Address copied to clipboard!", "success");
+  }).catch(err => {
+    showToast("Failed to copy IP address.", "error");
+  });
+};
+
+// Select a VPS from the grid to manage in detailed tabs
+window.selectAndManageVPS = function(vpsId) {
+  // Clear grid polling
+  if (gridStatsInterval) {
+    clearInterval(gridStatsInterval);
+    gridStatsInterval = null;
+  }
+
+  currentVpsId = vpsId;
+  const currentVPS = vpsList.find(v => v.id === vpsId);
+  if (!currentVPS) return;
+
+  isChartPrepopulated = false;
+
+  // Show detailed management tabs headers and links in the sidebar
+  document.getElementById('menu-mgmt-header').style.display = 'block';
+  
+  const detailedMenuIds = [
+    'menu-overview', 'menu-console', 'menu-snapshots', 
+    'menu-backups', 'menu-firewall', 'menu-rebuild', 'menu-settings'
+  ];
+  detailedMenuIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'block';
+  });
+
+  // Populate Active Server Card widget in sidebar
+  const isUbuntu = currentVPS.os.toLowerCase().includes('ubuntu');
+  const osLetter = isUbuntu ? 'U' : 'D';
+  document.getElementById('sidebar-vps-os-icon').textContent = osLetter;
+  document.getElementById('sidebar-vps-name').textContent = currentVPS.container_name;
+  document.getElementById('sidebar-vps-ip').textContent = 'Fetching IP...';
+  
+  // Set correct background classes for OS badge in sidebar card
+  const osIcon = document.getElementById('sidebar-vps-os-icon');
+  if (osIcon) {
+    osIcon.className = `active-os-icon ${isUbuntu ? 'os-ubuntu' : 'os-debian'}`;
+  }
+
+  const activeCard = document.getElementById('active-server-card');
+  if (activeCard) activeCard.style.display = 'flex';
+
+  // Update Breadcrumb in Header
+  document.getElementById('header-vps-name').textContent = currentVPS.container_name;
+  document.getElementById('header-breadcrumb').style.display = 'flex';
+
+  // Deactivate "My Instances" in sidebar, and activate "Overview" menu item
+  const menuLinks = document.querySelectorAll('.db-menu-item');
+  menuLinks.forEach(item => item.classList.remove('active'));
+  document.getElementById('menu-overview').classList.add('active');
+
+  // Deactivate all panels and activate panel-overview
+  const panels = document.querySelectorAll('.db-tab-panel');
+  panels.forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-overview').classList.add('active');
+
+  // Sync the legacy dropdown selector value
+  const selector = document.getElementById('vps-selector');
+  if (selector) selector.value = vpsId;
+
+  // Load details
+  loadVPSDetails(vpsId);
+};
+
+// Switch back to "My Instances" grid screen
+window.switchToInstances = function() {
+  // Clear active server polling
+  if (statsInterval) {
+    clearInterval(statsInterval);
+    statsInterval = null;
+  }
+
+  // Clear current active vps
+  currentVpsId = null;
+
+  // Disconnect active console socket
+  if (socketObj) {
+    socketObj.disconnect();
+    socketObj = null;
+  }
+
+  // Hide detailed management menu headers and links in the sidebar
+  document.getElementById('menu-mgmt-header').style.display = 'none';
+  
+  const detailedMenuIds = [
+    'menu-overview', 'menu-console', 'menu-snapshots', 
+    'menu-backups', 'menu-firewall', 'menu-rebuild', 'menu-settings'
+  ];
+  detailedMenuIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Hide sidebar active card and header breadcrumb
+  const activeCard = document.getElementById('active-server-card');
+  if (activeCard) activeCard.style.display = 'none';
+  document.getElementById('header-breadcrumb').style.display = 'none';
+
+  // Deactivate all sidebar items, activate "My Instances"
+  const menuItems = document.querySelectorAll('.db-menu-item');
+  menuItems.forEach(item => item.classList.remove('active'));
+  document.getElementById('menu-instances').classList.add('active');
+
+  // Deactivate all tab panels, activate "panel-instances"
+  const panels = document.querySelectorAll('.db-tab-panel');
+  panels.forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-instances').classList.add('active');
+
+  // Start grid polling again
+  startGridStatsPolling();
+};
 
 // Get Selected Container Name helper
 function getActiveVPSContainerName() {
@@ -169,28 +534,41 @@ async function fetchLiveStats(vpsId) {
     if (!response.ok) return;
     const stats = await response.json();
 
-    // Update IP and Uptime
+    // Update IP and Uptime in Overview and Sidebar widget
     document.getElementById('ip-val').textContent = stats.ip || 'N/A';
     document.getElementById('uptime-val').textContent = stats.uptime || 'Offline';
+    
+    const sidebarIp = document.getElementById('sidebar-vps-ip');
+    if (sidebarIp) sidebarIp.textContent = stats.ip || 'N/A';
 
     // Status classes
     const statusText = document.getElementById('status-text');
     const statusVal = document.getElementById('status-val');
-    statusText.textContent = stats.status;
+    if (statusText) statusText.textContent = stats.status;
     
-    // Reset classes
-    statusVal.className = 'db-stat-value';
-    const statusDot = statusVal.querySelector('.status-dot');
-    statusDot.className = 'status-dot';
-    
-    if (stats.status === 'running') {
-      statusVal.classList.add('running');
-    } else if (stats.status === 'stopped') {
-      statusVal.classList.add('stopped');
-      statusDot.classList.add('stopped');
-    } else {
-      statusVal.classList.add('suspended');
-      statusDot.classList.add('suspended');
+    if (statusVal) {
+      // Reset classes
+      statusVal.className = 'db-stat-value';
+      const statusDot = statusVal.querySelector('.status-dot');
+      if (statusDot) statusDot.className = 'status-dot';
+      
+      if (stats.status === 'running') {
+        statusVal.classList.add('running');
+      } else if (stats.status === 'stopped') {
+        statusVal.classList.add('stopped');
+        if (statusDot) statusDot.classList.add('stopped');
+      } else {
+        statusVal.classList.add('suspended');
+        if (statusDot) statusDot.classList.add('suspended');
+      }
+    }
+
+    // Sync Sidebar Active Card Status Badge
+    const sidebarStatus = document.getElementById('sidebar-vps-status');
+    const sidebarStatusText = document.getElementById('sidebar-vps-status-text');
+    if (sidebarStatus && sidebarStatusText) {
+      sidebarStatus.className = `vps-status-badge ${stats.status}`;
+      sidebarStatusText.textContent = stats.status;
     }
 
     // Toggle button availabilities
@@ -198,19 +576,21 @@ async function fetchLiveStats(vpsId) {
     const stopBtn = document.getElementById('btn-stop');
     const rebootBtn = document.getElementById('btn-reboot');
     
-    if (stats.status === 'running') {
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      rebootBtn.disabled = false;
-    } else if (stats.status === 'stopped') {
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      rebootBtn.disabled = true;
-    } else {
-      // suspended state
-      startBtn.disabled = true;
-      stopBtn.disabled = true;
-      rebootBtn.disabled = true;
+    if (startBtn && stopBtn && rebootBtn) {
+      if (stats.status === 'running') {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        rebootBtn.disabled = false;
+      } else if (stats.status === 'stopped') {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        rebootBtn.disabled = true;
+      } else {
+        // suspended state
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        rebootBtn.disabled = true;
+      }
     }
 
     // Compute metrics
@@ -223,20 +603,42 @@ async function fetchLiveStats(vpsId) {
 
     // Update meters text
     document.getElementById('cpu-percent').textContent = `${cpuVal}%`;
-    document.getElementById('cpu-bar').style.width = `${cpuVal}%`;
+    const cpuBar = document.getElementById('cpu-bar');
+    if (cpuBar) {
+      cpuBar.style.width = `${cpuVal}%`;
+      if (cpuVal > 80) cpuBar.className = 'meter-bar high';
+      else cpuBar.className = 'meter-bar';
+    }
 
     document.getElementById('ram-usage-text').textContent = `${ramMB} MB / ${stats.ram_limit} MB`;
-    document.getElementById('ram-bar').style.width = `${ramPercent}%`;
+    const ramBar = document.getElementById('ram-bar');
+    if (ramBar) {
+      ramBar.style.width = `${ramPercent}%`;
+      if (ramPercent > 80) ramBar.className = 'meter-bar high';
+      else ramBar.className = 'meter-bar';
+    }
 
     document.getElementById('disk-usage-text').textContent = `${diskGB} GB / ${stats.disk_limit} GB`;
-    document.getElementById('disk-bar').style.width = `${diskPercent}%`;
+    const diskBar = document.getElementById('disk-bar');
+    if (diskBar) {
+      diskBar.style.width = `${diskPercent}%`;
+      if (diskPercent > 80) diskBar.className = 'meter-bar high';
+      else diskBar.className = 'meter-bar';
+    }
 
     // Update line chart
     if (resourceChart) {
-      resourceChart.data.datasets[0].data.shift();
-      resourceChart.data.datasets[0].data.push(cpuVal);
-      resourceChart.data.datasets[1].data.shift();
-      resourceChart.data.datasets[1].data.push(ramPercent);
+      if (!isChartPrepopulated && stats.history && stats.history.length > 0) {
+        const histData = stats.history.slice(-10);
+        resourceChart.data.datasets[0].data = histData.map(h => h.cpu);
+        resourceChart.data.datasets[1].data = histData.map(h => h.ram_percent);
+        isChartPrepopulated = true;
+      } else {
+        resourceChart.data.datasets[0].data.shift();
+        resourceChart.data.datasets[0].data.push(cpuVal);
+        resourceChart.data.datasets[1].data.shift();
+        resourceChart.data.datasets[1].data.push(ramPercent);
+      }
       resourceChart.update('none');
     }
 

@@ -788,3 +788,318 @@
     justify-content: flex-end;
   }
 }
+
+/* --- MULTIPLE VPS GRID & CARD DESIGN SYSTEM --- */
+
+.vps-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.vps-grid-card {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: 0 4px 15px var(--color-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: cardEntrance 0.4s ease both;
+}
+
+.vps-grid-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 10px 25px rgba(24, 35, 30, 0.08);
+  transform: translateY(-4px);
+}
+
+/* Card Header styles */
+.vps-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(24, 35, 30, 0.05);
+  padding-bottom: 12px;
+}
+
+.vps-card-os-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.os-icon-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-white);
+}
+
+.os-ubuntu {
+  background-color: rgba(233, 84, 32, 0.08);
+  color: #e95420;
+}
+.os-ubuntu .os-icon-logo {
+  background-color: #e95420;
+}
+
+.os-debian {
+  background-color: rgba(215, 7, 81, 0.08);
+  color: #d70751;
+}
+.os-debian .os-icon-logo {
+  background-color: #d70751;
+}
+
+.vps-card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vps-card-status-badge.status-running {
+  background-color: #e8f9ed;
+  color: var(--color-success);
+}
+
+.vps-card-status-badge.status-stopped {
+  background-color: #fdeaea;
+  color: var(--color-danger);
+}
+
+.vps-card-status-badge.status-suspended {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+/* Card Body styles */
+.vps-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.vps-card-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vps-card-ip-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.vps-card-ip {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--color-text-main);
+  font-weight: 600;
+}
+
+.btn-copy-ip {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-ip:hover {
+  color: var(--color-text-main);
+  background-color: rgba(24, 35, 30, 0.05);
+}
+
+.vps-card-specs-row {
+  display: flex;
+  justify-content: space-between;
+  background-color: #fafbfa;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  border: 1px solid rgba(24, 35, 30, 0.03);
+}
+
+.spec-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.spec-item i {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2px;
+}
+
+.spec-item span {
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+/* Resource Meters inside card */
+.vps-card-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.card-meter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meter-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.meter-val {
+  color: var(--color-text-main);
+}
+
+/* Card Footer styles */
+.vps-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  border-top: 1px solid rgba(24, 35, 30, 0.05);
+  padding-top: 16px;
+}
+
+.vps-card-power-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-power {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-white);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-power:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: #f5f5f5 !important;
+  color: #a3a3a3 !important;
+  border-color: #e5e5e5 !important;
+}
+
+.btn-power i {
+  width: 12px;
+  height: 12px;
+}
+
+.btn-power.start:hover:not(:disabled) {
+  background-color: #e8f9ed;
+  color: var(--color-success);
+  border-color: #abe7b2;
+}
+
+.btn-power.stop:hover:not(:disabled) {
+  background-color: #fdeaea;
+  color: var(--color-danger);
+  border-color: #f6d1d1;
+}
+
+.btn-power.reboot:hover:not(:disabled) {
+  background-color: rgba(147, 191, 199, 0.1);
+  color: var(--color-cool);
+  border-color: var(--color-cool);
+}
+
+.btn-manage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Sidebar VPS Card */
+.sidebar-vps-card {
+  box-shadow: 0 4px 12px rgba(24, 35, 30, 0.04);
+  transition: all 0.3s ease;
+}
+
+.sidebar-vps-card:hover {
+  box-shadow: 0 6px 16px rgba(24, 35, 30, 0.08);
+}
+
+.active-os-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 14px;
+}
+
+.active-os-icon.os-ubuntu {
+  background-color: #e95420;
+  color: var(--color-white);
+  border-color: #e95420;
+}
+
+.active-os-icon.os-debian {
+  background-color: #d70751;
+  color: var(--color-white);
+  border-color: #d70751;
+}
