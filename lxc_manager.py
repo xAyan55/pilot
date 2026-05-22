@@ -189,10 +189,21 @@ WantedBy=multi-user.target"""
         return True
 
     @classmethod
-    def post_deploy_setup(cls, name, vps_id, root_password, log_callback=None):
+    def post_deploy_setup(cls, name, vps_id, root_password, site_name=None, log_callback=None):
         """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and installs/starts Bore tunnel."""
         if IS_MOCK_LXC:
             return True
+
+        if not site_name:
+            site_name = "MintyHost LXC"
+
+        motd_content = f"""
+=====================================================================
+ Welcome to {site_name}!
+ 
+ If this feels laggy, use the built-in terminal.
+=====================================================================
+"""
 
         steps = [
             ('Updating container package repositories...',
@@ -210,6 +221,8 @@ WantedBy=multi-user.target"""
                  "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config; "
                  "service ssh restart || systemctl restart ssh || systemctl restart sshd"
              )]),
+            ('Configuring Message of the Day (MOTD)...',
+             ['lxc', 'exec', name, '--', 'bash', '-c', f"cat << 'EOF' > /etc/motd\n{motd_content.strip()}\nEOF\n"]),
             ('Downloading and installing Bore TCP tunneling client...',
              ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
         ]

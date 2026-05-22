@@ -470,20 +470,31 @@ def client_vps_reinstall(vps_id):
             root_password=root_password
         )
 
+        # Fetch site name for MOTD configuration
+        site_name_val = "MintyHost LXC"
+        try:
+            cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
+            row = cursor.fetchone()
+            if row:
+                site_name_val = row['value']
+        except Exception:
+            pass
+
         # Run post-deployment environment setup (packages and Bore tunnel) in background
-        def run_reinstall_setup(name, target_id, root_pw):
+        def run_reinstall_setup(name, target_id, root_pw, s_name):
             try:
                 LXCManager.post_deploy_setup(
                     name=name,
                     vps_id=target_id,
-                    root_password=root_pw
+                    root_password=root_pw,
+                    site_name=s_name
                 )
             except Exception as ex:
                 print(f"[ERROR] Background reinstall post_deploy_setup failed: {ex}")
 
         threading.Thread(
             target=run_reinstall_setup,
-            args=(vps['container_name'], vps_id, root_password)
+            args=(vps['container_name'], vps_id, root_password, site_name_val)
         ).start()
 
         cursor.execute(
@@ -822,19 +833,29 @@ def admin_vps_deploy_stream():
             # Execute post-deployment environment setup (packages and Bore tunnel) in background
             yield "data: [INFO] Initiating background installation of standard packages and Bore tunnel...\n\n"
             
-            def run_deploy_setup(name, target_id, root_pw):
+            site_name_val = "MintyHost LXC"
+            try:
+                cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
+                row = cursor.fetchone()
+                if row:
+                    site_name_val = row['value']
+            except Exception:
+                pass
+
+            def run_deploy_setup(name, target_id, root_pw, s_name):
                 try:
                     LXCManager.post_deploy_setup(
                         name=name,
                         vps_id=target_id,
-                        root_password=root_pw
+                        root_password=root_pw,
+                        site_name=s_name
                     )
                 except Exception as ex:
                     print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
 
             threading.Thread(
                 target=run_deploy_setup,
-                args=(container_name, vps_id, root_pw)
+                args=(container_name, vps_id, root_pw, site_name_val)
             ).start()
             
             yield "data: [INFO] Background setup task successfully queued.\n\n"
