@@ -219,6 +219,7 @@ WantedBy=multi-user.target"""
                  "sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
                  "grep -q '^PasswordAuthentication' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config; "
                  "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config; "
+                 "sed -i 's/session.*required.*pam_loginuid.so/session optional pam_loginuid.so/g' /etc/pam.d/sshd 2>/dev/null; "
                  "service ssh restart || systemctl restart ssh || systemctl restart sshd"
              )]),
             ('Configuring Message of the Day (MOTD)...',
