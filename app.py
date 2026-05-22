@@ -500,12 +500,21 @@ def client_vps_reinstall(vps_id):
             root_password=root_password
         )
 
-        # Run post-deployment environment setup (packages and Bore tunnel)
-        LXCManager.post_deploy_setup(
-            name=vps['container_name'],
-            vps_id=vps_id,
-            root_password=root_password
-        )
+        # Run post-deployment environment setup (packages and Bore tunnel) in background
+        def run_reinstall_setup(name, target_id, root_pw):
+            try:
+                LXCManager.post_deploy_setup(
+                    name=name,
+                    vps_id=target_id,
+                    root_password=root_pw
+                )
+            except Exception as ex:
+                print(f"[ERROR] Background reinstall post_deploy_setup failed: {ex}")
+
+        threading.Thread(
+            target=run_reinstall_setup,
+            args=(vps['container_name'], vps_id, root_password)
+        ).start()
 
         cursor.execute(
             "UPDATE vps SET os = ?, root_password = ?, status = 'running' WHERE id = ?",
@@ -840,14 +849,25 @@ def admin_vps_deploy_stream():
             vps_id = cursor.lastrowid
             conn.commit()
 
-            # Execute post-deployment environment setup (packages and Bore tunnel)
-            yield "data: [INFO] Installing standard packages (curl, sudo, git, wget, htop, etc.) and configuring Bore tunnel...\n\n"
-            LXCManager.post_deploy_setup(
-                name=container_name,
-                vps_id=vps_id,
-                root_password=root_pw
-            )
-            yield "data: [INFO] Packages and Bore tunnel successfully set up.\n\n"
+            # Execute post-deployment environment setup (packages and Bore tunnel) in background
+            yield "data: [INFO] Initiating background installation of standard packages and Bore tunnel...\n\n"
+            
+            def run_deploy_setup(name, target_id, root_pw):
+                try:
+                    LXCManager.post_deploy_setup(
+                        name=name,
+                        vps_id=target_id,
+                        root_password=root_pw
+                    )
+                except Exception as ex:
+                    print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
+
+            threading.Thread(
+                target=run_deploy_setup,
+                args=(container_name, vps_id, root_pw)
+            ).start()
+            
+            yield "data: [INFO] Background setup task successfully queued.\n\n"
 
             log_audit(admin_id, f"Admin deployed container {container_name} assigned to user ID {user_id}")
             conn.close()
