@@ -100,6 +100,55 @@ class LXCManager:
             log_callback('[SUCCESS] Container deployed successfully!')
 
     @classmethod
+    def post_deploy_setup(cls, name, vps_id, root_password, log_callback=None):
+        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and installs/starts Bore tunnel."""
+        if IS_MOCK_LXC:
+            return True
+
+        import base64
+        tunnel_port = 40000 + vps_id
+        bore_service_content = f"""[Unit]
+Description=Bore TCP Tunnel
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/bore local 22 --to bore.pub --port {tunnel_port}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target"""
+
+        encoded_service = base64.b64encode(bore_service_content.encode('utf-8')).decode('utf-8')
+
+        steps = [
+            ('Updating container package repositories...',
+             ['lxc', 'exec', name, '--', 'apt-get', 'update']),
+            ('Pre-installing system packages (curl, sudo, git, wget, htop, openssh-server)...',
+             ['lxc', 'exec', name, '--', 'apt-get', 'install', '-y', 'curl', 'sudo', 'git', 'wget', 'htop', 'openssh-server']),
+            ('Configuring SSH server to permit password-based root login...',
+             ['lxc', 'exec', name, '--', 'bash', '-c', "sed -i 's/prohibit-password/yes/g' /etc/ssh/sshd_config; sed -i 's/#PermitRootLogin/PermitRootLogin/g' /etc/ssh/sshd_config; service ssh restart || systemctl restart ssh || systemctl restart sshd"]),
+            ('Downloading and installing Bore TCP tunneling client...',
+             ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
+            ('Registering Bore systemd background service configuration...',
+             ['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/bore.service"]),
+            ('Enabling and starting Bore tunnel service...',
+             ['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable bore && systemctl start bore"]),
+        ]
+
+        for desc, cmd in steps:
+            if log_callback:
+                log_callback(f'[INFO] {desc}')
+            try:
+                cls._run(cmd)
+            except Exception as e:
+                # Log warning but do not crash the deployment flow if post-install tunnel fails
+                print(f'[WARNING] post_deploy_setup step failed: {desc}. Error: {e}')
+                if log_callback:
+                    log_callback(f'[WARNING] {desc} failed: {str(e)}')
+        return True
+
+    @classmethod
     def destroy_container(cls, name):
         """Force-stops and deletes a container."""
         if IS_MOCK_LXC:

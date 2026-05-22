@@ -168,6 +168,13 @@ function renderVPSGrid() {
             </button>
           </div>
           
+          <div class="vps-card-ip-section" style="margin-top: 8px;">
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh -p ${40000 + vps.id} root@bore.pub</code>
+            <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
+              <i data-lucide="copy"></i>
+            </button>
+          </div>
+          
           <!-- Specs -->
           <div class="vps-card-specs-row">
             <div class="spec-item" title="CPU Limit">
@@ -379,6 +386,29 @@ window.copyOverviewIP = function() {
   });
 };
 
+window.copyCardTunnel = function(event, vpsId) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const tunnelText = document.getElementById(`card-tunnel-${vpsId}`).textContent;
+  if (!tunnelText || tunnelText.includes('Pending')) return;
+  navigator.clipboard.writeText(tunnelText).then(() => {
+    showToast("Bore SSH command copied to clipboard!", "success");
+  }).catch(err => {
+    showToast("Failed to copy Bore SSH command.", "error");
+  });
+};
+
+window.copyOverviewTunnel = function() {
+  const tunnelText = document.getElementById('tunnel-val').textContent;
+  if (!tunnelText || tunnelText.includes('Pending') || tunnelText === 'N/A') return;
+  navigator.clipboard.writeText(tunnelText).then(() => {
+    showToast("Bore SSH command copied to clipboard!", "success");
+  }).catch(err => {
+    showToast("Failed to copy Bore SSH command.", "error");
+  });
+};
+
 // Select a VPS from the grid to manage in detailed tabs
 window.selectAndManageVPS = function(vpsId) {
   // Clear grid polling
@@ -511,6 +541,11 @@ async function loadVPSDetails(vpsId) {
   document.getElementById('ram-limit-text').textContent = `${currentVPS.ram} MB`;
   document.getElementById('disk-limit-text').textContent = `${currentVPS.disk} GB`;
 
+  const tunnelValEl = document.getElementById('tunnel-val');
+  if (tunnelValEl) {
+    tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+  }
+
   // Fetch Live Metrics and subcomponents lists
   fetchLiveStats(vpsId);
   fetchSnapshots(vpsId);
@@ -537,6 +572,11 @@ async function fetchLiveStats(vpsId) {
     // Update IP and Uptime in Overview and Sidebar widget
     document.getElementById('ip-val').textContent = stats.ip || 'N/A';
     document.getElementById('uptime-val').textContent = stats.uptime || 'Offline';
+    
+    const tunnelValEl = document.getElementById('tunnel-val');
+    if (tunnelValEl) {
+      tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+    }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');
     if (sidebarIp) sidebarIp.textContent = stats.ip || 'N/A';
