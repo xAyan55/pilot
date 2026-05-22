@@ -42,7 +42,12 @@ def seed_database():
         'color_primary': '#ECF4E8',
         'color_secondary': '#CBF3BB',
         'color_accent': '#ABE7B2',
-        'color_cool': '#93BFC7'
+        'color_cool': '#93BFC7',
+        'about_intro': 'MintyHost was founded in 2026 with a single, clear objective: to provide developers with lightning-fast, ultra-reliable virtualized instances without the bloat, complexity, and resource-overselling typical of large cloud providers. We believe in simplicity, performance, and complete developer control.',
+        'about_mission': 'To democratize high-performance containerized VPS hosting by offering raw power, transparent pricing, and instant provisioning speeds on pure, dedicated hardware platforms.',
+        'about_infra': 'Our hypervisors run on enterprise AMD EPYC processors, coupled with high-speed PCIe Gen4 NVMe storage arrays. We route traffic through multi-homed 10 Gbps uplinks directly to Tier III datacenters.',
+        'about_why_trust': 'Every byte of RAM and CPU thread you allocate is dedicated to your container. We enforce zero overselling. Combined with our 24/7 hypervisor monitoring and automatic backup engines, your workloads remain secure and highly performant.',
+        'tos_content': '<h3>1. Acceptance of Terms</h3><p>By deploying or using any Virtual Private Server (VPS) instance on MintyHost LXC, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use our services.</p><h3>2. Dedicated Resource Allocation</h3><p>MintyHost guarantees that resources (CPU, RAM, storage) allocated to your VPS instances are dedicated solely to your use. Abuse of shared network pipes or attempting to disrupt host nodes will result in immediate suspension.</p><h3>3. Prohibited Activities</h3><p>You may not use MintyHost instances for illegal activities, including but not limited to: hosting malware, executing DDoS attacks, running unsolicited scanning tools, or mining cryptocurrencies without authorization.</p><h3>4. Limitation of Liability</h3><p>MintyHost is not liable for data loss or service interruptions. We strongly recommend configuring automatic snapshot rules and routine backups for production environments.</p>'
     }
     
     for key, value in default_settings.items():

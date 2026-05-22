@@ -67,15 +67,107 @@ def is_logged_in():
 def is_admin():
     return session.get('role') == 'admin'
 
+# Static content configurations for marketing/public pages
+PLANS = [
+    {
+        'id': 1,
+        'name': 'Starter VPS',
+        'price': 5.00,
+        'price_credits': 500,
+        'ram': '2 GB',
+        'cpu': '1 Core',
+        'storage': '40 GB',
+        'bandwidth': '2 TB'
+    },
+    {
+        'id': 2,
+        'name': 'Pro VPS',
+        'price': 15.00,
+        'price_credits': 1500,
+        'ram': '4 GB',
+        'cpu': '2 Cores',
+        'storage': '80 GB',
+        'bandwidth': '4 TB'
+    },
+    {
+        'id': 3,
+        'name': 'Elite VPS',
+        'price': 30.00,
+        'price_credits': 3000,
+        'ram': '8 GB',
+        'cpu': '4 Cores',
+        'storage': '160 GB',
+        'bandwidth': '8 TB'
+    }
+]
+
+TEAM_MEMBERS = [
+    {
+        'name': 'Ayan Khan',
+        'role': 'Founder & Lead Architect',
+        'bio': 'Passionate about virtualization, Linux containers, and low-latency network architectures.'
+    },
+    {
+        'name': 'Sarah Chen',
+        'role': 'Head of Infrastructure',
+        'bio': 'Ensures high availability across our bare-metal hardware hypervisors and network uplinks.'
+    },
+    {
+        'name': 'Marcus Vance',
+        'role': 'Support Lead',
+        'bio': 'Dedicated to assisting developers and startups with troubleshooting and container management.'
+    }
+]
+
+FAQS = [
+    {
+        'id': 1,
+        'question': 'What virtualization technology do you use?',
+        'answer': 'We leverage Linux Containers (LXC) and KVM technologies to ensure high-performance, isolated virtual environments with native-like execution speed.'
+    },
+    {
+        'id': 2,
+        'question': 'Is the resource allocation dedicated or shared?',
+        'answer': 'All resource limits (RAM, CPU, and Disk space) specified in your plan are 100% dedicated to your container. We enforce a strict non-overselling policy.'
+    },
+    {
+        'id': 3,
+        'question': 'How fast is container provisioning?',
+        'answer': 'Once a container is deployed by an administrator, it boots up and becomes accessible in less than 55 seconds.'
+    },
+    {
+        'id': 4,
+        'question': 'Can I manage snapshots and backups?',
+        'answer': 'Yes, you can create on-demand snapshots, restore container states, and export full container tarball backups directly from your client control panel.'
+    },
+    {
+        'id': 5,
+        'question': 'What operating systems are supported?',
+        'answer': 'We currently support Ubuntu 22.04 LTS and Debian 11 images. You can reinstall or switch your OS at any time.'
+    }
+]
+
 # ----------------- PAGE ROUTING -----------------
 
 @app.route('/')
 def index():
-    if not is_logged_in():
-        return redirect(url_for('auth'))
-    if is_admin():
-        return redirect(url_for('admin_dashboard'))
-    return redirect(url_for('client_dashboard'))
+    return render_template('index.html', plans=PLANS)
+
+@app.route('/plans')
+def plans_page():
+    return render_template('plans.html', plans=PLANS)
+
+@app.route('/about')
+def about_page():
+    return render_template('about.html', team_members=TEAM_MEMBERS)
+
+@app.route('/faq')
+def faq_page():
+    return render_template('faq.html', faqs=FAQS)
+
+@app.route('/tos')
+def tos_page():
+    return render_template('tos.html')
 
 @app.route('/auth')
 def auth():
