@@ -381,27 +381,54 @@ window.triggerCardAction = async function(event, vpsId, action) {
 };
 
 // Clipboard copy helpers
+function fallbackCopyText(text, successMsg, errorMsg) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.top = "0";
+  textArea.style.left = "0";
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      showToast(successMsg, "success");
+    } else {
+      showToast(errorMsg, "error");
+    }
+  } catch (err) {
+    showToast(errorMsg, "error");
+  }
+  document.body.removeChild(textArea);
+}
+
+function copyTextToClipboard(text, successMsg, errorMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(successMsg, "success");
+    }).catch(err => {
+      fallbackCopyText(text, successMsg, errorMsg);
+    });
+  } else {
+    fallbackCopyText(text, successMsg, errorMsg);
+  }
+}
+
 window.copyCardIP = function(event, vpsId) {
   if (event) {
     event.stopPropagation();
   }
   const ipText = document.getElementById(`card-ip-${vpsId}`).textContent;
   if (!ipText || ipText.includes('Fetching') || ipText === 'N/A') return;
-  navigator.clipboard.writeText(ipText).then(() => {
-    showToast("IP Address copied to clipboard!", "success");
-  }).catch(err => {
-    showToast("Failed to copy IP address.", "error");
-  });
+  copyTextToClipboard(ipText, "IP Address copied to clipboard!", "Failed to copy IP address.");
 };
 
 window.copyOverviewIP = function() {
   const ipText = document.getElementById('ip-val').textContent;
   if (!ipText || ipText.includes('Fetching') || ipText === 'N/A') return;
-  navigator.clipboard.writeText(ipText).then(() => {
-    showToast("IP Address copied to clipboard!", "success");
-  }).catch(err => {
-    showToast("Failed to copy IP address.", "error");
-  });
+  copyTextToClipboard(ipText, "IP Address copied to clipboard!", "Failed to copy IP address.");
 };
 
 window.copyCardTunnel = function(event, vpsId) {
@@ -410,21 +437,13 @@ window.copyCardTunnel = function(event, vpsId) {
   }
   const tunnelText = document.getElementById(`card-tunnel-${vpsId}`).textContent;
   if (!tunnelText || tunnelText.includes('Pending')) return;
-  navigator.clipboard.writeText(tunnelText).then(() => {
-    showToast("Bore SSH command copied to clipboard!", "success");
-  }).catch(err => {
-    showToast("Failed to copy Bore SSH command.", "error");
-  });
+  copyTextToClipboard(tunnelText, "Bore SSH command copied to clipboard!", "Failed to copy Bore SSH command.");
 };
 
 window.copyOverviewTunnel = function() {
   const tunnelText = document.getElementById('tunnel-val').textContent;
   if (!tunnelText || tunnelText.includes('Pending') || tunnelText === 'N/A') return;
-  navigator.clipboard.writeText(tunnelText).then(() => {
-    showToast("Bore SSH command copied to clipboard!", "success");
-  }).catch(err => {
-    showToast("Failed to copy Bore SSH command.", "error");
-  });
+  copyTextToClipboard(tunnelText, "Bore SSH command copied to clipboard!", "Failed to copy Bore SSH command.");
 };
 
 // Select a VPS from the grid to manage in detailed tabs
