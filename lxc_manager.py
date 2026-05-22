@@ -153,8 +153,8 @@ WantedBy=multi-user.target"""
         """Force-stops and deletes a container."""
         if IS_MOCK_LXC:
             return True
-        subprocess.run(['lxc', 'stop', '-f', name], capture_output=True)
-        subprocess.run(['lxc', 'delete', '-f', name], capture_output=True, check=True)
+        subprocess.run([LXC_BIN, 'stop', '-f', name], capture_output=True)
+        subprocess.run([LXC_BIN, 'delete', '-f', name], capture_output=True, check=True)
         return True
 
     @classmethod
@@ -308,7 +308,7 @@ WantedBy=multi-user.target"""
         if status == 'running':
             try:
                 df_out = subprocess.run(
-                    ['lxc', 'exec', name, '--', 'df', '-BM', '/'],
+                    [LXC_BIN, 'exec', name, '--', 'df', '-BM', '/'],
                     capture_output=True, text=True, timeout=5
                 )
                 if df_out.returncode == 0:
