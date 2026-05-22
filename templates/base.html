@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{% endblock %} - {{ settings.get('site_name', 'MintyHost') }}</title>
   
+  <!-- Favicon -->
+  {% if settings.get('favicon_url') %}
+    <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
+  {% endif %}
+
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {% block extra_css %}{% endblock %}
@@ -25,7 +30,11 @@
   <nav class="navbar">
     <div class="container">
       <a href="/" class="logo">
-        <div class="logo-icon">M</div>
+        {% if settings.get('logo_url') %}
+          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
+        {% else %}
+          <div class="logo-icon">M</div>
+        {% endif %}
         <span>{{ settings.get('site_name', 'MintyHost') }}</span>
       </a>
       
@@ -67,7 +76,11 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <a href="/" class="logo">
-            <div class="logo-icon">M</div>
+            {% if settings.get('logo_url') %}
+              <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
+            {% else %}
+              <div class="logo-icon">M</div>
+            {% endif %}
             <span>{{ settings.get('site_name', 'MintyHost') }}</span>
           </a>
           <p>Ultra-clean, high-performance virtual private servers built for modern developers.</p>

@@ -862,3 +862,128 @@ window.deleteFaq = async function(faqId) {
     showToast(`Failed to delete FAQ: ${err.message}`, 'error');
   }
 };
+
+window.handleBrandingUpload = async function(input, type) {
+  if (!input.files || !input.files[0]) return;
+  
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', type);
+  
+  showToast(`Uploading ${type}...`, 'info');
+  
+  try {
+    const res = await fetch('/api/admin/settings/upload', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message || `${type.toUpperCase()} uploaded successfully.`, 'success');
+    
+    // Update the previews dynamically without full reload
+    if (type === 'logo') {
+      const container = document.querySelector('.logo-preview-container');
+      container.innerHTML = `<img id="adminLogoPreview" src="${result.url}" alt="Logo Preview" style="max-height: 80px; max-width: 90%; object-fit: contain;">`;
+      
+      const removeBtn = document.getElementById('btn-remove-logo');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+      
+      // Update sidebar logo if it's there
+      const sidebarLogo = document.querySelector('.db-sidebar .logo');
+      if (sidebarLogo) {
+        let logoImg = sidebarLogo.querySelector('.logo-img');
+        if (!logoImg) {
+          const fallback = sidebarLogo.querySelector('.logo-icon');
+          if (fallback) fallback.remove();
+          logoImg = document.createElement('img');
+          logoImg.className = 'logo-img';
+          logoImg.alt = 'Logo';
+          sidebarLogo.prepend(logoImg);
+        }
+        logoImg.src = result.url;
+      }
+    } else if (type === 'favicon') {
+      const container = document.querySelector('.favicon-preview-container');
+      container.innerHTML = `<img id="adminFaviconPreview" src="${result.url}" alt="Favicon Preview" style="width: 48px; height: 48px; object-fit: contain;">`;
+      
+      const removeBtn = document.getElementById('btn-remove-favicon');
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+      
+      // Update favicon in head
+      let fav = document.querySelector('link[rel*="icon"]');
+      if (!fav) {
+        fav = document.createElement('link');
+        fav.rel = 'shortcut icon';
+        fav.type = 'image/x-icon';
+        document.head.appendChild(fav);
+      }
+      fav.href = result.url;
+    }
+    
+    // Create new Lucide icons if any
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  } catch (err) {
+    showToast(`Failed to upload ${type}: ${err.message}`, 'error');
+  } finally {
+    // Reset file input value so same file can be uploaded again
+    input.value = '';
+  }
+};
+
+window.removeBrandingImage = async function(type) {
+  if (!confirm(`Are you sure you want to remove the custom ${type} and revert to default?`)) return;
+  
+  showToast(`Removing custom ${type}...`, 'info');
+  
+  try {
+    const res = await fetch('/api/admin/settings/remove-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type })
+    });
+    
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message || `${type.toUpperCase()} removed successfully.`, 'success');
+    
+    if (type === 'logo') {
+      const container = document.querySelector('.logo-preview-container');
+      const siteName = document.getElementById('brandSiteName')?.value || 'MintyHost';
+      const firstLetter = siteName.charAt(0).toUpperCase();
+      container.innerHTML = `<div id="adminLogoFallback" class="logo-icon" style="font-size: 32px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: none; border-radius: var(--radius-sm);">${firstLetter}</div>`;
+      
+      const removeBtn = document.getElementById('btn-remove-logo');
+      if (removeBtn) removeBtn.style.display = 'none';
+      
+      // Revert sidebar logo
+      const sidebarLogo = document.querySelector('.db-sidebar .logo');
+      if (sidebarLogo) {
+        const logoImg = sidebarLogo.querySelector('.logo-img');
+        if (logoImg) logoImg.remove();
+        const fallback = document.createElement('div');
+        fallback.className = 'logo-icon';
+        fallback.textContent = firstLetter;
+        sidebarLogo.prepend(fallback);
+      }
+    } else if (type === 'favicon') {
+      const container = document.querySelector('.favicon-preview-container');
+      container.innerHTML = `<div id="adminFaviconFallback" style="font-size: 32px; font-weight: bold; color: var(--color-text-muted);">FI</div>`;
+      
+      const removeBtn = document.getElementById('btn-remove-favicon');
+      if (removeBtn) removeBtn.style.display = 'none';
+      
+      // Remove favicon in head
+      const fav = document.querySelector('link[rel*="icon"]');
+      if (fav) fav.remove();
+    }
+    
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  } catch (err) {
+    showToast(`Failed to remove ${type}: ${err.message}`, 'error');
+  }
+};

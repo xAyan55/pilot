@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Control - {{ settings.get('site_name', 'MintyHost') }}</title>
   
+  {% if settings.get('favicon_url') %}
+    <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
+  {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 
@@ -49,7 +52,11 @@
     <aside class="db-sidebar">
       <div class="db-sidebar-header">
         <a href="/" class="logo">
-          <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          {% if settings.get('logo_url') %}
+            <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
+          {% else %}
+            <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          {% endif %}
           <span>{{ settings.get('site_name', 'MintyHost LXC') }}</span>
         </a>
       </div>
@@ -348,6 +355,53 @@
                 <div class="form-group">
                   <label for="brandSiteName">Hosting Brand Name</label>
                   <input type="text" id="brandSiteName" class="form-input" value="{{ settings.get('site_name', 'MintyHost LXC') }}" required>
+                </div>
+
+                <!-- Custom Logo & Favicon Upload -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                  <div class="form-group">
+                    <label style="font-weight: 600; color: var(--color-text-main);">Website Logo</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <div class="logo-preview-container" style="display: flex; align-items: center; justify-content: center; height: 100px; border: 2px dashed var(--color-border); border-radius: var(--radius-md); background: #fafafa; overflow: hidden; position: relative;">
+                        {% if settings.get('logo_url') %}
+                          <img id="adminLogoPreview" src="{{ settings.get('logo_url') }}" alt="Logo Preview" style="max-height: 80px; max-width: 90%; object-fit: contain;">
+                        {% else %}
+                          <div id="adminLogoFallback" class="logo-icon" style="font-size: 32px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: none; border-radius: var(--radius-sm);">M</div>
+                        {% endif %}
+                      </div>
+                      <div style="display: flex; gap: 8px;">
+                        <input type="file" id="logoUploadInput" accept="image/*" style="display: none;" onchange="handleBrandingUpload(this, 'logo')">
+                        <button type="button" class="btn btn-outline" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600;" onclick="document.getElementById('logoUploadInput').click()">
+                          <i data-lucide="upload" style="width: 14px; height: 14px; margin-right: 4px;"></i> Upload
+                        </button>
+                        <button type="button" id="btn-remove-logo" class="btn btn-outline" style="padding: 8px 12px; border-color: #f6d1d1; background: #fdf2f2; color: #b91c1c; display: {% if settings.get('logo_url') %}inline-flex{% else %}none{% endif %}; justify-content: center; align-items: center;" onclick="removeBrandingImage('logo')">
+                          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label style="font-weight: 600; color: var(--color-text-main);">Website Favicon</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <div class="favicon-preview-container" style="display: flex; align-items: center; justify-content: center; height: 100px; border: 2px dashed var(--color-border); border-radius: var(--radius-md); background: #fafafa; overflow: hidden; position: relative;">
+                        {% if settings.get('favicon_url') %}
+                          <img id="adminFaviconPreview" src="{{ settings.get('favicon_url') }}" alt="Favicon Preview" style="width: 48px; height: 48px; object-fit: contain;">
+                        {% else %}
+                          <div id="adminFaviconFallback" style="font-size: 32px; font-weight: bold; color: var(--color-text-muted);">FI</div>
+                        {% endif %}
+                      </div>
+                      <div style="display: flex; gap: 8px;">
+                        <input type="file" id="faviconUploadInput" accept="image/*,.ico" style="display: none;" onchange="handleBrandingUpload(this, 'favicon')">
+                        <button type="button" class="btn btn-outline" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600;" onclick="document.getElementById('faviconUploadInput').click()">
+                          <i data-lucide="upload" style="width: 14px; height: 14px; margin-right: 4px;"></i> Upload
+                        </button>
+                        <button type="button" id="btn-remove-favicon" class="btn btn-outline" style="padding: 8px 12px; border-color: #f6d1d1; background: #fdf2f2; color: #b91c1c; display: {% if settings.get('favicon_url') %}inline-flex{% else %}none{% endif %}; justify-content: center; align-items: center;" onclick="removeBrandingImage('favicon')">
+                          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="form-group" style="margin-top: 16px; margin-bottom: 20px;">

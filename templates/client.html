@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Client Area - {{ settings.get('site_name', 'MintyHost') }}</title>
   
+  {% if settings.get('favicon_url') %}
+    <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
+  {% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <!-- xterm.js for web terminal -->
@@ -26,7 +29,11 @@
     <aside class="db-sidebar">
       <div class="db-sidebar-header">
         <a href="/" class="logo">
-          <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          {% if settings.get('logo_url') %}
+            <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
+          {% else %}
+            <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          {% endif %}
           <span>{{ settings.get('site_name', 'MintyHost LXC') }}</span>
         </a>
       </div>

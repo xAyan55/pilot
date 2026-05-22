@@ -13,6 +13,8 @@ import sys
 import subprocess
 import random
 import threading
+import uuid
+from werkzeug.utils import secure_filename
 from database import get_db_connection, init_db
 from lxc_manager import LXCManager, LXC_BIN, IS_MOCK_LXC
 from collections import deque
@@ -1046,6 +1048,111 @@ def admin_settings_pages():
         return jsonify({"status": "success", "message": "Page contents saved successfully."})
     except Exception as e:
         return jsonify({"message": f"Failed to save page contents: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/admin/settings/upload', methods=['POST'])
+def admin_settings_upload():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    upload_type = request.form.get('type')
+    if upload_type not in ['logo', 'favicon']:
+        return jsonify({"message": "Invalid upload type. Must be 'logo' or 'favicon'."}), 400
+        
+    if 'file' not in request.files:
+        return jsonify({"message": "No file part in request."}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"message": "No file selected."}), 400
+        
+    if file and allowed_file(file.filename):
+        # Ensure uploads directory exists
+        uploads_dir = os.path.join(app.static_folder, 'uploads')
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        # Save file with unique name
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{upload_type}_{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(uploads_dir, filename)
+        file.save(filepath)
+        
+        # Update setting in database
+        file_url = url_for('static', filename=f"uploads/{filename}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            key = f"{upload_type}_url"
+            
+            # Retrieve old file to delete it
+            cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            if row:
+                old_url = row['value']
+                if 'static/' in old_url:
+                    old_rel_path = old_url.split('static/')[-1]
+                    old_file_path = os.path.join(app.static_folder, old_rel_path)
+                    if os.path.exists(old_file_path):
+                        try:
+                            os.remove(old_file_path)
+                        except Exception as ex:
+                            print(f"[WARN] Failed to delete old asset: {ex}")
+                            
+            cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, file_url, file_url)
+            )
+            conn.commit()
+            log_audit(session['user_id'], f"Uploaded new custom {upload_type}: {file_url}")
+            return jsonify({"status": "success", "url": file_url, "message": f"{upload_type.capitalize()} uploaded successfully."})
+        except Exception as e:
+            return jsonify({"message": f"Failed to save setting: {str(e)}"}), 500
+        finally:
+            conn.close()
+            
+    return jsonify({"message": "File extension not allowed."}), 400
+
+@app.route('/api/admin/settings/remove-image', methods=['POST'])
+def admin_settings_remove_image():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    data = request.get_json() or {}
+    image_type = data.get('type')
+    if image_type not in ['logo', 'favicon']:
+        return jsonify({"message": "Invalid type. Must be 'logo' or 'favicon'."}), 400
+        
+    key = f"{image_type}_url"
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row:
+            current_url = row['value']
+            if 'static/' in current_url:
+                relative_path = current_url.split('static/')[-1]
+                file_path = os.path.join(app.static_folder, relative_path)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as ex:
+                        print(f"[WARN] Failed to delete physical asset: {ex}")
+                        
+        cursor.execute("DELETE FROM settings WHERE key = ?", (key,))
+        conn.commit()
+        log_audit(session['user_id'], f"Removed custom {image_type}")
+        return jsonify({"status": "success", "message": f"{image_type.capitalize()} removed successfully."})
+    except Exception as e:
+        return jsonify({"message": f"Failed to remove asset: {str(e)}"}), 500
     finally:
         conn.close()
 
