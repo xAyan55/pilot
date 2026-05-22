@@ -222,7 +222,14 @@ WantedBy=multi-user.target"""
                  "service ssh restart || systemctl restart ssh || systemctl restart sshd"
              )]),
             ('Configuring Message of the Day (MOTD)...',
-             ['lxc', 'exec', name, '--', 'bash', '-c', f"cat << 'EOF' > /etc/motd\n{motd_content.strip()}\nEOF\n"]),
+             ['lxc', 'exec', name, '--', 'bash', '-c', (
+                 f"cat << 'EOF' > /etc/motd\n{motd_content.strip()}\nEOF\n"
+                 f"if [ -d /etc/update-motd.d ]; then\n"
+                 f"  printf '#!/bin/sh\\n[ -f /etc/motd ] && cat /etc/motd\\n' > /etc/update-motd.d/00-custom-motd\n"
+                 f"  chmod +x /etc/update-motd.d/00-custom-motd\n"
+                 f"  if [ -x /usr/sbin/update-motd ]; then /usr/sbin/update-motd; fi\n"
+                 f"fi"
+             )]),
             ('Downloading and installing Bore TCP tunneling client...',
              ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
         ]
