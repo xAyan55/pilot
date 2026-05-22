@@ -56,7 +56,36 @@ def seed_database():
             cursor.execute('INSERT INTO settings (key, value) VALUES (?, ?)', (key, value))
             print(f"Seeded setting: {key}")
             
-    # 4. Seed initial audit log
+    # 4. Seed VPS Plans
+    cursor.execute("SELECT COUNT(*) FROM vps_plans")
+    if cursor.fetchone()[0] == 0:
+        default_plans = [
+            ('Starter VPS', 5.00, 500, '2 GB', '1 Core', '40 GB', '2 TB'),
+            ('Pro VPS', 15.00, 1500, '4 GB', '2 Cores', '80 GB', '4 TB'),
+            ('Elite VPS', 30.00, 3000, '8 GB', '4 Cores', '160 GB', '8 TB')
+        ]
+        for plan in default_plans:
+            cursor.execute(
+                "INSERT INTO vps_plans (name, price, price_credits, ram, cpu, storage, bandwidth) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                plan
+            )
+            print(f"Seeded plan: {plan[0]}")
+
+    # 5. Seed FAQs
+    cursor.execute("SELECT COUNT(*) FROM faqs")
+    if cursor.fetchone()[0] == 0:
+        default_faqs = [
+            ("What virtualization technology do you use?", "We leverage Linux Containers (LXC) and KVM technologies to ensure high-performance, isolated virtual environments with native-like execution speed."),
+            ("Is the resource allocation dedicated or shared?", "All resource limits (RAM, CPU, and Disk space) specified in your plan are 100% dedicated to your container. We enforce a strict non-overselling policy."),
+            ("How fast is container provisioning?", "Once a container is deployed by an administrator, it boots up and becomes accessible in less than 55 seconds."),
+            ("Can I manage snapshots and backups?", "Yes, you can create on-demand snapshots, restore container states, and export full container tarball backups directly from your client control panel."),
+            ("What operating systems are supported?", "We currently support Ubuntu 22.04 LTS and Debian 11 images. You can reinstall or switch your OS at any time.")
+        ]
+        for faq in default_faqs:
+            cursor.execute("INSERT INTO faqs (question, answer) VALUES (?, ?)", faq)
+            print(f"Seeded FAQ: {faq[0][:30]}...")
+
+    # 6. Seed initial audit log
     cursor.execute('SELECT COUNT(*) FROM logs')
     if cursor.fetchone()[0] == 0:
         cursor.execute(

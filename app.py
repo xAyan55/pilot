@@ -75,39 +75,6 @@ def is_admin():
     return session.get('role') == 'admin'
 
 # Static content configurations for marketing/public pages
-PLANS = [
-    {
-        'id': 1,
-        'name': 'Starter VPS',
-        'price': 5.00,
-        'price_credits': 500,
-        'ram': '2 GB',
-        'cpu': '1 Core',
-        'storage': '40 GB',
-        'bandwidth': '2 TB'
-    },
-    {
-        'id': 2,
-        'name': 'Pro VPS',
-        'price': 15.00,
-        'price_credits': 1500,
-        'ram': '4 GB',
-        'cpu': '2 Cores',
-        'storage': '80 GB',
-        'bandwidth': '4 TB'
-    },
-    {
-        'id': 3,
-        'name': 'Elite VPS',
-        'price': 30.00,
-        'price_credits': 3000,
-        'ram': '8 GB',
-        'cpu': '4 Cores',
-        'storage': '160 GB',
-        'bandwidth': '8 TB'
-    }
-]
-
 TEAM_MEMBERS = [
     {
         'name': 'Ayan Khan',
@@ -126,43 +93,33 @@ TEAM_MEMBERS = [
     }
 ]
 
-FAQS = [
-    {
-        'id': 1,
-        'question': 'What virtualization technology do you use?',
-        'answer': 'We leverage Linux Containers (LXC) and KVM technologies to ensure high-performance, isolated virtual environments with native-like execution speed.'
-    },
-    {
-        'id': 2,
-        'question': 'Is the resource allocation dedicated or shared?',
-        'answer': 'All resource limits (RAM, CPU, and Disk space) specified in your plan are 100% dedicated to your container. We enforce a strict non-overselling policy.'
-    },
-    {
-        'id': 3,
-        'question': 'How fast is container provisioning?',
-        'answer': 'Once a container is deployed by an administrator, it boots up and becomes accessible in less than 55 seconds.'
-    },
-    {
-        'id': 4,
-        'question': 'Can I manage snapshots and backups?',
-        'answer': 'Yes, you can create on-demand snapshots, restore container states, and export full container tarball backups directly from your client control panel.'
-    },
-    {
-        'id': 5,
-        'question': 'What operating systems are supported?',
-        'answer': 'We currently support Ubuntu 22.04 LTS and Debian 11 images. You can reinstall or switch your OS at any time.'
-    }
-]
-
 # ----------------- PAGE ROUTING -----------------
 
 @app.route('/')
 def index():
-    return render_template('index.html', plans=PLANS)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM vps_plans ORDER BY price ASC")
+        plans = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"Error fetching plans: {e}")
+        plans = []
+    return render_template('index.html', plans=plans)
 
 @app.route('/plans')
 def plans_page():
-    return render_template('plans.html', plans=PLANS)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM vps_plans ORDER BY price ASC")
+        plans = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"Error fetching plans: {e}")
+        plans = []
+    return render_template('plans.html', plans=plans)
 
 @app.route('/about')
 def about_page():
@@ -170,7 +127,16 @@ def about_page():
 
 @app.route('/faq')
 def faq_page():
-    return render_template('faq.html', faqs=FAQS)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM faqs ORDER BY id ASC")
+        faqs = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"Error fetching FAQs: {e}")
+        faqs = []
+    return render_template('faq.html', faqs=faqs)
 
 @app.route('/tos')
 def tos_page():
@@ -323,7 +289,8 @@ def client_vps_stats(vps_id):
         plan_cpu=vps_row['cpu'],
         plan_ram=vps_row['ram'],
         plan_disk=vps_row['disk'],
-        db_status=vps_row['status']
+        db_status=vps_row['status'],
+        vps_id=vps_id
     )
 
     # Sync status to DB if it changes
@@ -391,6 +358,9 @@ def client_vps_action(vps_id):
         new_status = 'running' if action in ['start', 'restart', 'resume'] else ('stopped' if action == 'stop' else 'suspended')
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
         conn.commit()
+
+        if action in ['start', 'restart']:
+            threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(vps_row['container_name'], vps_id)).start()
 
         log_audit(session['user_id'], f"Triggered power state: {action} on VPS {vps_row['container_name']}")
         conn.close()
@@ -977,8 +947,6 @@ def admin_stats():
     cursor.execute("SELECT SUM(ram) FROM vps")
     allocated_ram = cursor.fetchone()[0] or 0
 
-    conn.close()
-
     return jsonify({
         "clients": client_count,
         "vps_count": vps_count,
@@ -986,6 +954,255 @@ def admin_stats():
         "allocated_ram": allocated_ram,
         "is_mock": IS_MOCK_LXC
     })
+
+@app.route('/api/admin/settings/branding', methods=['POST'])
+def admin_settings_branding():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    
+    data = request.get_json() or {}
+    site_name = data.get('site_name', '').strip()
+    color_primary = data.get('color_primary', '').strip()
+    color_secondary = data.get('color_secondary', '').strip()
+    color_accent = data.get('color_accent', '').strip()
+    color_cool = data.get('color_cool', '').strip()
+
+    if not site_name:
+        return jsonify({"message": "Website name cannot be empty."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        updates = {
+            'site_name': site_name,
+            'color_primary': color_primary,
+            'color_secondary': color_secondary,
+            'color_accent': color_accent,
+            'color_cool': color_cool
+        }
+        for key, val in updates.items():
+            cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, val, val)
+            )
+        conn.commit()
+        log_audit(session['user_id'], f"Updated branding and site settings. Site name set to: {site_name}")
+        return jsonify({"status": "success", "message": "Branding settings saved successfully."})
+    except Exception as e:
+        return jsonify({"message": f"Failed to save settings: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/admin/settings/pages', methods=['POST'])
+def admin_settings_pages():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    
+    data = request.get_json() or {}
+    about_intro = data.get('about_intro', '').strip()
+    about_mission = data.get('about_mission', '').strip()
+    about_infra = data.get('about_infra', '').strip()
+    about_why_trust = data.get('about_why_trust', '').strip()
+    tos_content = data.get('tos_content', '').strip()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        updates = {
+            'about_intro': about_intro,
+            'about_mission': about_mission,
+            'about_infra': about_infra,
+            'about_why_trust': about_why_trust,
+            'tos_content': tos_content
+        }
+        for key, val in updates.items():
+            cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, val, val)
+            )
+        conn.commit()
+        log_audit(session['user_id'], "Updated public pages customization (About & TOS pages)")
+        return jsonify({"status": "success", "message": "Page contents saved successfully."})
+    except Exception as e:
+        return jsonify({"message": f"Failed to save page contents: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/admin/plans', methods=['GET', 'POST'])
+def admin_plans_handler():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if request.method == 'GET':
+        cursor.execute("SELECT * FROM vps_plans ORDER BY price ASC")
+        plans = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+        return jsonify(plans)
+        
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    try:
+        price = float(data.get('price', 0))
+        price_credits = int(data.get('price_credits', 0))
+    except ValueError:
+        conn.close()
+        return jsonify({"message": "Price and price credits must be numbers."}), 400
+
+    ram = data.get('ram', '').strip()
+    cpu = data.get('cpu', '').strip()
+    storage = data.get('storage', '').strip()
+    bandwidth = data.get('bandwidth', '').strip()
+
+    if not name or not ram or not cpu or not storage or not bandwidth:
+        conn.close()
+        return jsonify({"message": "All plan fields are required."}), 400
+
+    try:
+        cursor.execute(
+            "INSERT INTO vps_plans (name, price, price_credits, ram, cpu, storage, bandwidth) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, price, price_credits, ram, cpu, storage, bandwidth)
+        )
+        conn.commit()
+        log_audit(session['user_id'], f"Created new VPS pricing plan: {name}")
+        conn.close()
+        return jsonify({"status": "success", "message": f"Plan '{name}' created successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to create plan: {str(e)}"}), 500
+
+@app.route('/api/admin/plans/<int:plan_id>', methods=['PUT', 'DELETE'])
+def admin_plan_detail_handler(plan_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM vps_plans WHERE id = ?", (plan_id,))
+    plan = cursor.fetchone()
+    if not plan:
+        conn.close()
+        return jsonify({"message": "Plan not found."}), 404
+
+    if request.method == 'DELETE':
+        try:
+            cursor.execute("DELETE FROM vps_plans WHERE id = ?", (plan_id,))
+            conn.commit()
+            log_audit(session['user_id'], f"Deleted VPS plan: {plan['name']}")
+            conn.close()
+            return jsonify({"status": "success", "message": f"Plan '{plan['name']}' deleted successfully."})
+        except Exception as e:
+            conn.close()
+            return jsonify({"message": f"Failed to delete plan: {str(e)}"}), 500
+
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    try:
+        price = float(data.get('price', 0))
+        price_credits = int(data.get('price_credits', 0))
+    except ValueError:
+        conn.close()
+        return jsonify({"message": "Price and price credits must be numbers."}), 400
+
+    ram = data.get('ram', '').strip()
+    cpu = data.get('cpu', '').strip()
+    storage = data.get('storage', '').strip()
+    bandwidth = data.get('bandwidth', '').strip()
+
+    if not name or not ram or not cpu or not storage or not bandwidth:
+        conn.close()
+        return jsonify({"message": "All plan fields are required."}), 400
+
+    try:
+        cursor.execute(
+            "UPDATE vps_plans SET name = ?, price = ?, price_credits = ?, ram = ?, cpu = ?, storage = ?, bandwidth = ? WHERE id = ?",
+            (name, price, price_credits, ram, cpu, storage, bandwidth, plan_id)
+        )
+        conn.commit()
+        log_audit(session['user_id'], f"Updated VPS pricing plan: {name}")
+        conn.close()
+        return jsonify({"status": "success", "message": f"Plan '{name}' updated successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to update plan: {str(e)}"}), 500
+
+@app.route('/api/admin/faqs', methods=['GET', 'POST'])
+def admin_faqs_handler():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == 'GET':
+        cursor.execute("SELECT * FROM faqs ORDER BY id ASC")
+        faqs = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+        return jsonify(faqs)
+
+    data = request.get_json() or {}
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+
+    if not question or not answer:
+        conn.close()
+        return jsonify({"message": "Question and answer fields are required."}), 400
+
+    try:
+        cursor.execute("INSERT INTO faqs (question, answer) VALUES (?, ?)", (question, answer))
+        conn.commit()
+        log_audit(session['user_id'], f"Created new FAQ: {question[:40]}...")
+        conn.close()
+        return jsonify({"status": "success", "message": "FAQ item created successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to create FAQ: {str(e)}"}), 500
+
+@app.route('/api/admin/faqs/<int:faq_id>', methods=['PUT', 'DELETE'])
+def admin_faq_detail_handler(faq_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM faqs WHERE id = ?", (faq_id,))
+    faq = cursor.fetchone()
+    if not faq:
+        conn.close()
+        return jsonify({"message": "FAQ not found."}), 404
+
+    if request.method == 'DELETE':
+        try:
+            cursor.execute("DELETE FROM faqs WHERE id = ?", (faq_id,))
+            conn.commit()
+            log_audit(session['user_id'], f"Deleted FAQ ID: {faq_id}")
+            conn.close()
+            return jsonify({"status": "success", "message": "FAQ item deleted successfully."})
+        except Exception as e:
+            conn.close()
+            return jsonify({"message": f"Failed to delete FAQ: {str(e)}"}), 500
+
+    data = request.get_json() or {}
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+
+    if not question or not answer:
+        conn.close()
+        return jsonify({"message": "Question and answer fields are required."}), 400
+
+    try:
+        cursor.execute("UPDATE faqs SET question = ?, answer = ? WHERE id = ?", (question, answer, faq_id))
+        conn.commit()
+        log_audit(session['user_id'], f"Updated FAQ item: {question[:40]}...")
+        conn.close()
+        return jsonify({"status": "success", "message": "FAQ item updated successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to update FAQ: {str(e)}"}), 500
 
 # ----------------- REAL WEB TERMINAL VIA SOCKETIO + PTY -----------------
 

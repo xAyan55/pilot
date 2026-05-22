@@ -27,6 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
               loadContainers();
             } else if (targetId === 'panel-logs') {
               loadLogs();
+            } else if (targetId === 'panel-customization') {
+              // Set branding tab active by default
+              const brandingBtn = document.querySelector('.subnav-btn[data-subtarget="subpanel-branding"]');
+              if (brandingBtn) brandingBtn.click();
             }
           } else {
             panel.classList.remove('active');
@@ -41,6 +45,53 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  // 2. Customization Subpanel Switcher
+  const subnavBtns = document.querySelectorAll('.subnav-btn');
+  const subpanels = document.querySelectorAll('.sub-tab-panel');
+
+  if (subnavBtns.length > 0) {
+    subnavBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        subnavBtns.forEach(item => item.classList.remove('active'));
+        btn.classList.add('active');
+
+        const subtargetId = btn.getAttribute('data-subtarget');
+        subpanels.forEach(panel => {
+          if (panel.id === subtargetId) {
+            panel.classList.add('active');
+            panel.style.display = 'block';
+            // Trigger specific subtab loads
+            if (subtargetId === 'subpanel-plans') {
+              loadCustomPlans();
+            } else if (subtargetId === 'subpanel-faqs') {
+              loadCustomFaqs();
+            }
+          } else {
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+          }
+        });
+      });
+    });
+  }
+
+  // 3. Sync Color Inputs with hex text inputs
+  ['Primary', 'Secondary', 'Accent', 'Cool'].forEach(colorName => {
+    const picker = document.getElementById(`brandColor${colorName}`);
+    const text = document.getElementById(`brandColor${colorName}Text`);
+    if (picker && text) {
+      picker.addEventListener('input', () => {
+        text.value = picker.value.toUpperCase();
+      });
+      text.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) {
+          picker.value = text.value;
+        }
+      });
+    }
+  });
 
   // Mobile Sidebar Toggle
   const dbToggle = document.querySelector('.db-menu-toggle');
@@ -432,4 +483,318 @@ window.handleDeployVPS = function(event) {
 
 window.closeDeployModal = function() {
   document.getElementById('deployLogModal').classList.remove('active');
+};
+
+// --- CUSTOMIZATION & BRANDING ACTIONS ---
+
+// Save site name and color settings
+async function saveBranding(event) {
+  event.preventDefault();
+  const siteName = document.getElementById('brandSiteName').value.trim();
+  const colorPrimary = document.getElementById('brandColorPrimaryText').value.trim();
+  const colorSecondary = document.getElementById('brandColorSecondaryText').value.trim();
+  const colorAccent = document.getElementById('brandColorAccentText').value.trim();
+  const colorCool = document.getElementById('brandColorCoolText').value.trim();
+
+  try {
+    const response = await fetch('/api/admin/settings/branding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        site_name: siteName,
+        color_primary: colorPrimary,
+        color_secondary: colorSecondary,
+        color_accent: colorAccent,
+        color_cool: colorCool
+      })
+    });
+    const result = await window.handleFetchResponse(response);
+    showToast(result.message || "Branding settings saved successfully.", "success");
+    // Reload page to apply new theme colors and branding name
+    setTimeout(() => location.reload(), 1000);
+  } catch (err) {
+    showToast(`Failed to save branding: ${err.message}`, "error");
+  }
+}
+window.saveBranding = saveBranding;
+
+// Save public page details
+async function savePagesContent(event) {
+  event.preventDefault();
+  const aboutIntro = document.getElementById('pageAboutIntro').value.trim();
+  const aboutMission = document.getElementById('pageAboutMission').value.trim();
+  const aboutInfra = document.getElementById('pageAboutInfra').value.trim();
+  const aboutWhyTrust = document.getElementById('pageAboutWhyTrust').value.trim();
+  const tosContent = document.getElementById('pageTosContent').value.trim();
+
+  try {
+    const response = await fetch('/api/admin/settings/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        about_intro: aboutIntro,
+        about_mission: aboutMission,
+        about_infra: aboutInfra,
+        about_why_trust: aboutWhyTrust,
+        tos_content: tosContent
+      })
+    });
+    const result = await window.handleFetchResponse(response);
+    showToast(result.message || "Page contents saved successfully.", "success");
+  } catch (err) {
+    showToast(`Failed to save page contents: ${err.message}`, "error");
+  }
+}
+window.savePagesContent = savePagesContent;
+
+// --- VPS PLANS CRUD ---
+window.loadedPlans = [];
+
+async function loadCustomPlans() {
+  try {
+    const res = await fetch('/api/admin/plans');
+    const plans = await window.handleFetchResponse(res);
+    window.loadedPlans = plans;
+    
+    const tbody = document.getElementById('custom-plans-table-body');
+    tbody.innerHTML = '';
+    
+    if (plans.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color: var(--color-text-muted); padding: 20px;">No plans found.</td></tr>';
+      return;
+    }
+    
+    plans.forEach(plan => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><code style="background-color: var(--color-primary); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace;">#${plan.id}</code></td>
+        <td><strong>${plan.name}</strong></td>
+        <td>$${parseFloat(plan.price).toFixed(2)}</td>
+        <td>${plan.cpu}</td>
+        <td>${plan.ram}</td>
+        <td>${plan.storage}</td>
+        <td>${plan.bandwidth}</td>
+        <td><span style="font-size: 11px; color: var(--color-text-muted);">${plan.price_credits} Credits</span></td>
+        <td class="text-right" style="white-space: nowrap;">
+          <button class="btn btn-outline action-btn-small" onclick="openPlanModal(${plan.id})" style="margin-right: 6px;">
+            <i data-lucide="edit" style="width: 13px; height: 13px; margin-right: 2px;"></i> Edit
+          </button>
+          <button class="btn btn-outline action-btn-small" onclick="deletePlan(${plan.id})" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;">
+            <i data-lucide="trash" style="width: 13px; height: 13px; margin-right: 2px;"></i> Delete
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+    
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  } catch (err) {
+    showToast(`Failed to load plans: ${err.message}`, 'error');
+  }
+}
+window.loadCustomPlans = loadCustomPlans;
+
+window.openPlanModal = function(planId = null) {
+  const modal = document.getElementById('planModal');
+  const title = document.getElementById('planModalTitle');
+  const form = document.getElementById('planForm');
+  
+  form.reset();
+  document.getElementById('planFormId').value = '';
+  
+  if (planId) {
+    title.textContent = "Edit VPS Plan";
+    const plan = window.loadedPlans.find(p => p.id === planId);
+    if (plan) {
+      document.getElementById('planFormId').value = plan.id;
+      document.getElementById('planName').value = plan.name;
+      document.getElementById('planPrice').value = plan.price;
+      document.getElementById('planPriceCredits').value = plan.price_credits;
+      document.getElementById('planCpu').value = plan.cpu;
+      document.getElementById('planRam').value = plan.ram;
+      document.getElementById('planDisk').value = plan.storage;
+      document.getElementById('planBandwidth').value = plan.bandwidth;
+    }
+  } else {
+    title.textContent = "Add VPS Plan";
+  }
+  
+  modal.classList.add('active');
+};
+
+window.closePlanModal = function() {
+  document.getElementById('planModal').classList.remove('active');
+};
+
+window.handlePlanSubmit = async function(event) {
+  event.preventDefault();
+  const planId = document.getElementById('planFormId').value;
+  const name = document.getElementById('planName').value.trim();
+  const price = parseFloat(document.getElementById('planPrice').value);
+  const priceCredits = parseInt(document.getElementById('planPriceCredits').value);
+  const cpu = document.getElementById('planCpu').value.trim();
+  const ram = document.getElementById('planRam').value.trim();
+  const disk = document.getElementById('planDisk').value.trim();
+  const bandwidth = document.getElementById('planBandwidth').value.trim();
+
+  const payload = {
+    name,
+    price,
+    price_credits: priceCredits,
+    cpu,
+    ram,
+    storage: disk,
+    bandwidth
+  };
+
+  const isEdit = !!planId;
+  const url = isEdit ? `/api/admin/plans/${planId}` : '/api/admin/plans';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    closePlanModal();
+    loadCustomPlans();
+  } catch (err) {
+    showToast(`Failed to save plan: ${err.message}`, 'error');
+  }
+};
+
+window.deletePlan = async function(planId) {
+  if (!confirm("Are you sure you want to delete this pricing plan?")) return;
+  try {
+    const res = await fetch(`/api/admin/plans/${planId}`, {
+      method: 'DELETE'
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    loadCustomPlans();
+  } catch (err) {
+    showToast(`Failed to delete plan: ${err.message}`, 'error');
+  }
+};
+
+// --- FAQ CRUD ---
+window.loadedFaqs = [];
+
+async function loadCustomFaqs() {
+  try {
+    const res = await fetch('/api/admin/faqs');
+    const faqs = await window.handleFetchResponse(res);
+    window.loadedFaqs = faqs;
+    
+    const tbody = document.getElementById('custom-faqs-table-body');
+    tbody.innerHTML = '';
+    
+    if (faqs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color: var(--color-text-muted); padding: 20px;">No FAQs found.</td></tr>';
+      return;
+    }
+    
+    faqs.forEach(faq => {
+      const row = document.createElement('tr');
+      const answerPreview = faq.answer.length > 80 ? faq.answer.substring(0, 80) + '...' : faq.answer;
+      
+      row.innerHTML = `
+        <td><code style="background-color: var(--color-primary); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace;">#${faq.id}</code></td>
+        <td><strong>${faq.question}</strong></td>
+        <td style="font-size: 13px; color: var(--color-text-muted); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${answerPreview}</td>
+        <td class="text-right" style="white-space: nowrap;">
+          <button class="btn btn-outline action-btn-small" onclick="openFaqModal(${faq.id})" style="margin-right: 6px;">
+            <i data-lucide="edit" style="width: 13px; height: 13px; margin-right: 2px;"></i> Edit
+          </button>
+          <button class="btn btn-outline action-btn-small" onclick="deleteFaq(${faq.id})" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;">
+            <i data-lucide="trash" style="width: 13px; height: 13px; margin-right: 2px;"></i> Delete
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+    
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  } catch (err) {
+    showToast(`Failed to load FAQs: ${err.message}`, 'error');
+  }
+}
+window.loadCustomFaqs = loadCustomFaqs;
+
+window.openFaqModal = function(faqId = null) {
+  const modal = document.getElementById('faqModal');
+  const title = document.getElementById('faqModalTitle');
+  const form = document.getElementById('faqForm');
+  
+  form.reset();
+  document.getElementById('faqFormId').value = '';
+  
+  if (faqId) {
+    title.textContent = "Edit FAQ Item";
+    const faq = window.loadedFaqs.find(f => f.id === faqId);
+    if (faq) {
+      document.getElementById('faqFormId').value = faq.id;
+      document.getElementById('faqQuestion').value = faq.question;
+      document.getElementById('faqAnswer').value = faq.answer;
+    }
+  } else {
+    title.textContent = "Add FAQ Item";
+  }
+  
+  modal.classList.add('active');
+};
+
+window.closeFaqModal = function() {
+  document.getElementById('faqModal').classList.remove('active');
+};
+
+window.handleFaqSubmit = async function(event) {
+  event.preventDefault();
+  const faqId = document.getElementById('faqFormId').value;
+  const question = document.getElementById('faqQuestion').value.trim();
+  const answer = document.getElementById('faqAnswer').value.trim();
+
+  const payload = {
+    question,
+    answer
+  };
+
+  const isEdit = !!faqId;
+  const url = isEdit ? `/api/admin/faqs/${faqId}` : '/api/admin/faqs';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    closeFaqModal();
+    loadCustomFaqs();
+  } catch (err) {
+    showToast(`Failed to save FAQ: ${err.message}`, 'error');
+  }
+};
+
+window.deleteFaq = async function(faqId) {
+  if (!confirm("Are you sure you want to delete this FAQ item?")) return;
+  try {
+    const res = await fetch(`/api/admin/faqs/${faqId}`, {
+      method: 'DELETE'
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    loadCustomFaqs();
+  } catch (err) {
+    showToast(`Failed to delete FAQ: ${err.message}`, 'error');
+  }
 };

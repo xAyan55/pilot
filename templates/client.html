@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Area - MintyHost LXC</title>
+  <title>Client Area - {{ settings.get('site_name', 'MintyHost') }}</title>
   
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
@@ -12,10 +12,10 @@
   
   <style>
     :root {
-      --color-primary: #ECF4E8;
-      --color-secondary: #CBF3BB;
-      --color-accent: #ABE7B2;
-      --color-cool: #93BFC7;
+      --color-primary: {{ settings.get('color_primary', '#ECF4E8') }};
+      --color-secondary: {{ settings.get('color_secondary', '#CBF3BB') }};
+      --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
+      --color-cool: {{ settings.get('color_cool', '#93BFC7') }};
     }
   </style>
 </head>
@@ -26,8 +26,8 @@
     <aside class="db-sidebar">
       <div class="db-sidebar-header">
         <a href="/" class="logo">
-          <div class="logo-icon">L</div>
-          <span>MintyHost LXC</span>
+          <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          <span>{{ settings.get('site_name', 'MintyHost LXC') }}</span>
         </a>
       </div>
       

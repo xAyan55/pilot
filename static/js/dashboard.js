@@ -269,6 +269,16 @@ async function fetchSingleCardStats(vpsId) {
     const ipEl = document.getElementById(`card-ip-${vpsId}`);
     if (ipEl) ipEl.textContent = stats.ip || 'N/A';
 
+    // Update Tunnel SSH command in card
+    const tunnelEl = document.getElementById(`card-tunnel-${vpsId}`);
+    if (tunnelEl) {
+      if (stats.bore_port) {
+        tunnelEl.textContent = `ssh -p ${stats.bore_port} root@bore.pub`;
+      } else {
+        tunnelEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+      }
+    }
+
     // Update Status Badge in card
     const badge = document.getElementById(`card-status-badge-${vpsId}`);
     if (badge) {
@@ -543,7 +553,11 @@ async function loadVPSDetails(vpsId) {
 
   const tunnelValEl = document.getElementById('tunnel-val');
   if (tunnelValEl) {
-    tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+    if (currentVPS && currentVPS.bore_port) {
+      tunnelValEl.textContent = `ssh -p ${currentVPS.bore_port} root@bore.pub`;
+    } else {
+      tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+    }
   }
 
   // Fetch Live Metrics and subcomponents lists
@@ -575,7 +589,11 @@ async function fetchLiveStats(vpsId) {
     
     const tunnelValEl = document.getElementById('tunnel-val');
     if (tunnelValEl) {
-      tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+      if (stats.bore_port) {
+        tunnelValEl.textContent = `ssh -p ${stats.bore_port} root@bore.pub`;
+      } else {
+        tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
+      }
     }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');

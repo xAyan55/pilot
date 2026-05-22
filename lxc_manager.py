@@ -100,26 +100,99 @@ class LXCManager:
             log_callback('[SUCCESS] Container deployed successfully!')
 
     @classmethod
-    def post_deploy_setup(cls, name, vps_id, root_password, log_callback=None):
-        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and installs/starts Bore tunnel."""
+    def ensure_dynamic_bore_setup(cls, name, vps_id):
+        """Ensures that the dynamic Bore tunnel script and systemd service are configured and running in the container."""
         if IS_MOCK_LXC:
             return True
 
         import base64
         tunnel_port = 40000 + vps_id
+        
+        # 1. Write the bash wrapper script
+        bore_script_content = f"""#!/bin/bash
+rm -f /var/run/bore_port
+TUNNEL_PORT=$1
+
+run_bore() {{
+    local port_arg=$1
+    local success=0
+    
+    if [ -n "$port_arg" ]; then
+        /usr/local/bin/bore local 22 --to bore.pub --port "$port_arg" > /var/run/bore.log 2>&1 &
+    else
+        /usr/local/bin/bore local 22 --to bore.pub > /var/run/bore.log 2>&1 &
+    fi
+    BORE_PID=$!
+    
+    for i in {{1..25}}; do
+        if ! kill -0 $BORE_PID 2>/dev/null; then
+            break
+        fi
+        if grep -q "listening at bore.pub:" /var/run/bore.log; then
+            local bound_port=$(grep -oE "listening at bore.pub:[0-9]+" /var/run/bore.log | cut -d: -f3)
+            if [ -n "$bound_port" ]; then
+                echo "$bound_port" > /var/run/bore_port
+                success=1
+                break
+            fi
+        fi
+        sleep 0.2
+    done
+    
+    if [ $success -eq 1 ]; then
+        wait $BORE_PID
+        rm -f /var/run/bore_port
+        return 0
+    else
+        kill -9 $BORE_PID 2>/dev/null
+        wait $BORE_PID 2>/dev/null
+        return 1
+    fi
+}}
+
+if [ -n "$TUNNEL_PORT" ]; then
+    echo "Attempting static port $TUNNEL_PORT..."
+    if run_bore "$TUNNEL_PORT"; then
+        exit 0
+    fi
+    echo "Static port $TUNNEL_PORT failed or in use. Falling back to dynamic port..."
+fi
+
+run_bore ""
+"""
+        encoded_script = base64.b64encode(bore_script_content.encode('utf-8')).decode('utf-8')
+        
+        # 2. Write the systemd service file pointing to the script
         bore_service_content = f"""[Unit]
 Description=Bore TCP Tunnel
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/bore local 22 --to bore.pub --port {tunnel_port}
+ExecStart=/bin/bash /usr/local/bin/bore-tunnel.sh {tunnel_port}
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target"""
-
         encoded_service = base64.b64encode(bore_service_content.encode('utf-8')).decode('utf-8')
+
+        try:
+            # Create script inside container
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/bore-tunnel.sh && chmod +x /usr/local/bin/bore-tunnel.sh"])
+            # Create service inside container
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/bore.service"])
+            # Reload daemon and restart/start service
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable bore && (systemctl restart bore || systemctl start bore)"])
+        except Exception as e:
+            print(f"[WARNING] Failed to ensure dynamic bore setup on container {name}: {e}")
+            return False
+        return True
+
+    @classmethod
+    def post_deploy_setup(cls, name, vps_id, root_password, log_callback=None):
+        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and installs/starts Bore tunnel."""
+        if IS_MOCK_LXC:
+            return True
 
         steps = [
             ('Updating container package repositories...',
@@ -139,10 +212,6 @@ WantedBy=multi-user.target"""
              )]),
             ('Downloading and installing Bore TCP tunneling client...',
              ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
-            ('Registering Bore systemd background service configuration...',
-             ['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/bore.service"]),
-            ('Enabling and starting Bore tunnel service...',
-             ['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable bore && systemctl start bore"]),
         ]
 
         for desc, cmd in steps:
@@ -155,6 +224,10 @@ WantedBy=multi-user.target"""
                 print(f'[WARNING] post_deploy_setup step failed: {desc}. Error: {e}')
                 if log_callback:
                     log_callback(f'[WARNING] {desc} failed: {str(e)}')
+
+        if log_callback:
+            log_callback('[INFO] Setting up dynamic Bore TCP Tunnel service...')
+        cls.ensure_dynamic_bore_setup(name, vps_id)
         return True
 
     @classmethod
@@ -195,7 +268,7 @@ WantedBy=multi-user.target"""
         return True
 
     @classmethod
-    def get_container_stats(cls, name, plan_cpu=1, plan_ram=512, plan_disk=10, db_status='running'):
+    def get_container_stats(cls, name, plan_cpu=1, plan_ram=512, plan_disk=10, db_status='running', vps_id=None):
         """Retrieves real container stats from lxc info and lxc exec."""
         if IS_MOCK_LXC:
             import random
@@ -240,7 +313,8 @@ WantedBy=multi-user.target"""
                 'disk_limit': plan_disk,
                 'net_in': net_in_mb,
                 'net_out': net_out_mb,
-                'uptime': uptime_str
+                'uptime': uptime_str,
+                'bore_port': 40000 + vps_id if vps_id is not None else None
             }
 
         try:
@@ -250,7 +324,8 @@ WantedBy=multi-user.target"""
                 'name': name, 'status': 'stopped', 'ip': 'N/A',
                 'cpu': 0.0, 'ram_used': 0, 'ram_limit': plan_ram,
                 'disk_used': 0.0, 'disk_limit': plan_disk,
-                'net_in': 0.0, 'net_out': 0.0, 'uptime': 'Offline'
+                'net_in': 0.0, 'net_out': 0.0, 'uptime': 'Offline',
+                'bore_port': 40000 + vps_id if vps_id is not None else None
             }
 
         status = 'stopped'
@@ -331,6 +406,17 @@ WantedBy=multi-user.target"""
 
         ip_addr = cls.get_container_ip(name)
 
+        # Get dynamic bore tunnel port if it exists, fallback to standard port
+        bore_port = 40000 + vps_id if vps_id is not None else None
+        if not IS_MOCK_LXC and status == 'running':
+            try:
+                # We query /var/run/bore_port inside the container
+                port_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/bore_port'], check=False)
+                if port_out.strip().isdigit():
+                    bore_port = int(port_out.strip())
+            except Exception:
+                pass
+
         return {
             'name': name,
             'status': status,
@@ -342,7 +428,8 @@ WantedBy=multi-user.target"""
             'disk_limit': plan_disk,
             'net_in': net_in_mb,
             'net_out': net_out_mb,
-            'uptime': uptime_str if status == 'running' else 'Offline'
+            'uptime': uptime_str if status == 'running' else 'Offline',
+            'bore_port': bore_port
         }
 
     @staticmethod
