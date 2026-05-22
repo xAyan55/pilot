@@ -127,7 +127,16 @@ WantedBy=multi-user.target"""
             ('Pre-installing system packages (curl, sudo, git, wget, htop, openssh-server)...',
              ['lxc', 'exec', name, '--', 'apt-get', 'install', '-y', 'curl', 'sudo', 'git', 'wget', 'htop', 'openssh-server']),
             ('Configuring SSH server to permit password-based root login...',
-             ['lxc', 'exec', name, '--', 'bash', '-c', "sed -i 's/prohibit-password/yes/g' /etc/ssh/sshd_config; sed -i 's/#PermitRootLogin/PermitRootLogin/g' /etc/ssh/sshd_config; service ssh restart || systemctl restart ssh || systemctl restart sshd"]),
+             ['lxc', 'exec', name, '--', 'bash', '-c', (
+                 "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
+                 "sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
+                 "sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
+                 "sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
+                 "sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/g' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; "
+                 "grep -q '^PasswordAuthentication' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config; "
+                 "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config; "
+                 "service ssh restart || systemctl restart ssh || systemctl restart sshd"
+             )]),
             ('Downloading and installing Bore TCP tunneling client...',
              ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
             ('Registering Bore systemd background service configuration...',
