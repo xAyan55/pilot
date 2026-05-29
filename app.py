@@ -206,7 +206,7 @@ def signup_handler():
         session['email'] = user['email']
         session['role'] = user['role']
         session['is_admin'] = (user['role'] == 'admin')
-        session['pfp'] = user.get('pfp')
+        session['pfp'] = user['pfp']
 
         log_audit(user['id'], f"Registered user account: {username}")
         conn.close()
@@ -239,7 +239,7 @@ def login_handler():
         session['email'] = user['email']
         session['role'] = user['role']
         session['is_admin'] = (user['role'] == 'admin')
-        session['pfp'] = user.get('pfp')
+        session['pfp'] = user['pfp']
 
         log_audit(user['id'], "Logged into control panel")
 
