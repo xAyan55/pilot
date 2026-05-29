@@ -23,10 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
               loadOverview();
             } else if (targetId === 'panel-deploy') {
               loadUsers();
+              loadNodesDropdown();
             } else if (targetId === 'panel-containers') {
               loadContainers();
             } else if (targetId === 'panel-users') {
               loadAdminUsers();
+            } else if (targetId === 'panel-nodes') {
+              loadAdminNodes();
             } else if (targetId === 'panel-logs') {
               loadLogs();
             } else if (targetId === 'panel-customization') {
@@ -458,6 +461,7 @@ window.handleDeployVPS = function(event) {
   
   const name = document.getElementById('deployName').value.trim();
   const userId = document.getElementById('deployOwner').value;
+  const nodeId = document.getElementById('deployNode').value;
   const os = document.getElementById('deployOS').value;
   const cpu = document.getElementById('deployCPU').value;
   const ram = document.getElementById('deployRAM').value;
@@ -484,7 +488,7 @@ window.handleDeployVPS = function(event) {
   logsArea.innerHTML = '<div style="color: #7de8a3;">[SYSTEM] Initiating server side EventStream connection...</div>';
 
   // Open SSE stream
-  const url = `/api/admin/vps/deploy-stream?name=${name}&user_id=${userId}&os=${os}&cpu=${cpu}&ram=${ram}&disk=${disk}&root_password=${encodeURIComponent(password)}`;
+  const url = `/api/admin/vps/deploy-stream?name=${name}&user_id=${userId}&os=${os}&cpu=${cpu}&ram=${ram}&disk=${disk}&root_password=${encodeURIComponent(password)}&node_id=${nodeId}`;
   const source = new EventSource(url);
   
   let currentProgress = 5;
@@ -1223,3 +1227,191 @@ window.deleteUser = async function(userId, username) {
     showToast(`Failed to delete user: ${err.message}`, 'error');
   }
 };
+
+// Nodes Management Actions
+async function loadNodesDropdown() {
+  try {
+    const response = await fetch('/api/admin/nodes');
+    const nodes = await window.handleFetchResponse(response);
+    
+    const select = document.getElementById('deployNode');
+    if (!select) return;
+    select.innerHTML = '';
+    
+    nodes.forEach(node => {
+      const option = document.createElement('option');
+      option.value = node.id;
+      option.textContent = `${node.name} (${node.fqdn}:${node.port} - ${node.location})`;
+      if (node.id === 1) option.selected = true;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    showToast(`Failed to load nodes: ${err.message}`, 'error');
+  }
+}
+
+async function loadAdminNodes() {
+  try {
+    const response = await fetch('/api/admin/nodes');
+    const nodes = await window.handleFetchResponse(response);
+    
+    const tbody = document.getElementById('nodes-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (nodes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">No nodes configured.</td></tr>';
+      return;
+    }
+    
+    nodes.forEach(node => {
+      const row = document.createElement('tr');
+      row.setAttribute('data-node-id', node.id);
+      
+      const statusClass = node.status === 'online' ? 'running' : 'stopped';
+      const statusLabel = node.status === 'online' ? 'ONLINE' : (node.status === 'connecting' ? 'CONNECTING' : 'OFFLINE');
+      
+      let actionButtons = `
+        <button class="btn btn-outline btn-small" onclick="showNodeConfig(${node.id})"><i data-lucide="settings" style="width:12px; height:12px;"></i> Configure</button>
+      `;
+      if (node.id !== 1) {
+        actionButtons += `
+          <button class="btn btn-outline btn-small" style="border-color: var(--color-danger); color: var(--color-danger);" onclick="deleteNode(${node.id}, '${node.name}')"><i data-lucide="trash-2" style="width:12px; height:12px;"></i> Delete</button>
+        `;
+      }
+      
+      row.innerHTML = `
+        <td><strong>#ND-${node.id}</strong></td>
+        <td>${node.name}</td>
+        <td><span style="font-family: monospace; font-size:12px;">${node.fqdn}:${node.port}</span></td>
+        <td>${node.location || 'Unknown'}</td>
+        <td>
+          <span class="vps-status-badge ${statusClass}" id="node-badge-${node.id}" style="display: inline-flex; align-items: center; gap: 6px;">
+            <span class="status-dot ${node.status !== 'running' && node.status !== 'online' ? 'stopped' : ''}"></span>
+            <span id="node-status-text-${node.id}">${statusLabel}</span>
+          </span>
+        </td>
+        <td class="text-right">${actionButtons}</td>
+      `;
+      tbody.appendChild(row);
+      
+      // Asynchronously fetch live status for remote nodes
+      if (node.id !== 1) {
+        fetchNodeLiveStatus(node.id);
+      }
+    });
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  } catch (err) {
+    showToast(`Failed to load nodes: ${err.message}`, 'error');
+  }
+}
+
+async function fetchNodeLiveStatus(nodeId) {
+  const badge = document.getElementById(`node-badge-${nodeId}`);
+  const text = document.getElementById(`node-status-text-${nodeId}`);
+  if (!badge || !text) return;
+  
+  text.textContent = 'CONNECTING';
+  badge.className = 'vps-status-badge suspended';
+  
+  try {
+    const res = await fetch(`/api/admin/nodes/${nodeId}/status`);
+    const data = await window.handleFetchResponse(res);
+    if (data.status === 'online') {
+      badge.className = 'vps-status-badge running';
+      text.textContent = 'ONLINE';
+      const dot = badge.querySelector('.status-dot');
+      if (dot) dot.className = 'status-dot';
+    } else {
+      badge.className = 'vps-status-badge stopped';
+      text.textContent = 'OFFLINE';
+      const dot = badge.querySelector('.status-dot');
+      if (dot) dot.className = 'status-dot stopped';
+    }
+  } catch (err) {
+    badge.className = 'vps-status-badge stopped';
+    text.textContent = 'OFFLINE';
+    const dot = badge.querySelector('.status-dot');
+    if (dot) dot.className = 'status-dot stopped';
+  }
+}
+
+window.openNodeCreateModal = function() {
+  document.getElementById('nodeCreateForm').reset();
+  document.getElementById('nodeCreateModal').classList.add('active');
+};
+
+window.closeNodeCreateModal = function() {
+  document.getElementById('nodeCreateModal').classList.remove('active');
+};
+
+window.handleNodeCreateSubmit = async function(event) {
+  event.preventDefault();
+  const name = document.getElementById('nodeName').value.trim();
+  const location = document.getElementById('nodeLocation').value.trim();
+  const fqdn = document.getElementById('nodeFqdn').value.trim();
+  const port = document.getElementById('nodePort').value;
+  
+  try {
+    const res = await fetch('/api/admin/nodes/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, location, fqdn, port })
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    closeNodeCreateModal();
+    loadAdminNodes();
+    
+    // Automatically open configuration helper for the newly created node
+    if (result.node_id) {
+      setTimeout(() => {
+        showNodeConfig(result.node_id);
+      }, 500);
+    }
+  } catch (err) {
+    showToast(`Failed to register node: ${err.message}`, 'error');
+  }
+};
+
+window.showNodeConfig = async function(nodeId) {
+  try {
+    const res = await fetch(`/api/admin/nodes/${nodeId}/config`);
+    const data = await window.handleFetchResponse(res);
+    
+    document.getElementById('nodeConfigYaml').value = data.config_yaml;
+    document.getElementById('nodeInstallCmd').value = data.install_cmd;
+    document.getElementById('nodeConfigModal').classList.add('active');
+  } catch (err) {
+    showToast(`Failed to load configuration details: ${err.message}`, 'error');
+  }
+};
+
+window.closeNodeConfigModal = function() {
+  document.getElementById('nodeConfigModal').classList.remove('active');
+};
+
+window.deleteNode = async function(nodeId, nodeName) {
+  if (!confirm(`Are you sure you want to permanently delete remote node '${nodeName}'?\n\nThis will remove the node from panel registration. Deletion will be rejected if there are active client VPS instances currently deployed on it.`)) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`/api/admin/nodes/${nodeId}`, { method: 'DELETE' });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    loadAdminNodes();
+  } catch (err) {
+    showToast(`Failed to delete node: ${err.message}`, 'error');
+  }
+};
+
+window.copyConfigField = function(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.select();
+  document.execCommand('copy');
+  showToast("Command copied to clipboard!", "success");
+};
+

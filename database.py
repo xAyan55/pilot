@@ -30,6 +30,20 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Nodes Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS nodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            fqdn TEXT NOT NULL,
+            port INTEGER DEFAULT 5001,
+            location TEXT,
+            api_key TEXT UNIQUE NOT NULL,
+            status TEXT DEFAULT 'offline',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # VPS Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS vps (
@@ -42,10 +56,18 @@ def init_db():
             disk INTEGER NOT NULL,
             root_password TEXT NOT NULL,
             status TEXT DEFAULT 'stopped',
+            node_id INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET DEFAULT
         )
     ''')
+
+    # Migration to add node_id to vps table if it does not exist
+    try:
+        cursor.execute("ALTER TABLE vps ADD COLUMN node_id INTEGER DEFAULT 1 REFERENCES nodes(id)")
+    except sqlite3.OperationalError:
+        pass
 
     # Logs Table
     cursor.execute('''
@@ -172,6 +194,14 @@ def init_db():
         for faq in default_faqs:
             cursor.execute("INSERT INTO faqs (question, answer) VALUES (?, ?)", faq)
         print("Auto-seeded default FAQs.")
+
+    # Auto-seed default local node if empty
+    cursor.execute("SELECT COUNT(*) FROM nodes")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            "INSERT INTO nodes (id, name, fqdn, port, location, api_key, status) VALUES (1, 'Local Node', '127.0.0.1', 5000, 'Local Panel Server', 'local-api-key', 'online')"
+        )
+        print("Auto-seeded default local node.")
 
     conn.commit()
     conn.close()

@@ -75,6 +75,9 @@
           <a href="#" data-target="panel-users"><i data-lucide="users"></i> User Management</a>
         </li>
         <li class="db-menu-item">
+          <a href="#" data-target="panel-nodes"><i data-lucide="network"></i> Nodes</a>
+        </li>
+        <li class="db-menu-item">
           <a href="#" data-target="panel-logs"><i data-lucide="file-text"></i> Audit Logs</a>
         </li>
         <li class="db-menu-item">
@@ -245,6 +248,13 @@
                 <select id="deployOwner" class="form-input" required>
                   <option value="" disabled selected>Select client...</option>
                   <!-- Populated from users api -->
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="deployNode">Deployment Target Node</label>
+                <select id="deployNode" class="form-input" required>
+                  <!-- Populated from nodes api -->
                 </select>
               </div>
 
@@ -693,6 +703,37 @@
           </div>
         </div>
 
+        <!-- Panel: Nodes Management -->
+        <div class="db-tab-panel" id="panel-nodes">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">Node Management</h3>
+              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Add and monitor remote hypervisor nodes to host client instances.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openNodeCreateModal()"><i data-lucide="plus-circle"></i> Add New Node</button>
+          </div>
+
+          <div class="db-block" style="margin-bottom: 32px;">
+            <div class="db-table-wrapper">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Node Name</th>
+                    <th>FQDN / IP Address</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="nodes-table-body">
+                  <!-- Populate dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -933,6 +974,74 @@
           </table>
         </div>
         
+      </div>
+    </div>
+  </div>
+
+  <!-- Node Create Modal Overlay -->
+  <div class="modal-overlay" id="nodeCreateModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Add New Hypervisor Node</h3>
+        <button class="modal-close" onclick="closeNodeCreateModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="nodeCreateForm" onsubmit="handleNodeCreateSubmit(event)">
+          <div class="form-group">
+            <label for="nodeName">Node Name</label>
+            <input type="text" id="nodeName" class="form-input" required minlength="3" placeholder="e.g. Dallas Node 1">
+          </div>
+          <div class="form-group">
+            <label for="nodeLocation">Location / Country</label>
+            <input type="text" id="nodeLocation" class="form-input" required placeholder="e.g. USA, Dallas">
+          </div>
+          <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <label for="nodeFqdn">FQDN / Public IP</label>
+              <input type="text" id="nodeFqdn" class="form-input" required placeholder="e.g. node1.mintyhost.net">
+            </div>
+            <div class="form-group">
+              <label for="nodePort">Port</label>
+              <input type="number" id="nodePort" class="form-input" required value="5001" min="1" max="65535">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+            <i data-lucide="plus-circle"></i> Register Node
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Node Configuration Modal Overlay -->
+  <div class="modal-overlay" id="nodeConfigModal">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Node Connection Details</h3>
+        <button class="modal-close" onclick="closeNodeConfigModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 550px; overflow-y: auto;">
+        <p style="font-size: 14px; color: var(--color-text-muted); margin-bottom: 16px;">
+          Follow these steps to connect this remote node to your main control panel.
+        </p>
+
+        <h4 style="font-size: 15px; font-weight: 800; margin-bottom: 8px;">Option A: 1-Click Installation (Recommended)</h4>
+        <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 10px;">
+          Log into your target remote machine via SSH as <strong>root</strong> and execute the auto-generated installation script.
+        </p>
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 24px;">
+          <textarea id="nodeInstallCmd" class="form-input" readonly rows="2" style="font-family: monospace; font-size: 12px; resize: none; background-color: var(--color-bg-base);"></textarea>
+          <button class="btn btn-secondary" onclick="copyConfigField('nodeInstallCmd')" style="padding: 12px;"><i data-lucide="copy"></i></button>
+        </div>
+
+        <h4 style="font-size: 15px; font-weight: 800; margin-bottom: 8px;">Option B: Manual Configuration</h4>
+        <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 10px;">
+          If the daemon is already installed, update its <code>config.yml</code> with the block below and restart the service.
+        </p>
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 16px;">
+          <textarea id="nodeConfigYaml" class="form-input" readonly rows="5" style="font-family: monospace; font-size: 12px; resize: none; background-color: var(--color-bg-base);"></textarea>
+          <button class="btn btn-secondary" onclick="copyConfigField('nodeConfigYaml')" style="padding: 12px;"><i data-lucide="copy"></i></button>
+        </div>
       </div>
     </div>
   </div>

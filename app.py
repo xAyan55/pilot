@@ -22,6 +22,45 @@ from collections import deque
 # Metrics history cache to keep the line graphs pre-populated and real-time
 METRICS_HISTORY = {}
 
+def get_node_by_id(node_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
+    node = cursor.fetchone()
+    conn.close()
+    return node
+
+def make_node_request(node, endpoint, method='POST', data=None):
+    import urllib.request
+    import urllib.parse
+    import json
+    
+    url = f"http://{node['fqdn']}:{node['port']}{endpoint}"
+    headers = {
+        "Authorization": f"Bearer {node['api_key']}",
+        "Content-Type": "application/json"
+    }
+    
+    req_data = None
+    if data:
+        req_data = json.dumps(data).encode('utf-8')
+        
+    req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            res_data = response.read().decode('utf-8')
+            return json.loads(res_data), response.status
+    except urllib.error.HTTPError as e:
+        try:
+            err_data = e.read().decode('utf-8')
+            err_json = json.loads(err_data)
+            return err_json, e.code
+        except Exception:
+            return {"message": f"HTTP Error {e.code}: {e.reason}"}, e.code
+    except Exception as e:
+        return {"message": f"Connection error: {str(e)}"}, 500
+
+
 
 # Linux-only modules for real PTY terminal bridge
 try:
@@ -290,14 +329,32 @@ def client_vps_stats(vps_id):
     if not vps_row:
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
-    stats = LXCManager.get_container_stats(
-        name=vps_row['container_name'],
-        plan_cpu=vps_row['cpu'],
-        plan_ram=vps_row['ram'],
-        plan_disk=vps_row['disk'],
-        db_status=vps_row['status'],
-        vps_id=vps_id
-    )
+    if vps_row['node_id'] != 1:
+        node = get_node_by_id(vps_row['node_id'])
+        if node:
+            res, code = make_node_request(node, "/api/vps/stats", data={
+                "name": vps_row['container_name'],
+                "cpu": vps_row['cpu'],
+                "ram": vps_row['ram'],
+                "disk": vps_row['disk'],
+                "status": vps_row['status'],
+                "vps_id": vps_id
+            })
+            if code == 200:
+                stats = res
+            else:
+                return jsonify({"message": f"Failed to fetch stats from remote node: {res.get('message', '')}"}), code
+        else:
+            return jsonify({"message": "Remote node not found."}), 404
+    else:
+        stats = LXCManager.get_container_stats(
+            name=vps_row['container_name'],
+            plan_cpu=vps_row['cpu'],
+            plan_ram=vps_row['ram'],
+            plan_disk=vps_row['disk'],
+            db_status=vps_row['status'],
+            vps_id=vps_id
+        )
 
     # Sync status to DB if it changes
     if stats['status'] != vps_row['status']:
@@ -359,14 +416,27 @@ def client_vps_action(vps_id):
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
     try:
-        LXCManager.execute_action(vps_row['container_name'], action)
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/action", data={
+                "name": vps_row['container_name'],
+                "action": action,
+                "vps_id": vps_id
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
+        else:
+            LXCManager.execute_action(vps_row['container_name'], action)
+            if action in ['start', 'restart']:
+                threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(vps_row['container_name'], vps_id)).start()
 
         new_status = 'running' if action in ['start', 'restart', 'resume'] else ('stopped' if action == 'stop' else 'suspended')
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
         conn.commit()
-
-        if action in ['start', 'restart']:
-            threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(vps_row['container_name'], vps_id)).start()
 
         log_audit(session['user_id'], f"Triggered power state: {action} on VPS {vps_row['container_name']}")
         conn.close()
@@ -399,11 +469,26 @@ def client_vps_rename(vps_id):
     new_container_name = f"vps-{new_name}-{random.randint(10, 99)}"
 
     try:
-        LXCManager._run(["lxc", "move", old_container_name, new_container_name])
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/rename", data={
+                "old_name": old_container_name,
+                "new_name": new_container_name
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
+        else:
+            LXCManager._run(["lxc", "move", old_container_name, new_container_name])
+            
         cursor.execute("UPDATE vps SET container_name = ? WHERE id = ?", (new_container_name, vps_id))
         conn.commit()
 
         log_audit(session['user_id'], f"Renamed container from {old_container_name} to {new_container_name}")
+
         conn.close()
         return jsonify({"status": "success", "message": "Container renamed successfully.", "new_name": new_container_name})
     except Exception as e:
@@ -431,7 +516,21 @@ def client_vps_password(vps_id):
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
     try:
-        LXCManager.change_password(vps_row['container_name'], new_password)
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/password", data={
+                "name": vps_row['container_name'],
+                "password": new_password
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
+        else:
+            LXCManager.change_password(vps_row['container_name'], new_password)
+            
         cursor.execute("UPDATE vps SET root_password = ? WHERE id = ?", (new_password, vps_id))
         conn.commit()
 
@@ -465,43 +564,79 @@ def client_vps_reinstall(vps_id):
         conn.close()
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
+    # Fetch site name for MOTD configuration
+    site_name_val = "MintyHost LXC"
     try:
-        LXCManager.destroy_container(vps['container_name'])
-        LXCManager.deploy_container(
-            name=vps['container_name'],
-            os_image=os_selection,
-            cpu_cores=vps['cpu'],
-            ram_mb=vps['ram'],
-            disk_gb=vps['disk'],
-            root_password=root_password
-        )
+        cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
+        row = cursor.fetchone()
+        if row:
+            site_name_val = row['value']
+    except Exception:
+        pass
 
-        # Fetch site name for MOTD configuration
-        site_name_val = "MintyHost LXC"
-        try:
-            cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
-            row = cursor.fetchone()
-            if row:
-                site_name_val = row['value']
-        except Exception:
-            pass
+    try:
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            
+            # Destroy container on remote node
+            res, code = make_node_request(node, "/api/vps/destroy", data={"name": vps['container_name']})
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Failed to destroy old container on remote node: {res.get('message', '')}"}), code
+            
+            # Deploy container on remote node
+            res, code = make_node_request(node, "/api/vps/deploy", data={
+                "name": vps['container_name'],
+                "os": os_selection,
+                "cpu": vps['cpu'],
+                "ram": vps['ram'],
+                "disk": vps['disk'],
+                "password": root_password
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Failed to deploy new container on remote node: {res.get('message', '')}"}), code
+                
+            # Trigger background setup on remote node
+            res, code = make_node_request(node, "/api/vps/post-deploy", data={
+                "name": vps['container_name'],
+                "vps_id": vps_id,
+                "password": root_password,
+                "site_name": site_name_val
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Failed to initialize remote post-deployment setup: {res.get('message', '')}"}), code
+        else:
+            LXCManager.destroy_container(vps['container_name'])
+            LXCManager.deploy_container(
+                name=vps['container_name'],
+                os_image=os_selection,
+                cpu_cores=vps['cpu'],
+                ram_mb=vps['ram'],
+                disk_gb=vps['disk'],
+                root_password=root_password
+            )
 
-        # Run post-deployment environment setup (packages and Bore tunnel) in background
-        def run_reinstall_setup(name, target_id, root_pw, s_name):
-            try:
-                LXCManager.post_deploy_setup(
-                    name=name,
-                    vps_id=target_id,
-                    root_password=root_pw,
-                    site_name=s_name
-                )
-            except Exception as ex:
-                print(f"[ERROR] Background reinstall post_deploy_setup failed: {ex}")
+            # Run post-deployment environment setup (packages and Bore tunnel) in background
+            def run_reinstall_setup(name, target_id, root_pw, s_name):
+                try:
+                    LXCManager.post_deploy_setup(
+                        name=name,
+                        vps_id=target_id,
+                        root_password=root_pw,
+                        site_name=s_name
+                    )
+                except Exception as ex:
+                    print(f"[ERROR] Background reinstall post_deploy_setup failed: {ex}")
 
-        threading.Thread(
-            target=run_reinstall_setup,
-            args=(vps['container_name'], vps_id, root_password, site_name_val)
-        ).start()
+            threading.Thread(
+                target=run_reinstall_setup,
+                args=(vps['container_name'], vps_id, root_password, site_name_val)
+            ).start()
 
         cursor.execute(
             "UPDATE vps SET os = ?, root_password = ?, status = 'running' WHERE id = ?",
@@ -512,6 +647,7 @@ def client_vps_reinstall(vps_id):
         log_audit(session['user_id'], f"Reinstalled OS to {os_selection} on VPS {vps['container_name']}")
         conn.close()
         return jsonify({"status": "success", "message": "OS Reinstallation complete."})
+
     except Exception as e:
         conn.close()
         return jsonify({"message": f"Reinstallation failed: {str(e)}"}), 500
@@ -547,7 +683,21 @@ def client_vps_snapshots(vps_id):
     full_snap_name = f"{snap_name}-{int(time.time())}"
 
     try:
-        LXCManager.create_snapshot(vps_row['container_name'], full_snap_name)
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/snapshot", data={
+                "name": vps_row['container_name'],
+                "snap_name": full_snap_name
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote snapshot failed: {res.get('message', '')}"}), code
+        else:
+            LXCManager.create_snapshot(vps_row['container_name'], full_snap_name)
+            
         cursor.execute("INSERT INTO snapshots (vps_id, name) VALUES (?, ?)", (vps_id, full_snap_name))
         conn.commit()
         log_audit(session['user_id'], f"Created snapshot {full_snap_name} for VPS {vps_row['container_name']}")
@@ -575,7 +725,21 @@ def client_vps_restore_snapshot(vps_id):
         return jsonify({"message": "VPS not found."}), 404
 
     try:
-        LXCManager.restore_snapshot(vps_row['container_name'], snap_name)
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/snapshot/restore", data={
+                "name": vps_row['container_name'],
+                "snap_name": snap_name
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote restore failed: {res.get('message', '')}"}), code
+        else:
+            LXCManager.restore_snapshot(vps_row['container_name'], snap_name)
+            
         log_audit(session['user_id'], f"Restored snapshot {snap_name} on VPS {vps_row['container_name']}")
         conn.close()
         return jsonify({"status": "success", "message": "Snapshot restored successfully."})
@@ -598,7 +762,21 @@ def client_vps_delete_snapshot(vps_id, name):
         return jsonify({"message": "VPS not found."}), 404
 
     try:
-        LXCManager.delete_snapshot(vps_row['container_name'], name)
+        if vps_row['node_id'] != 1:
+            node = get_node_by_id(vps_row['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/snapshot/delete", data={
+                "name": vps_row['container_name'],
+                "snap_name": name
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote deletion failed: {res.get('message', '')}"}), code
+        else:
+            LXCManager.delete_snapshot(vps_row['container_name'], name)
+            
         cursor.execute("DELETE FROM snapshots WHERE vps_id = ? AND name = ?", (vps_id, name))
         conn.commit()
         log_audit(session['user_id'], f"Deleted snapshot {name} for VPS {vps_row['container_name']}")
@@ -631,6 +809,30 @@ def client_vps_backups(vps_id):
     # POST - Create a real backup using lxc export
     filename = f"backup-{vps_row['container_name']}-{int(time.time())}.tar.gz"
     
+    if vps_row['node_id'] != 1:
+        node = get_node_by_id(vps_row['node_id'])
+        if not node:
+            conn.close()
+            return jsonify({"message": "Remote node not found."}), 404
+        res, code = make_node_request(node, "/api/vps/backup", data={
+            "name": vps_row['container_name'],
+            "filename": filename
+        })
+        if code != 200:
+            conn.close()
+            return jsonify({"message": f"Remote backup failed: {res.get('message', '')}"}), code
+        size_str = res.get('size', '0 MB')
+        
+        try:
+            cursor.execute("INSERT INTO backups (vps_id, filename, size) VALUES (?, ?, ?)", (vps_id, filename, size_str))
+            conn.commit()
+            log_audit(session['user_id'], f"Created backup {filename} for VPS {vps_row['container_name']}")
+            conn.close()
+            return jsonify({"status": "success", "message": "Backup created successfully."})
+        except Exception as e:
+            conn.close()
+            return jsonify({"message": f"Failed to save backup details: {str(e)}"}), 500
+
     if IS_MOCK_LXC:
         try:
             size_str = f"{random.uniform(80.0, 160.0):.1f} MB"
@@ -779,6 +981,12 @@ def admin_vps_deploy_stream():
     ram = request.args.get('ram')
     disk = request.args.get('disk')
     root_pw = request.args.get('root_password', '').strip()
+    node_id = request.args.get('node_id', 1)
+
+    try:
+        node_id = int(node_id)
+    except (ValueError, TypeError):
+        node_id = 1
 
     if not all([name, user_id, os_sel, cpu, ram, disk, root_pw]):
         return "data: [ERROR] Missing deployment configurations\n\n"
@@ -809,19 +1017,41 @@ def admin_vps_deploy_stream():
         yield f"data: [INFO] Initiating LXC deploy for container: {container_name}...\n\n"
 
         try:
-            def stream_log(msg):
-                pass  # SSE cannot yield from callback; we yield steps below
+            if node_id != 1:
+                node = get_node_by_id(node_id)
+                if not node:
+                    yield "data: [ERROR] Remote node target not found in database.\n\n"
+                    conn.close()
+                    return
+                
+                yield f"data: [INFO] Forwarding deploy request to remote node: {node['name']} ({node['fqdn']})...\n\n"
+                
+                res, code = make_node_request(node, "/api/vps/deploy", data={
+                    "name": container_name,
+                    "os": os_sel,
+                    "cpu": int(cpu),
+                    "ram": int(ram),
+                    "disk": int(disk),
+                    "password": root_pw
+                })
+                if code != 200:
+                    yield f"data: [ERROR] Remote deploy failed: {res.get('message', '')}\n\n"
+                    conn.close()
+                    return
+            else:
+                def stream_log(msg):
+                    pass  # SSE cannot yield from callback; we yield steps below
 
-            # Execute REAL deployment
-            LXCManager.deploy_container(
-                name=container_name,
-                os_image=os_sel,
-                cpu_cores=int(cpu),
-                ram_mb=int(ram),
-                disk_gb=int(disk),
-                root_password=root_pw,
-                log_callback=stream_log
-            )
+                # Execute REAL deployment
+                LXCManager.deploy_container(
+                    name=container_name,
+                    os_image=os_sel,
+                    cpu_cores=int(cpu),
+                    ram_mb=int(ram),
+                    disk_gb=int(disk),
+                    root_password=root_pw,
+                    log_callback=stream_log
+                )
 
             yield "data: [INFO] Container image downloaded and launched.\n\n"
             yield f"data: [INFO] Resource limits applied: {cpu} cores, {ram}MB RAM, {disk}GB disk.\n\n"
@@ -829,14 +1059,14 @@ def admin_vps_deploy_stream():
 
             # Create DB Record
             cursor.execute(
-                '''INSERT INTO vps (user_id, container_name, os, cpu, ram, disk, root_password, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'running')''',
-                (user_id, container_name, os_sel, cpu, ram, disk, root_pw)
+                '''INSERT INTO vps (user_id, container_name, os, cpu, ram, disk, root_password, status, node_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)''',
+                (user_id, container_name, os_sel, cpu, ram, disk, root_pw, node_id)
             )
             vps_id = cursor.lastrowid
             conn.commit()
 
-            # Execute post-deployment environment setup (packages and Bore tunnel) in background
+            # Execute post-deployment environment setup (packages and Bore tunnel)
             yield "data: [INFO] Initiating background installation of standard packages and Bore tunnel...\n\n"
             
             site_name_val = "MintyHost LXC"
@@ -848,21 +1078,32 @@ def admin_vps_deploy_stream():
             except Exception:
                 pass
 
-            def run_deploy_setup(name, target_id, root_pw, s_name):
-                try:
-                    LXCManager.post_deploy_setup(
-                        name=name,
-                        vps_id=target_id,
-                        root_password=root_pw,
-                        site_name=s_name
-                    )
-                except Exception as ex:
-                    print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
+            if node_id != 1:
+                # Trigger post-deploy on remote node
+                res, code = make_node_request(node, "/api/vps/post-deploy", data={
+                    "name": container_name,
+                    "vps_id": vps_id,
+                    "password": root_pw,
+                    "site_name": site_name_val
+                })
+                if code != 200:
+                    yield f"data: [WARNING] Remote post-deploy trigger failed: {res.get('message', '')}\n\n"
+            else:
+                def run_deploy_setup(name, target_id, root_pw, s_name):
+                    try:
+                        LXCManager.post_deploy_setup(
+                            name=name,
+                            vps_id=target_id,
+                            root_password=root_pw,
+                            site_name=s_name
+                        )
+                    except Exception as ex:
+                        print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
 
-            threading.Thread(
-                target=run_deploy_setup,
-                args=(container_name, vps_id, root_pw, site_name_val)
-            ).start()
+                threading.Thread(
+                    target=run_deploy_setup,
+                    args=(container_name, vps_id, root_pw, site_name_val)
+                ).start()
             
             yield "data: [INFO] Background setup task successfully queued.\n\n"
 
@@ -898,7 +1139,21 @@ def admin_vps_suspend(vps_id):
 
     try:
         action = 'suspend' if suspend else 'resume'
-        LXCManager.execute_action(vps['container_name'], action)
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/action", data={
+                "name": vps['container_name'],
+                "action": action,
+                "vps_id": vps_id
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
+        else:
+            LXCManager.execute_action(vps['container_name'], action)
 
         new_status = 'suspended' if suspend else 'running'
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
@@ -926,7 +1181,20 @@ def admin_delete_vps(vps_id):
         return jsonify({"message": "VPS not found."}), 404
 
     try:
-        LXCManager.destroy_container(vps['container_name'])
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            if not node:
+                conn.close()
+                return jsonify({"message": "Remote node not found."}), 404
+            res, code = make_node_request(node, "/api/vps/destroy", data={
+                "name": vps['container_name']
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
+        else:
+            LXCManager.destroy_container(vps['container_name'])
+            
         cursor.execute("DELETE FROM vps WHERE id = ?", (vps_id,))
         conn.commit()
 
@@ -936,6 +1204,7 @@ def admin_delete_vps(vps_id):
     except Exception as e:
         conn.close()
         return jsonify({"message": str(e)}), 500
+
 
 @app.route('/api/admin/logs')
 def admin_logs():
@@ -1368,6 +1637,14 @@ def handle_terminal_connect(data):
         emit('terminal_output', {'output': '\r\n[ERROR] Access denied. You do not own this container.\r\n'})
         return
 
+    # If container is on a remote node, web terminal console is not supported directly via panel PTY
+    if vps['node_id'] != 1:
+        emit('terminal_output', {
+            'output': '\r\n[INFO] Web Console is only supported on the Local Node.\r\n'
+                      '[INFO] Please connect using the Bore SSH Tunnel shown in the Overview tab.\r\n'
+        })
+        return
+
     # Check container is running
     if vps['status'] != 'running':
         emit('terminal_output', {'output': '\r\n[ERROR] Container is not running. Start it first.\r\n'})
@@ -1736,14 +2013,19 @@ def admin_users_delete(target_user_id):
     username = user_row['username']
 
     # Fetch all VPS owned by the user
-    cursor.execute("SELECT container_name FROM vps WHERE user_id = ?", (target_user_id,))
+    cursor.execute("SELECT container_name, node_id FROM vps WHERE user_id = ?", (target_user_id,))
     vps_rows = cursor.fetchall()
 
     try:
         # 1. Destroy all LXC containers for this user
         for vps in vps_rows:
             try:
-                LXCManager.destroy_container(vps['container_name'])
+                if vps['node_id'] == 1:
+                    LXCManager.destroy_container(vps['container_name'])
+                else:
+                    node = get_node_by_id(vps['node_id'])
+                    if node:
+                        make_node_request(node, "/api/vps/destroy", data={"name": vps['container_name']})
             except Exception as ex:
                 print(f"[WARN] Failed to destroy container {vps['container_name']} for deleted user: {ex}")
 
@@ -1778,7 +2060,7 @@ def admin_users_suspend(target_user_id):
     username = user_row['username']
 
     # Fetch all VPS owned by the user
-    cursor.execute("SELECT id, container_name, status FROM vps WHERE user_id = ?", (target_user_id,))
+    cursor.execute("SELECT id, container_name, status, node_id FROM vps WHERE user_id = ?", (target_user_id,))
     vps_rows = cursor.fetchall()
 
     action = 'suspend' if suspend else 'resume'
@@ -1789,16 +2071,27 @@ def admin_users_suspend(target_user_id):
         for vps in vps_rows:
             # Only suspend if running, or resume if suspended
             if suspend and vps['status'] == 'running':
-                LXCManager.execute_action(vps['container_name'], 'suspend')
+                if vps['node_id'] == 1:
+                    LXCManager.execute_action(vps['container_name'], 'suspend')
+                else:
+                    node = get_node_by_id(vps['node_id'])
+                    if node:
+                        make_node_request(node, "/api/vps/action", data={"name": vps['container_name'], "action": 'suspend', "vps_id": vps['id']})
                 cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps['id']))
             elif not suspend and vps['status'] == 'suspended':
-                LXCManager.execute_action(vps['container_name'], 'resume')
+                if vps['node_id'] == 1:
+                    LXCManager.execute_action(vps['container_name'], 'resume')
+                else:
+                    node = get_node_by_id(vps['node_id'])
+                    if node:
+                        make_node_request(node, "/api/vps/action", data={"name": vps['container_name'], "action": 'resume', "vps_id": vps['id']})
                 cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps['id']))
 
         conn.commit()
         log_audit(session['user_id'], f"Admin bulk-{action}ed all instances owned by user: {username} (ID {target_user_id}).")
         conn.close()
         return jsonify({"status": "success", "message": f"All instances for user '{username}' have been set to {new_status}."})
+
     except Exception as e:
         conn.close()
         return jsonify({"message": f"Failed to modify instances: {str(e)}"}), 500
@@ -1815,6 +2108,147 @@ def admin_users_vps_list(target_user_id):
     vps_list = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify(vps_list)
+
+@app.route('/api/admin/nodes')
+def admin_nodes_list():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, fqdn, port, location, api_key, status, created_at FROM nodes ORDER BY id ASC")
+    nodes = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(nodes)
+
+@app.route('/api/admin/nodes/create', methods=['POST'])
+def admin_nodes_create():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    fqdn = data.get('fqdn', '').strip()
+    port = data.get('port', 5001)
+    location = data.get('location', '').strip()
+
+    if not name or not fqdn:
+        return jsonify({"message": "Name and FQDN are required."}), 400
+
+    try:
+        port_int = int(port)
+    except ValueError:
+        return jsonify({"message": "Port must be an integer."}), 400
+
+    import secrets
+    api_key = secrets.token_hex(32)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO nodes (name, fqdn, port, location, api_key, status) VALUES (?, ?, ?, ?, ?, 'offline')",
+            (name, fqdn, port_int, location, api_key)
+        )
+        conn.commit()
+        node_id = cursor.lastrowid
+        log_audit(session['user_id'], f"Created remote node {name} (ID {node_id})")
+        conn.close()
+        return jsonify({"status": "success", "message": "Node successfully created.", "node_id": node_id})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to create node: {str(e)}"}), 500
+
+@app.route('/api/admin/nodes/<int:node_id>', methods=['DELETE'])
+def admin_nodes_delete(node_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    if node_id == 1:
+        return jsonify({"message": "Default Local Node cannot be deleted."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM nodes WHERE id = ?", (node_id,))
+    node_row = cursor.fetchone()
+    if not node_row:
+        conn.close()
+        return jsonify({"message": "Node not found."}), 404
+
+    # Check if there are any VPS associated with this node
+    cursor.execute("SELECT COUNT(*) FROM vps WHERE node_id = ?", (node_id,))
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        return jsonify({"message": "Cannot delete node because it has active virtual servers deployed on it."}), 400
+
+    try:
+        cursor.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+        conn.commit()
+        log_audit(session['user_id'], f"Deleted remote node {node_row['name']} (ID {node_id})")
+        conn.close()
+        return jsonify({"status": "success", "message": "Node successfully deleted."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to delete node: {str(e)}"}), 500
+
+@app.route('/api/admin/nodes/<int:node_id>/config')
+def admin_nodes_config(node_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    node = get_node_by_id(node_id)
+    if not node:
+        return jsonify({"message": "Node not found."}), 404
+
+    config_yaml = f"""# MintyHost LXC Node Config File
+port: {node['port']}
+api_key: "{node['api_key']}"
+node_id: {node['id']}
+name: "{node['name']}"
+"""
+
+    install_cmd = f"curl -sSL {request.host_url}node.sh | NODE_PORT={node['port']} NODE_API_KEY=\"{node['api_key']}\" NODE_ID={node['id']} NODE_NAME=\"{node['name']}\" bash"
+
+    return jsonify({
+        "config_yaml": config_yaml,
+        "install_cmd": install_cmd
+    })
+
+@app.route('/api/admin/nodes/<int:node_id>/status')
+def admin_node_status(node_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    if node_id == 1:
+        # Local node is always online
+        return jsonify({"status": "online"})
+
+    node = get_node_by_id(node_id)
+    if not node:
+        return jsonify({"message": "Node not found"}), 404
+
+    # Ping the remote node daemon's status endpoint
+    res, code = make_node_request(node, "/api/node/status", method='GET')
+    if code == 200 and res.get('status') == 'online':
+        # Update status in DB to online
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE nodes SET status = 'online' WHERE id = ?", (node_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "online"})
+    else:
+        # Update status in DB to offline
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE nodes SET status = 'offline' WHERE id = ?", (node_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "offline"})
+
+@app.route('/node.sh')
+def download_node_sh():
+    from flask import send_from_directory
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'node.sh', mimetype='text/x-shellscript')
 
 
 if __name__ == '__main__':
