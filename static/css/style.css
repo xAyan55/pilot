@@ -1070,7 +1070,7 @@ a {
 
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.2fr repeat(3, 0.6fr);
+  grid-template-columns: 1.5fr 1fr;
   gap: 40px;
   margin-bottom: 40px;
 }

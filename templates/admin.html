@@ -357,13 +357,6 @@
 
         <!-- Panel 5: Customization & Branding -->
         <div class="db-tab-panel" id="panel-customization">
-          <!-- Sub-navigation tabs for Customization -->
-          <div class="customization-subnav" style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px;">
-            <button class="btn btn-outline subnav-btn active" data-subtarget="subpanel-branding" style="padding: 6px 12px; font-size: 13px;">Branding & Theme</button>
-            <button class="btn btn-outline subnav-btn" data-subtarget="subpanel-pages" style="padding: 6px 12px; font-size: 13px;">Public Pages</button>
-            <button class="btn btn-outline subnav-btn" data-subtarget="subpanel-plans" style="padding: 6px 12px; font-size: 13px;">VPS Plans</button>
-            <button class="btn btn-outline subnav-btn" data-subtarget="subpanel-faqs" style="padding: 6px 12px; font-size: 13px;">FAQs</button>
-          </div>
 
           <!-- Subpanel 1: Branding -->
           <div class="sub-tab-panel active" id="subpanel-branding">
@@ -508,98 +501,6 @@
             </div>
           </div>
 
-          <!-- Subpanel 2: Public Pages Content -->
-          <div class="sub-tab-panel" id="subpanel-pages" style="display: none;">
-            <div class="db-block" style="max-width: 800px;">
-              <div class="db-block-header">
-                <h3>About Us & Terms of Service Content</h3>
-              </div>
-              <form id="pagesForm" onsubmit="savePagesContent(event)" style="margin-top: 16px;">
-                <h4 style="margin-bottom: 12px; border-bottom: 1px solid var(--color-border); padding-bottom: 4px; color: var(--color-text-main);">About Us Page Sections</h4>
-                <div class="form-group">
-                  <label for="pageAboutIntro">Introduction Paragraph</label>
-                  <textarea id="pageAboutIntro" class="form-input" rows="3" required style="resize: vertical;">{{ settings.get('about_intro', '') }}</textarea>
-                </div>
-                <div class="form-group">
-                  <label for="pageAboutMission">Our Mission</label>
-                  <textarea id="pageAboutMission" class="form-input" rows="3" required style="resize: vertical;">{{ settings.get('about_mission', '') }}</textarea>
-                </div>
-                <div class="form-group">
-                  <label for="pageAboutInfra">Physical Infrastructure Description</label>
-                  <textarea id="pageAboutInfra" class="form-input" rows="3" required style="resize: vertical;">{{ settings.get('about_infra', '') }}</textarea>
-                </div>
-                <div class="form-group">
-                  <label for="pageAboutWhyTrust">Why Users Trust Us</label>
-                  <textarea id="pageAboutWhyTrust" class="form-input" rows="3" required style="resize: vertical;">{{ settings.get('about_why_trust', '') }}</textarea>
-                </div>
-
-                <h4 style="margin: 24px 0 12px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 4px; color: var(--color-text-main);">Terms of Service (TOS) HTML</h4>
-                <div class="form-group">
-                  <label for="pageTosContent">TOS Body Content (HTML syntax allowed)</label>
-                  <textarea id="pageTosContent" class="form-input" rows="8" required style="font-family: monospace; resize: vertical;">{{ settings.get('tos_content', '') }}</textarea>
-                </div>
-
-                <button type="submit" class="btn btn-primary" style="margin-top: 24px; width: 100%;">
-                  <i data-lucide="save"></i> Save Page Contents
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <!-- Subpanel 3: VPS Plans Manager -->
-          <div class="sub-tab-panel" id="subpanel-plans" style="display: none;">
-            <div class="db-block">
-              <div class="db-block-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Manage VPS Hosting Plans</h3>
-                <button class="btn btn-primary btn-small" onclick="openPlanModal()"><i data-lucide="plus"></i> Add Plan</button>
-              </div>
-              <div class="db-table-wrapper" style="margin-top: 16px;">
-                <table class="db-table">
-                  <thead>
-                    <tr>
-                      <th>Plan Key</th>
-                      <th>Display Name</th>
-                      <th>Price ($/mo)</th>
-                      <th>Cores</th>
-                      <th>Memory (MB)</th>
-                      <th>Storage (GB)</th>
-                      <th>Network</th>
-                      <th>Status / Features</th>
-                      <th class="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="custom-plans-table-body">
-                    <!-- Populate dynamically -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Subpanel 4: FAQs Manager -->
-          <div class="sub-tab-panel" id="subpanel-faqs" style="display: none;">
-            <div class="db-block">
-              <div class="db-block-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Manage FAQ Accordion Blocks</h3>
-                <button class="btn btn-primary btn-small" onclick="openFaqModal()"><i data-lucide="plus"></i> Add FAQ</button>
-              </div>
-              <div class="db-table-wrapper" style="margin-top: 16px;">
-                <table class="db-table">
-                  <thead>
-                    <tr>
-                      <th>FAQ ID</th>
-                      <th>Question</th>
-                      <th>Answer Preview</th>
-                      <th class="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="custom-faqs-table-body">
-                    <!-- Populate dynamically -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Panel: My Profile -->
@@ -763,85 +664,6 @@
     </div>
   </div>
 
-  <!-- Plan Edit/Add Modal Overlay -->
-  <div class="modal-overlay" id="planModal">
-    <div class="modal-card" style="max-width: 550px;">
-      <div class="modal-header">
-        <h3 id="planModalTitle">Add VPS Plan</h3>
-        <button class="modal-close" onclick="closePlanModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <form id="planForm" onsubmit="handlePlanSubmit(event)">
-          <input type="hidden" id="planFormId">
-          <div class="form-group">
-            <label for="planName">Display Name (e.g. Starter VPS)</label>
-            <input type="text" id="planName" class="form-input" placeholder="Starter VPS" required>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div class="form-group">
-              <label for="planPrice">Price ($ / Month)</label>
-              <input type="number" id="planPrice" step="0.01" class="form-input" placeholder="5.00" required oninput="document.getElementById('planPriceCredits').value = Math.round(this.value * 100)">
-            </div>
-            <div class="form-group">
-              <label for="planPriceCredits">Price in Credits (e.g. 500)</label>
-              <input type="number" id="planPriceCredits" class="form-input" placeholder="500" required>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div class="form-group">
-              <label for="planCpu">vCPU Core Allocation (e.g. 1 Core)</label>
-              <input type="text" id="planCpu" class="form-input" placeholder="1 Core" required>
-            </div>
-            <div class="form-group">
-              <label for="planRam">Dedicated RAM (e.g. 2 GB)</label>
-              <input type="text" id="planRam" class="form-input" placeholder="2 GB" required>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div class="form-group">
-              <label for="planDisk">NVMe Storage Unit (e.g. 40 GB)</label>
-              <input type="text" id="planDisk" class="form-input" placeholder="40 GB" required>
-            </div>
-            <div class="form-group">
-              <label for="planBandwidth">Data Bandwidth Limit (e.g. 2 TB)</label>
-              <input type="text" id="planBandwidth" class="form-input" placeholder="2 TB" required>
-            </div>
-          </div>
-          
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            <i data-lucide="check-circle"></i> Save Plan
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- FAQ Edit/Add Modal Overlay -->
-  <div class="modal-overlay" id="faqModal">
-    <div class="modal-card" style="max-width: 550px;">
-      <div class="modal-header">
-        <h3 id="faqModalTitle">Add FAQ Item</h3>
-        <button class="modal-close" onclick="closeFaqModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <form id="faqForm" onsubmit="handleFaqSubmit(event)">
-          <input type="hidden" id="faqFormId">
-          <div class="form-group">
-            <label for="faqQuestion">Question</label>
-            <input type="text" id="faqQuestion" class="form-input" placeholder="Can I reinstall my VPS OS?" required>
-          </div>
-          <div class="form-group">
-            <label for="faqAnswer">Answer Text</label>
-            <textarea id="faqAnswer" class="form-input" rows="4" placeholder="Yes, you can reinstall any supported OS from the client control panel at any time." required style="resize: vertical;"></textarea>
-          </div>
-          
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            <i data-lucide="check-circle"></i> Save FAQ Item
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
 
   <!-- User Create Modal Overlay -->
   <div class="modal-overlay" id="userCreateModal">

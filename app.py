@@ -115,73 +115,15 @@ def is_logged_in():
 def is_admin():
     return session.get('role') == 'admin'
 
-# Static content configurations for marketing/public pages
-TEAM_MEMBERS = [
-    {
-        'name': 'Ayan Khan',
-        'role': 'Founder & Lead Architect',
-        'bio': 'Passionate about virtualization, Linux containers, and low-latency network architectures.'
-    },
-    {
-        'name': 'Sarah Chen',
-        'role': 'Head of Infrastructure',
-        'bio': 'Ensures high availability across our bare-metal hardware hypervisors and network uplinks.'
-    },
-    {
-        'name': 'Marcus Vance',
-        'role': 'Support Lead',
-        'bio': 'Dedicated to assisting developers and startups with troubleshooting and container management.'
-    }
-]
-
 # ----------------- PAGE ROUTING -----------------
 
 @app.route('/')
 def index():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM vps_plans ORDER BY price ASC")
-        plans = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-    except Exception as e:
-        print(f"Error fetching plans: {e}")
-        plans = []
-    return render_template('index.html', plans=plans)
-
-@app.route('/plans')
-def plans_page():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM vps_plans ORDER BY price ASC")
-        plans = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-    except Exception as e:
-        print(f"Error fetching plans: {e}")
-        plans = []
-    return render_template('plans.html', plans=plans)
-
-@app.route('/about')
-def about_page():
-    return render_template('about.html', team_members=TEAM_MEMBERS)
-
-@app.route('/faq')
-def faq_page():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM faqs ORDER BY id ASC")
-        faqs = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-    except Exception as e:
-        print(f"Error fetching FAQs: {e}")
-        faqs = []
-    return render_template('faq.html', faqs=faqs)
-
-@app.route('/tos')
-def tos_page():
-    return render_template('tos.html')
+    if is_logged_in():
+        if is_admin():
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('client_dashboard'))
+    return redirect(url_for('auth'))
 
 @app.route('/auth')
 def auth():

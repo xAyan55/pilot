@@ -38,14 +38,7 @@
         <span>{{ settings.get('site_name', 'MintyHost') }}</span>
       </a>
       
-      <ul class="nav-links">
-        <li><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Home</a></li>
-        <li><a href="/plans" class="nav-link {% if request.path == '/plans' %}active{% endif %}">VPS Plans</a></li>
-        <li><a href="/about" class="nav-link {% if request.path == '/about' %}active{% endif %}">About Us</a></li>
-        <li><a href="/faq" class="nav-link {% if request.path == '/faq' %}active{% endif %}">FAQ</a></li>
-        <li><a href="/tos" class="nav-link {% if request.path == '/tos' %}active{% endif %}">Terms</a></li>
-      </ul>
-      
+
       <div class="nav-btns">
         {% if session.get('user_id') %}
           {% if session.get('is_admin') %}
@@ -84,22 +77,6 @@
             <span>{{ settings.get('site_name', 'MintyHost') }}</span>
           </a>
           <p>Ultra-clean, high-performance virtual private servers built for modern developers.</p>
-        </div>
-        <div class="footer-col">
-          <h4>Hosting</h4>
-          <ul class="footer-links">
-            <li><a href="/plans" class="footer-link">VPS Plans</a></li>
-            <li><a href="/plans" class="footer-link">NVMe VPS</a></li>
-            <li><a href="/plans" class="footer-link">Developer VPS</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Company</h4>
-          <ul class="footer-links">
-            <li><a href="/about" class="footer-link">About Us</a></li>
-            <li><a href="/faq" class="footer-link">FAQ Accordion</a></li>
-            <li><a href="/tos" class="footer-link">Terms of Service</a></li>
-          </ul>
         </div>
         <div class="footer-col">
           <h4>Contact</h4>
