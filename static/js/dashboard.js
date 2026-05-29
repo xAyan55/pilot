@@ -733,7 +733,7 @@ async function fetchLiveStats(vpsId) {
         resourceChart.data.datasets[1].data.shift();
         resourceChart.data.datasets[1].data.push(ramPercent);
       }
-      resourceChart.update('none');
+      resourceChart.update();
     }
 
   } catch (err) {

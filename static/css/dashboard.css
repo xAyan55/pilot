@@ -195,11 +195,11 @@
 
 .db-tab-panel.active {
   display: block;
-  animation: panelSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: panelSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes panelSlideIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -220,7 +220,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   animation: cardEntrance 0.3s ease both;
 }
 
@@ -475,6 +475,7 @@
   border-bottom: 2px solid #e2e8f0;
   vertical-align: middle;
   font-weight: 600;
+  transition: background-color 0.2s ease;
 }
 
 .db-table tr:last-child td {
@@ -1070,7 +1071,7 @@
   justify-content: center;
   color: var(--color-text-main);
   box-shadow: 2px 2px 0px var(--color-border);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
 }
 
 .btn-power:hover:not(:disabled) {

@@ -181,7 +181,7 @@ a {
   background-color: var(--color-white);
   color: var(--color-text-main);
   box-shadow: 3px 3px 0px var(--color-border);
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
   gap: 8px;
   position: relative;
 }
@@ -942,7 +942,7 @@ a {
 .form-input:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 3px 3px 0px var(--color-border);
+  box-shadow: 0 0 0 3px rgba(171, 231, 178, 0.4);
 }
 
 .password-toggle-btn {
