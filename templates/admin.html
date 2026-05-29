@@ -72,6 +72,9 @@
           <a href="#" data-target="panel-containers"><i data-lucide="server"></i> Virtual Servers</a>
         </li>
         <li class="db-menu-item">
+          <a href="#" data-target="panel-users"><i data-lucide="users"></i> User Management</a>
+        </li>
+        <li class="db-menu-item">
           <a href="#" data-target="panel-logs"><i data-lucide="file-text"></i> Audit Logs</a>
         </li>
         <li class="db-menu-item">
@@ -657,6 +660,39 @@
           </div>
         </div>
 
+        <!-- Panel: User Management -->
+        <div class="db-tab-panel" id="panel-users">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">User Accounts Management</h3>
+              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Monitor user profiles, resource consumption, and manage client credentials.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openUserCreateModal()"><i data-lucide="user-plus"></i> Create New User</button>
+          </div>
+
+          <div class="db-block" style="margin-bottom: 32px;">
+            <div class="db-table-wrapper">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Password Hash</th>
+                    <th>Instances</th>
+                    <th>Resources</th>
+                    <th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-table-body">
+                  <!-- Populate dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -762,6 +798,141 @@
             <i data-lucide="check-circle"></i> Save FAQ Item
           </button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Create Modal Overlay -->
+  <div class="modal-overlay" id="userCreateModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Create New User Account</h3>
+        <button class="modal-close" onclick="closeUserCreateModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="userCreateForm" onsubmit="handleUserCreateSubmit(event)">
+          <div class="form-group">
+            <label for="createUsername">Username</label>
+            <input type="text" id="createUsername" class="form-input" required minlength="3" placeholder="e.g. johndoe">
+          </div>
+          <div class="form-group">
+            <label for="createEmail">Email Address</label>
+            <input type="email" id="createEmail" class="form-input" required placeholder="e.g. john@example.com">
+          </div>
+          <div class="form-group">
+            <label for="createRole">Account Role</label>
+            <select id="createRole" class="form-input">
+              <option value="client" selected>Client Account</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="createPassword">Account Password</label>
+            <input type="password" id="createPassword" class="form-input" required minlength="6" placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+            <i data-lucide="user-plus"></i> Create User Account
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Edit Modal Overlay -->
+  <div class="modal-overlay" id="userEditModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Edit User Account</h3>
+        <button class="modal-close" onclick="closeUserEditModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="userEditForm" onsubmit="handleUserEditSubmit(event)">
+          <input type="hidden" id="editUserId">
+          <div class="form-group">
+            <label for="editUsername">Username</label>
+            <input type="text" id="editUsername" class="form-input" required minlength="3">
+          </div>
+          <div class="form-group">
+            <label for="editEmail">Email Address</label>
+            <input type="email" id="editEmail" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label for="editRole">Account Role</label>
+            <select id="editRole" class="form-input">
+              <option value="client">Client Account</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editPassword">Reset Password (Leave blank to keep current)</label>
+            <input type="password" id="editPassword" class="form-input" minlength="6" placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+            <i data-lucide="save"></i> Update User Details
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Details Modal Overlay -->
+  <div class="modal-overlay" id="userDetailsModal">
+    <div class="modal-card" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3>Detailed User Information</h3>
+        <button class="modal-close" onclick="closeUserDetailsModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 550px; overflow-y: auto;">
+        
+        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--color-border);">
+          <div class="profile-pfp-container" id="detailsPfpContainer" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--color-border); overflow: hidden; background-color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 800; color: #0f172a;">
+            <!-- Render PFP or Initials -->
+          </div>
+          <div>
+            <h4 style="font-size: 18px; font-weight: 800; color: var(--color-text-main);" id="detailsUsername"></h4>
+            <p style="color: var(--color-text-muted); font-size: 14px;" id="detailsEmail"></p>
+            <span class="badge badge-open" id="detailsRoleBadge" style="margin-top: 6px;"></span>
+          </div>
+        </div>
+
+        <div class="db-stats-grid" style="margin-bottom: 24px;">
+          <div class="db-stat-card" style="padding: 16px;">
+            <div class="db-stat-info">
+              <label>Allocated CPU</label>
+              <div class="db-stat-value" id="detailsTotalCpu" style="font-size: 24px;">0 Cores</div>
+            </div>
+          </div>
+          <div class="db-stat-card" style="padding: 16px;">
+            <div class="db-stat-info">
+              <label>Allocated RAM</label>
+              <div class="db-stat-value" id="detailsTotalRam" style="font-size: 24px;">0 MB</div>
+            </div>
+          </div>
+          <div class="db-stat-card" style="padding: 16px;">
+            <div class="db-stat-info">
+              <label>Allocated Storage</label>
+              <div class="db-stat-value" id="detailsTotalDisk" style="font-size: 24px;">0 GB</div>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 12px;">Owned Virtual Private Servers</h4>
+        <div class="db-table-wrapper" style="margin-bottom: 12px;">
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>VPS Name</th>
+                <th>OS</th>
+                <th>Resources</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="details-vps-body">
+              <!-- Populate dynamically -->
+            </tbody>
+          </table>
+        </div>
+        
       </div>
     </div>
   </div>

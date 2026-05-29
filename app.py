@@ -1591,5 +1591,231 @@ def profile_update_password():
         return jsonify({"message": f"Failed to update password: {str(e)}"}), 500
 
 
+# ----------------- ADMIN USER MANAGEMENT API -----------------
+
+@app.route('/api/admin/users/all')
+def admin_users_all():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Fetch all users, join with VPS to count active instances and sum allocations
+    cursor.execute('''
+        SELECT 
+            u.id, 
+            u.username, 
+            u.email, 
+            u.role, 
+            u.password_hash, 
+            u.pfp,
+            COUNT(v.id) AS vps_count,
+            COALESCE(SUM(v.cpu), 0) AS total_cpu,
+            COALESCE(SUM(v.ram), 0) AS total_ram,
+            COALESCE(SUM(v.disk), 0) AS total_disk
+        FROM users u
+        LEFT JOIN vps v ON u.id = v.user_id
+        GROUP BY u.id
+        ORDER BY u.id ASC
+    ''')
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(users)
+
+
+@app.route('/api/admin/users/create', methods=['POST'])
+def admin_users_create():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    data = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password')
+    role = data.get('role', 'client')
+
+    if not username or not email or not password or not role:
+        return jsonify({"message": "All fields (username, email, password, role) are required."}), 400
+
+    if role not in ['admin', 'client']:
+        return jsonify({"message": "Invalid role specified."}), 400
+
+    if len(password) < 6:
+        return jsonify({"message": "Password must be at least 6 characters."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check for duplicate
+    cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, email))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({"message": "Username or email is already registered."}), 400
+
+    hashed_pw = generate_password_hash(password)
+    try:
+        cursor.execute(
+            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            (username, email, hashed_pw, role)
+        )
+        conn.commit()
+        log_audit(session['user_id'], f"Admin created new user account: {username} ({role})")
+        conn.close()
+        return jsonify({"status": "success", "message": f"User account '{username}' created successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to create user: {str(e)}"}), 500
+
+
+@app.route('/api/admin/users/<int:target_user_id>/update', methods=['POST'])
+def admin_users_update(target_user_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    data = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    email = data.get('email', '').strip().lower()
+    role = data.get('role', 'client')
+    new_password = data.get('password')
+
+    if not username or not email or not role:
+        return jsonify({"message": "Username, email, and role are required."}), 400
+
+    if role not in ['admin', 'client']:
+        return jsonify({"message": "Invalid role specified."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check duplicate username/email
+    cursor.execute("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?", (username, email, target_user_id))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({"message": "Username or email is already registered by another user."}), 400
+
+    try:
+        if new_password and len(new_password.strip()) >= 6:
+            hashed_pw = generate_password_hash(new_password.strip())
+            cursor.execute(
+                "UPDATE users SET username = ?, email = ?, role = ?, password_hash = ? WHERE id = ?",
+                (username, email, role, hashed_pw, target_user_id)
+            )
+            log_audit(session['user_id'], f"Admin updated user account details and reset password for ID {target_user_id} ({username})")
+        else:
+            cursor.execute(
+                "UPDATE users SET username = ?, email = ?, role = ? WHERE id = ?",
+                (username, email, role, target_user_id)
+            )
+            log_audit(session['user_id'], f"Admin updated user account details for ID {target_user_id} ({username})")
+            
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success", "message": "User details successfully updated."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to update user: {str(e)}"}), 500
+
+
+@app.route('/api/admin/users/<int:target_user_id>/delete', methods=['DELETE'])
+def admin_users_delete(target_user_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    if target_user_id == session['user_id']:
+        return jsonify({"message": "You cannot delete your own admin account."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Fetch user username
+    cursor.execute("SELECT username FROM users WHERE id = ?", (target_user_id,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        conn.close()
+        return jsonify({"message": "User not found."}), 404
+    username = user_row['username']
+
+    # Fetch all VPS owned by the user
+    cursor.execute("SELECT container_name FROM vps WHERE user_id = ?", (target_user_id,))
+    vps_rows = cursor.fetchall()
+
+    try:
+        # 1. Destroy all LXC containers for this user
+        for vps in vps_rows:
+            try:
+                LXCManager.destroy_container(vps['container_name'])
+            except Exception as ex:
+                print(f"[WARN] Failed to destroy container {vps['container_name']} for deleted user: {ex}")
+
+        # 2. Delete all user records in DB (cascading deletes will handle snapshots, backups, firewall, vps)
+        cursor.execute("DELETE FROM users WHERE id = ?", (target_user_id,))
+        conn.commit()
+        log_audit(session['user_id'], f"Admin deleted user account: {username} (ID {target_user_id}) and permanently destroyed all associated VPS containers.")
+        conn.close()
+        return jsonify({"status": "success", "message": f"User account '{username}' and all associated VPS containers have been permanently deleted."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to delete user and assets: {str(e)}"}), 500
+
+
+@app.route('/api/admin/users/<int:target_user_id>/suspend', methods=['POST'])
+def admin_users_suspend(target_user_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    data = request.get_json() or {}
+    suspend = data.get('suspend', True)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Fetch user username
+    cursor.execute("SELECT username FROM users WHERE id = ?", (target_user_id,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        conn.close()
+        return jsonify({"message": "User not found."}), 404
+    username = user_row['username']
+
+    # Fetch all VPS owned by the user
+    cursor.execute("SELECT id, container_name, status FROM vps WHERE user_id = ?", (target_user_id,))
+    vps_rows = cursor.fetchall()
+
+    action = 'suspend' if suspend else 'resume'
+    new_status = 'suspended' if suspend else 'running'
+
+    try:
+        # Loop and execute action on each container
+        for vps in vps_rows:
+            # Only suspend if running, or resume if suspended
+            if suspend and vps['status'] == 'running':
+                LXCManager.execute_action(vps['container_name'], 'suspend')
+                cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps['id']))
+            elif not suspend and vps['status'] == 'suspended':
+                LXCManager.execute_action(vps['container_name'], 'resume')
+                cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps['id']))
+
+        conn.commit()
+        log_audit(session['user_id'], f"Admin bulk-{action}ed all instances owned by user: {username} (ID {target_user_id}).")
+        conn.close()
+        return jsonify({"status": "success", "message": f"All instances for user '{username}' have been set to {new_status}."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to modify instances: {str(e)}"}), 500
+
+
+@app.route('/api/admin/users/<int:target_user_id>/vps')
+def admin_users_vps_list(target_user_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE user_id = ? ORDER BY id DESC", (target_user_id,))
+    vps_list = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(vps_list)
+
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

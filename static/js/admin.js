@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
               loadUsers();
             } else if (targetId === 'panel-containers') {
               loadContainers();
+            } else if (targetId === 'panel-users') {
+              loadAdminUsers();
             } else if (targetId === 'panel-logs') {
               loadLogs();
             } else if (targetId === 'panel-customization') {
@@ -985,5 +987,239 @@ window.removeBrandingImage = async function(type) {
     }
   } catch (err) {
     showToast(`Failed to remove ${type}: ${err.message}`, 'error');
+  }
+};
+
+// --- USER MANAGEMENT FUNCTIONS ---
+window.loadedAdminUsersList = [];
+
+async function loadAdminUsers() {
+  try {
+    const res = await fetch('/api/admin/users/all');
+    const users = await window.handleFetchResponse(res);
+    window.loadedAdminUsersList = users;
+    
+    const tbody = document.getElementById('users-table-body');
+    tbody.innerHTML = '';
+    
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="color: var(--color-text-muted); padding: 20px;">No users found.</td></tr>';
+      return;
+    }
+    
+    users.forEach(user => {
+      const row = document.createElement('tr');
+      const resourcesText = `${user.total_cpu} Cores / ${user.total_ram} MB / ${user.total_disk} GB`;
+      const hashPreview = user.password_hash ? user.password_hash.substring(0, 15) + '...' : 'N/A';
+      
+      row.innerHTML = `
+        <td><code style="background-color: var(--color-primary); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace;">UID-${user.id}</code></td>
+        <td><strong>${user.username}</strong></td>
+        <td>${user.email}</td>
+        <td><span class="badge ${user.role === 'admin' ? 'badge-resolved' : 'badge-open'}">${user.role.toUpperCase()}</span></td>
+        <td style="font-family: monospace; font-size: 11px; color: var(--color-text-muted);" title="${user.password_hash}">${hashPreview}</td>
+        <td><strong>${user.vps_count}</strong> instances</td>
+        <td style="font-size: 13px;">${resourcesText}</td>
+        <td class="text-right" style="white-space: nowrap;">
+          <button class="btn btn-outline action-btn-small" onclick="openUserDetailsModal(${user.id})" style="margin-right: 6px;" title="View User Details">
+            <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Details
+          </button>
+          <button class="btn btn-outline action-btn-small" onclick="openUserEditModal(${user.id})" style="margin-right: 6px;" title="Edit Account">
+            <i data-lucide="edit" style="width: 13px; height: 13px;"></i> Edit
+          </button>
+          <button class="btn btn-outline action-btn-small" onclick="suspendUserVPS(${user.id})" style="margin-right: 6px; background-color: #fff9f0; border-color: #f59e0b; color: #78350f;" title="Suspend All instances">
+            <i data-lucide="shield-alert" style="width: 13px; height: 13px;"></i> Suspend All
+          </button>
+          <button class="btn btn-outline action-btn-small" onclick="deleteUser(${user.id}, '${user.username}')" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;" title="Delete User">
+            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i> Delete
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+    
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  } catch (err) {
+    showToast(`Failed to load users: ${err.message}`, 'error');
+  }
+}
+window.loadAdminUsers = loadAdminUsers;
+
+// Modal Controls
+window.openUserCreateModal = function() {
+  document.getElementById('userCreateForm').reset();
+  document.getElementById('userCreateModal').classList.add('active');
+};
+window.closeUserCreateModal = function() {
+  document.getElementById('userCreateModal').classList.remove('active');
+};
+
+window.handleUserCreateSubmit = async function(event) {
+  event.preventDefault();
+  const username = document.getElementById('createUsername').value.trim();
+  const email = document.getElementById('createEmail').value.trim();
+  const role = document.getElementById('createRole').value;
+  const password = document.getElementById('createPassword').value;
+
+  try {
+    const res = await fetch('/api/admin/users/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, role, password })
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    closeUserCreateModal();
+    loadAdminUsers();
+  } catch (err) {
+    showToast(`Failed to create user: ${err.message}`, 'error');
+  }
+};
+
+window.openUserEditModal = function(userId) {
+  const user = window.loadedAdminUsersList.find(u => u.id === userId);
+  if (!user) return;
+
+  document.getElementById('editUserId').value = user.id;
+  document.getElementById('editUsername').value = user.username;
+  document.getElementById('editEmail').value = user.email;
+  document.getElementById('editRole').value = user.role;
+  document.getElementById('editPassword').value = '';
+
+  document.getElementById('userEditModal').classList.add('active');
+};
+window.closeUserEditModal = function() {
+  document.getElementById('userEditModal').classList.remove('active');
+};
+
+window.handleUserEditSubmit = async function(event) {
+  event.preventDefault();
+  const userId = document.getElementById('editUserId').value;
+  const username = document.getElementById('editUsername').value.trim();
+  const email = document.getElementById('editEmail').value.trim();
+  const role = document.getElementById('editRole').value;
+  const password = document.getElementById('editPassword').value;
+
+  const payload = { username, email, role };
+  if (password && password.trim() !== '') {
+    payload.password = password.trim();
+  }
+
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    closeUserEditModal();
+    loadAdminUsers();
+  } catch (err) {
+    showToast(`Failed to update user: ${err.message}`, 'error');
+  }
+};
+
+window.openUserDetailsModal = async function(userId) {
+  const user = window.loadedAdminUsersList.find(u => u.id === userId);
+  if (!user) return;
+
+  // Set Profile PFP or Initials
+  const pfpContainer = document.getElementById('detailsPfpContainer');
+  if (user.pfp) {
+    pfpContainer.innerHTML = `<img src="${user.pfp}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">`;
+    pfpContainer.style.padding = '0';
+  } else {
+    pfpContainer.innerHTML = `<span>${user.username.substring(0, 2).toUpperCase()}</span>`;
+    pfpContainer.style.padding = '';
+  }
+
+  document.getElementById('detailsUsername').textContent = user.username;
+  document.getElementById('detailsEmail').textContent = user.email;
+  
+  const roleBadge = document.getElementById('detailsRoleBadge');
+  roleBadge.textContent = user.role.toUpperCase();
+  roleBadge.className = `badge ${user.role === 'admin' ? 'badge-resolved' : 'badge-open'}`;
+
+  // Resource statistics
+  document.getElementById('detailsTotalCpu').textContent = `${user.total_cpu} Core${user.total_cpu > 1 ? 's' : ''}`;
+  document.getElementById('detailsTotalRam').textContent = `${user.total_ram} MB`;
+  document.getElementById('detailsTotalDisk').textContent = `${user.total_disk} GB`;
+
+  // Fetch and display VPS sub-list
+  const tbody = document.getElementById('details-vps-body');
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center">Loading owned servers...</td></tr>';
+
+  document.getElementById('userDetailsModal').classList.add('active');
+
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/vps`);
+    const vpsList = await window.handleFetchResponse(res);
+    tbody.innerHTML = '';
+
+    if (vpsList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color: var(--color-text-muted);">This user does not own any VPS.</td></tr>';
+      return;
+    }
+
+    vpsList.forEach(vps => {
+      const row = document.createElement('tr');
+      const statusClass = vps.status === 'running' ? 'running' : (vps.status === 'suspended' ? 'suspended' : 'stopped');
+      
+      row.innerHTML = `
+        <td><strong>${vps.container_name}</strong></td>
+        <td>${vps.os}</td>
+        <td style="font-size: 13px;">${vps.cpu} Cores / ${vps.ram} MB / ${vps.disk} GB</td>
+        <td>
+          <span class="vps-status-badge ${statusClass}" style="padding: 2px 8px; font-size: 10px;">
+            <span class="status-dot"></span>
+            <span>${vps.status}</span>
+          </span>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center" style="color: var(--color-danger);">Failed to load VPS: ${err.message}</td></tr>`;
+  }
+};
+
+window.closeUserDetailsModal = function() {
+  document.getElementById('userDetailsModal').classList.remove('active');
+};
+
+window.suspendUserVPS = async function(userId) {
+  if (!confirm("Are you sure you want to suspend ALL virtual servers owned by this user?")) return;
+  showToast('Suspending all instances...', 'info');
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/suspend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suspend: true })
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    loadAdminUsers();
+  } catch (err) {
+    showToast(`Failed to suspend instances: ${err.message}`, 'error');
+  }
+};
+
+window.deleteUser = async function(userId, username) {
+  if (!confirm(`WARNING: Deleting user '${username}' will permanently delete their account AND immediately destroy all LXC containers they own on this node!\n\nThis action is completely irreversible. Are you sure you want to delete this user?`)) {
+    return;
+  }
+  showToast(`Deleting user '${username}' and associated VPSes...`, 'info');
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/delete`, {
+      method: 'DELETE'
+    });
+    const result = await window.handleFetchResponse(res);
+    showToast(result.message, 'success');
+    loadAdminUsers();
+  } catch (err) {
+    showToast(`Failed to delete user: ${err.message}`, 'error');
   }
 };
