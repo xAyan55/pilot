@@ -203,8 +203,10 @@ def signup_handler():
 
         session['user_id'] = user['id']
         session['username'] = user['username']
+        session['email'] = user['email']
         session['role'] = user['role']
         session['is_admin'] = (user['role'] == 'admin')
+        session['pfp'] = user.get('pfp')
 
         log_audit(user['id'], f"Registered user account: {username}")
         conn.close()
@@ -234,8 +236,10 @@ def login_handler():
     if user and check_password_hash(user['password_hash'], password):
         session['user_id'] = user['id']
         session['username'] = user['username']
+        session['email'] = user['email']
         session['role'] = user['role']
         session['is_admin'] = (user['role'] == 'admin')
+        session['pfp'] = user.get('pfp')
 
         log_audit(user['id'], "Logged into control panel")
 
@@ -1469,6 +1473,122 @@ def cleanup_terminal(sid):
                 term['process'].kill()
             except Exception:
                 pass
+
+
+# ----------------- USER PROFILE API -----------------
+
+@app.route('/api/profile/update', methods=['POST'])
+def profile_update():
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+
+    user_id = session['user_id']
+    username = request.form.get('username', '').strip().lower()
+    email = request.form.get('email', '').strip().lower()
+
+    if not username or not email:
+        return jsonify({"message": "Username and email are required."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check for duplicate username or email
+    cursor.execute("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?", (username, email, user_id))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({"message": "Username or email is already taken."}), 400
+
+    pfp_url = session.get('pfp')
+
+    # Handle PFP Upload
+    if 'pfp' in request.files:
+        file = request.files['pfp']
+        if file and file.filename != '':
+            if allowed_file(file.filename):
+                uploads_dir = os.path.join(app.static_folder, 'uploads', 'pfps')
+                os.makedirs(uploads_dir, exist_ok=True)
+                
+                # Delete old pfp file if exists
+                if pfp_url and 'static/' in pfp_url:
+                    try:
+                        old_rel_path = pfp_url.split('static/')[-1]
+                        old_file_path = os.path.join(app.static_folder, old_rel_path)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    except Exception as ex:
+                        print(f"[WARN] Failed to delete old pfp: {ex}")
+
+                # Save new file
+                ext = file.filename.rsplit('.', 1)[1].lower()
+                filename = f"pfp_{user_id}_{uuid.uuid4().hex}.{ext}"
+                filepath = os.path.join(uploads_dir, filename)
+                file.save(filepath)
+                pfp_url = url_for('static', filename=f"uploads/pfps/{filename}")
+            else:
+                conn.close()
+                return jsonify({"message": "File extension not allowed for profile picture."}), 400
+
+    try:
+        cursor.execute(
+            "UPDATE users SET username = ?, email = ?, pfp = ? WHERE id = ?",
+            (username, email, pfp_url, user_id)
+        )
+        conn.commit()
+        
+        # Update session
+        session['username'] = username
+        session['email'] = email
+        session['pfp'] = pfp_url
+        
+        log_audit(user_id, f"Updated profile details: username={username}, email={email}")
+        conn.close()
+        return jsonify({
+            "status": "success", 
+            "message": "Profile updated successfully.",
+            "username": username,
+            "email": email,
+            "pfp": pfp_url
+        })
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to update profile: {str(e)}"}), 500
+
+
+@app.route('/api/profile/update-password', methods=['POST'])
+def profile_update_password():
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+
+    if not current_password or not new_password:
+        return jsonify({"message": "Current password and new password are required."}), 400
+
+    if len(new_password) < 6:
+        return jsonify({"message": "New password must be at least 6 characters."}), 400
+
+    user_id = session['user_id']
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+
+    if not user or not check_password_hash(user['password_hash'], current_password):
+        conn.close()
+        return jsonify({"message": "Incorrect current password."}), 400
+
+    hashed_pw = generate_password_hash(new_password)
+    try:
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_pw, user_id))
+        conn.commit()
+        log_audit(user_id, "Changed account password")
+        conn.close()
+        return jsonify({"status": "success", "message": "Password updated successfully."})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to update password: {str(e)}"}), 500
 
 
 if __name__ == '__main__':

@@ -19,9 +19,16 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT DEFAULT 'client' -- 'admin' or 'client'
+            role TEXT DEFAULT 'client', -- 'admin' or 'client'
+            pfp TEXT DEFAULT NULL
         )
     ''')
+
+    # Migration to add pfp to users table if it does not exist
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN pfp TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
 
     # VPS Table
     cursor.execute('''
