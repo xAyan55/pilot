@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (targetId === 'panel-deploy') {
               loadUsers();
               loadNodesDropdown();
+              loadDiscordUsers();
             } else if (targetId === 'panel-containers') {
               loadContainers();
             } else if (targetId === 'panel-users') {
@@ -469,6 +470,7 @@ window.handleDeployVPS = function(event) {
   const ram = document.getElementById('deployRAM').value;
   const disk = document.getElementById('deployDisk').value;
   const password = document.getElementById('deployPassword').value;
+  const discordUserId = document.getElementById('deployDiscordUser')?.value || '';
 
   if (!name || !userId || !os || !password) {
     showToast("Please fill in all deployment fields.", "error");
@@ -490,7 +492,7 @@ window.handleDeployVPS = function(event) {
   logsArea.innerHTML = '<div style="color: #7de8a3;">[SYSTEM] Initiating server side EventStream connection...</div>';
 
   // Open SSE stream
-  const url = `/api/admin/vps/deploy-stream?name=${name}&user_id=${userId}&os=${os}&cpu=${cpu}&ram=${ram}&disk=${disk}&root_password=${encodeURIComponent(password)}&node_id=${nodeId}`;
+  const url = `/api/admin/vps/deploy-stream?name=${name}&user_id=${userId}&os=${os}&cpu=${cpu}&ram=${ram}&disk=${disk}&root_password=${encodeURIComponent(password)}&node_id=${nodeId}&discord_user_id=${encodeURIComponent(discordUserId)}`;
   const source = new EventSource(url);
   
   let currentProgress = 5;
@@ -1058,6 +1060,7 @@ window.loadAdminUsers = loadAdminUsers;
 // Modal Controls
 window.openUserCreateModal = function() {
   document.getElementById('userCreateForm').reset();
+  loadDiscordUsers();
   document.getElementById('userCreateModal').classList.add('active');
 };
 window.closeUserCreateModal = function() {
@@ -1070,12 +1073,13 @@ window.handleUserCreateSubmit = async function(event) {
   const email = document.getElementById('createEmail').value.trim();
   const role = document.getElementById('createRole').value;
   const password = document.getElementById('createPassword').value;
+  const discordUserId = document.getElementById('createDiscordUser')?.value || '';
 
   try {
     const res = await fetch('/api/admin/users/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, role, password })
+      body: JSON.stringify({ username, email, role, password, discord_user_id: discordUserId })
     });
     const result = await window.handleFetchResponse(res);
     showToast(result.message, 'success');
@@ -1603,5 +1607,93 @@ window.copyGeneratedApiKey = function() {
       showToast("Failed to copy key automatically.", "error");
     });
 };
+
+let discordUsers = [];
+
+async function loadDiscordUsers() {
+  try {
+    const response = await fetch('/api/admin/discord/users');
+    if (response.ok) {
+      const data = await response.json();
+      discordUsers = data.users || [];
+      populateDiscordSelect('createDiscordUser');
+      populateDiscordSelect('deployDiscordUser');
+    } else {
+      console.warn("Failed to fetch Discord users");
+      fallbackToManualInput('createDiscordUser');
+      fallbackToManualInput('deployDiscordUser');
+    }
+  } catch (err) {
+    console.error("Error loading Discord users", err);
+    fallbackToManualInput('createDiscordUser');
+    fallbackToManualInput('deployDiscordUser');
+  }
+}
+window.loadDiscordUsers = loadDiscordUsers;
+
+function populateDiscordSelect(selectId) {
+  let select = document.getElementById(selectId);
+  if (!select) return;
+  
+  if (discordUsers.length === 0) {
+    fallbackToManualInput(selectId);
+    return;
+  }
+  
+  if (select.tagName === 'INPUT') {
+    const newSelect = document.createElement('select');
+    newSelect.id = selectId;
+    newSelect.className = 'form-input';
+    select.parentNode.replaceChild(newSelect, select);
+    select = newSelect;
+  }
+  
+  select.innerHTML = '<option value="">No Discord notification</option>';
+  
+  discordUsers.forEach(user => {
+    const opt = document.createElement('option');
+    opt.value = user.id;
+    opt.textContent = `${user.display_name} (@${user.username})`;
+    select.appendChild(opt);
+  });
+}
+
+function fallbackToManualInput(elementId) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  if (element.tagName === 'INPUT') return;
+  
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = elementId;
+  input.className = 'form-input';
+  input.placeholder = 'Enter Discord User ID manually (Optional)';
+  
+  element.parentNode.replaceChild(input, element);
+}
+
+async function saveDiscordIntegration(event) {
+  event.preventDefault();
+  const token = document.getElementById('discordBotToken').value.trim();
+  const guildId = document.getElementById('discordGuildId').value.trim();
+  
+  try {
+    const response = await fetch('/api/admin/settings/discord', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        discord_bot_token: token,
+        discord_guild_id: guildId
+      })
+    });
+    const result = await window.handleFetchResponse(response);
+    showToast(result.message || "Discord integration settings saved.", "success");
+    // Reload users in case credentials were just configured
+    loadDiscordUsers();
+  } catch (err) {
+    showToast(`Failed to save Discord settings: ${err.message}`, "error");
+  }
+}
+window.saveDiscordIntegration = saveDiscordIntegration;
 
 

@@ -13,6 +13,7 @@ from database import get_db_connection
 from lxc_manager import LXCManager, IS_MOCK_LXC
 import threading
 import random
+import discord_notify
 
 bp = Blueprint('api_v1', __name__, url_prefix='/api/v1')
 
@@ -644,6 +645,8 @@ def admin_create_user():
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
     role = data.get('role', 'client')
+    discord_user_id = data.get('discord_user_id', '').strip()
+
     if not username or not email or not password:
         return jsonify({"error": "validation", "message": "username, email, password required."}), 400
     if role not in ('admin', 'client'):
@@ -664,6 +667,12 @@ def admin_create_user():
     conn.commit()
     conn.close()
     _log(g.api_user_id, f"API Admin: Created user {username} ({role})")
+
+    # Send Discord notification if requested
+    if discord_user_id:
+        panel_url = request.url_root.rstrip('/')
+        discord_notify.send_user_creation_dm(discord_user_id, username, email, password, panel_url)
+
     return jsonify({"status": "success", "message": "User created.", "id": uid}), 201
 
 
@@ -768,6 +777,8 @@ def admin_deploy_vps():
     root_pw = data.get('root_password', '').strip()
     node_id = data.get('node_id', 1)
 
+    discord_user_id = data.get('discord_user_id', '').strip()
+
     if not all([name, user_id, os_sel, cpu, ram, disk, root_pw]):
         return jsonify({"error": "validation", "message": "name, user_id, os, cpu, ram, disk, root_password required."}), 400
 
@@ -786,6 +797,7 @@ def admin_deploy_vps():
         return jsonify({"error": "conflict", "message": "Container name already taken."}), 409
 
     try:
+        node = None
         if node_id != 1:
             node = _get_node(node_id)
             if not node:
@@ -825,22 +837,13 @@ def admin_deploy_vps():
         settings = {row['key']: row['value'] for row in cursor.fetchall()}
         site_name_val = settings.get('site_name', 'MintyHost LXC')
 
-        if node_id != 1:
-            _make_node_request(node, "/api/vps/post-deploy", data={
-                "name": container_name,
-                "vps_id": vps_id,
-                "password": root_pw,
-                "site_name": site_name_val
-            })
-        else:
-            def run_deploy_setup(name, target_id, root_pw, s_name):
-                try:
-                    LXCManager.post_deploy_setup(name=name, vps_id=target_id, root_password=root_pw, site_name=s_name)
-                except Exception as ex:
-                    print(f"Deploy post setup failed: {ex}")
-
-            import threading
-            threading.Thread(target=run_deploy_setup, args=(container_name, vps_id, root_pw, site_name_val)).start()
+        # Spawn unified background thread to handle remote/local setup and notify
+        panel_url = request.url_root.rstrip('/')
+        import threading
+        threading.Thread(
+            target=discord_notify.run_post_deploy_and_notify,
+            args=(container_name, vps_id, root_pw, site_name_val, node_id, node if node_id != 1 else None, discord_user_id, panel_url)
+        ).start()
 
         _log(g.api_user_id, f"API Admin: Deployed container {container_name} assigned to user ID {user_id}")
         conn.close()

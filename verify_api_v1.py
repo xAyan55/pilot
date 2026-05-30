@@ -89,16 +89,32 @@ def test_api_v1():
     assert resp.json().get("valid") is True
     print("[SUCCESS] Credentials verified successfully.")
 
-    # Deploy VPS via Admin API
-    print("\n--- 12. Deploy VPS via Admin API ---")
+    # Create User via Admin API with discord_user_id
+    print("\n--- 12. Create User via Admin API with Discord notification ---")
+    import random
+    rand_suffix = random.randint(1000, 9999)
+    resp = requests.post(f"{BASE_URL}/api/v1/admin/users", headers=headers, json={
+        "username": f"apitestuser{rand_suffix}",
+        "email": f"apiuser{rand_suffix}@mintyhost.local",
+        "password": "strongpassword123",
+        "role": "client",
+        "discord_user_id": "123456789012345678"
+    })
+    assert resp.status_code == 201
+    created_user_id = resp.json()['id']
+    print(f"[SUCCESS] Created user with ID: {created_user_id}")
+
+    # Deploy VPS via Admin API with discord_user_id
+    print("\n--- 13. Deploy VPS via Admin API with Discord notification ---")
     resp = requests.post(f"{BASE_URL}/api/v1/admin/vps", headers=headers, json={
         "name": "apitestvps",
-        "user_id": 1,
+        "user_id": created_user_id,
         "os": "alpine/3.18",
         "cpu": 1,
         "ram": 512,
         "disk": 10,
-        "root_password": "securesshpassword123"
+        "root_password": "securesshpassword123",
+        "discord_user_id": "123456789012345678"
     })
     assert resp.status_code == 201
     deployed = resp.json()
@@ -106,13 +122,13 @@ def test_api_v1():
     print(f"[SUCCESS] Deployed VPS ID: {vps_id}")
 
     # Delete VPS via Admin API
-    print("\n--- 13. Destroy VPS via Admin API ---")
+    print("\n--- 14. Destroy VPS via Admin API ---")
     resp = requests.delete(f"{BASE_URL}/api/v1/admin/vps/{vps_id}", headers=headers)
     assert resp.status_code == 200
     print("[SUCCESS] Destroyed VPS successfully.")
 
     # Cleanup the test keys we generated to keep DB tidy
-    print("\n--- 14. Clean Up Test Key ---")
+    print("\n--- 15. Clean Up Test Key ---")
     key_id_to_delete = key_data['key']['id']
     resp = session.delete(f"{BASE_URL}/api/keys/{key_id_to_delete}")
     assert resp.status_code == 200

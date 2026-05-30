@@ -21,6 +21,12 @@ from collections import deque
 from api_auth import generate_api_key
 from api_v1 import bp as api_v1_bp
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), 'bot', '.env'))
+import discord_notify
+
 # Metrics history cache to keep the line graphs pre-populated and real-time
 METRICS_HISTORY = {}
 
@@ -1014,6 +1020,7 @@ def admin_vps_deploy_stream():
     disk = request.args.get('disk')
     root_pw = request.args.get('root_password', '').strip()
     node_id = request.args.get('node_id', 1)
+    discord_user_id = request.args.get('discord_user_id', '').strip()
 
     try:
         node_id = int(node_id)
@@ -1049,6 +1056,7 @@ def admin_vps_deploy_stream():
         yield f"data: [INFO] Initiating LXC deploy for container: {container_name}...\n\n"
 
         try:
+            node = None
             if node_id != 1:
                 node = get_node_by_id(node_id)
                 if not node:
@@ -1106,32 +1114,12 @@ def admin_vps_deploy_stream():
             # Execute post-deployment environment setup (packages and Pinggy SSH tunnel)
             yield "data: [INFO] Initiating background installation of standard packages and tunnel client...\n\n"
 
-            if node_id != 1:
-                # Trigger post-deploy on remote node
-                res, code = make_node_request(node, "/api/vps/post-deploy", data={
-                    "name": container_name,
-                    "vps_id": vps_id,
-                    "password": root_pw,
-                    "site_name": site_name_val
-                })
-                if code != 200:
-                    yield f"data: [WARNING] Remote post-deploy trigger failed: {res.get('message', '')}\n\n"
-            else:
-                def run_deploy_setup(name, target_id, root_pw, s_name):
-                    try:
-                        LXCManager.post_deploy_setup(
-                            name=name,
-                            vps_id=target_id,
-                            root_password=root_pw,
-                            site_name=s_name
-                        )
-                    except Exception as ex:
-                        print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
-
-                threading.Thread(
-                    target=run_deploy_setup,
-                    args=(container_name, vps_id, root_pw, site_name_val)
-                ).start()
+            # Spawn background thread to execute setup (packages & Pinggy tunnel) and send Discord notification
+            panel_url = request.url_root.rstrip('/')
+            threading.Thread(
+                target=discord_notify.run_post_deploy_and_notify,
+                args=(container_name, vps_id, root_pw, site_name_val, node_id, node if node_id != 1 else None, discord_user_id, panel_url)
+            ).start()
             
             yield "data: [INFO] Background setup task successfully queued.\n\n"
 
@@ -1386,6 +1374,55 @@ def admin_settings_pages():
         return jsonify({"status": "success", "message": "Page contents saved successfully."})
     except Exception as e:
         return jsonify({"message": f"Failed to save page contents: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/admin/discord/users')
+def admin_discord_users():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    
+    token = discord_notify.get_discord_bot_token()
+    guild_id = discord_notify.get_discord_guild_id()
+    
+    if not token or not guild_id:
+        return jsonify({
+            "configured": False,
+            "users": []
+        })
+        
+    users = discord_notify.fetch_discord_guild_members()
+    return jsonify({
+        "configured": True,
+        "users": users
+    })
+
+@app.route('/api/admin/settings/discord', methods=['POST'])
+def admin_settings_discord():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    
+    data = request.get_json() or {}
+    bot_token = data.get('discord_bot_token', '').strip()
+    guild_id = data.get('discord_guild_id', '').strip()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        updates = {
+            'discord_bot_token': bot_token,
+            'discord_guild_id': guild_id
+        }
+        for key, val in updates.items():
+            cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, val, val)
+            )
+        conn.commit()
+        log_audit(session['user_id'], "Updated Discord integration settings.")
+        return jsonify({"status": "success", "message": "Discord integration settings saved successfully."})
+    except Exception as e:
+        return jsonify({"message": f"Failed to save Discord settings: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -1975,6 +2012,7 @@ def admin_users_create():
     email = data.get('email', '').strip().lower()
     password = data.get('password')
     role = data.get('role', 'client')
+    discord_user_id = data.get('discord_user_id', '').strip()
 
     if not username or not email or not password or not role:
         return jsonify({"message": "All fields (username, email, password, role) are required."}), 400
@@ -2003,6 +2041,12 @@ def admin_users_create():
         conn.commit()
         log_audit(session['user_id'], f"Admin created new user account: {username} ({role})")
         conn.close()
+
+        # If discord_user_id is provided, send credentials DM
+        if discord_user_id:
+            panel_url = request.url_root.rstrip('/')
+            discord_notify.send_user_creation_dm(discord_user_id, username, email, password, panel_url)
+
         return jsonify({"status": "success", "message": f"User account '{username}' created successfully."})
     except Exception as e:
         conn.close()

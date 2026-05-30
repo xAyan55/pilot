@@ -303,6 +303,13 @@
                 <input type="password" id="deployPassword" class="form-input" placeholder="••••••••" required minlength="6">
               </div>
 
+              <div class="form-group">
+                <label for="deployDiscordUser">Discord User to Notify (Optional)</label>
+                <select id="deployDiscordUser" class="form-input">
+                  <option value="">No Discord notification</option>
+                </select>
+              </div>
+
               <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
                 <i data-lucide="play-circle"></i> Deploy Container Instance
               </button>
@@ -514,6 +521,27 @@
                 </div>
                 <button type="submit" class="btn btn-primary" style="margin-top: 24px; width: 100%;">
                   <i data-lucide="save"></i> Save Theme Settings
+                </button>
+              </form>
+            </div>
+
+            <div class="db-block" style="max-width: 600px; margin-top: 24px;">
+              <div class="db-block-header">
+                <h3>Discord Bot Notifications Integration</h3>
+              </div>
+              <form id="discordIntegrationForm" onsubmit="saveDiscordIntegration(event)" style="margin-top: 16px;">
+                <div class="form-group">
+                  <label for="discordBotToken">Discord Bot Token</label>
+                  <input type="password" id="discordBotToken" class="form-input" value="{{ settings.get('discord_bot_token', '') }}" placeholder="Enter Bot Token">
+                  <small style="font-size: 11px; color: var(--color-text-muted);">Can also be configured as <code>DISCORD_BOT_TOKEN</code> in your environment or bot .env file.</small>
+                </div>
+                <div class="form-group">
+                  <label for="discordGuildId">Discord Guild / Server ID</label>
+                  <input type="text" id="discordGuildId" class="form-input" value="{{ settings.get('discord_guild_id', '') }}" placeholder="Enter Server ID">
+                  <small style="font-size: 11px; color: var(--color-text-muted);">Can also be configured as <code>DISCORD_GUILD_ID</code> in your environment.</small>
+                </div>
+                <button type="submit" class="btn btn-secondary" style="margin-top: 20px; width: 100%;">
+                  <i data-lucide="save"></i> Save Discord Integration
                 </button>
               </form>
             </div>
@@ -820,6 +848,12 @@
           <div class="form-group">
             <label for="createPassword">Account Password</label>
             <input type="password" id="createPassword" class="form-input" required minlength="6" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label for="createDiscordUser">Discord User to Notify (Optional)</label>
+            <select id="createDiscordUser" class="form-input">
+              <option value="">No Discord notification</option>
+            </select>
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
             <i data-lucide="user-plus"></i> Create User Account
