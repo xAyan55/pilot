@@ -18,6 +18,8 @@ from werkzeug.utils import secure_filename
 from database import get_db_connection, init_db
 from lxc_manager import LXCManager, LXC_BIN, IS_MOCK_LXC
 from collections import deque
+from api_auth import generate_api_key
+from api_v1 import bp as api_v1_bp
 
 # Metrics history cache to keep the line graphs pre-populated and real-time
 METRICS_HISTORY = {}
@@ -119,6 +121,9 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 # Ensure database is initialized on startup
 with app.app_context():
     init_db()
+
+# Register REST API v1 blueprint
+app.register_blueprint(api_v1_bp)
 
 def get_contrast_color(hex_color):
     hex_color = hex_color.lstrip('#')
@@ -2311,6 +2316,102 @@ def download_node_sh():
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'node.sh', mimetype='text/x-shellscript')
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SESSION-BASED API KEY MANAGEMENT (used by the panel dashboard UI)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/keys', methods=['GET'])
+def session_list_keys():
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name, key, role, created_at, last_used FROM api_keys WHERE user_id = ? ORDER BY id DESC",
+        (session['user_id'],)
+    )
+    keys = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    for k in keys:
+        raw = k['key']
+        k['key_masked'] = raw[:8] + '•' * (len(raw) - 12) + raw[-4:]
+    return jsonify(keys)
+
+
+@app.route('/api/keys', methods=['POST'])
+def session_create_key():
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({"message": "Key name is required."}), 400
+    if len(name) > 64:
+        return jsonify({"message": "Key name must be ≤ 64 characters."}), 400
+    new_key = generate_api_key()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT role FROM users WHERE id = ?", (session['user_id'],))
+    user_row = cursor.fetchone()
+    role = user_row['role'] if user_row else 'client'
+    cursor.execute(
+        "INSERT INTO api_keys (user_id, name, key, role) VALUES (?, ?, ?, ?)",
+        (session['user_id'], name, new_key, role)
+    )
+    key_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    log_audit(session['user_id'], f"Created API key '{name}'")
+    return jsonify({
+        "status": "success",
+        "message": "API key created. Copy it now — it will not be shown again.",
+        "key": {"id": key_id, "name": name, "key": new_key, "role": role}
+    }), 201
+
+
+@app.route('/api/keys/<int:key_id>', methods=['DELETE'])
+def session_delete_key(key_id):
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Admins can revoke any key; clients only their own
+    if is_admin():
+        cursor.execute("SELECT id, name FROM api_keys WHERE id = ?", (key_id,))
+    else:
+        cursor.execute("SELECT id, name FROM api_keys WHERE id = ? AND user_id = ?", (key_id, session['user_id']))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"message": "API key not found."}), 404
+    cursor.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
+    conn.commit()
+    conn.close()
+    log_audit(session['user_id'], f"Revoked API key '{row['name']}' (ID {key_id})")
+    return jsonify({"status": "success", "message": "API key revoked."})
+
+
+@app.route('/api/admin/keys', methods=['GET'])
+def admin_list_all_keys():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT ak.id, ak.name, ak.key, ak.role, ak.created_at, ak.last_used,
+               u.username, u.email
+        FROM api_keys ak
+        JOIN users u ON ak.user_id = u.id
+        ORDER BY ak.id DESC
+    """)
+    keys = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    for k in keys:
+        raw = k['key']
+        k['key_masked'] = raw[:8] + '•' * (len(raw) - 12) + raw[-4:]
+    return jsonify(keys)
+
+
 if __name__ == '__main__':
     import os
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
@@ -2321,3 +2422,4 @@ if __name__ == '__main__':
             print(f"[WARNING] Failed to start Pinggy background monitor: {e}")
             
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+

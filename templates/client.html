@@ -74,6 +74,9 @@
         <li class="db-menu-item" id="menu-profile" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
           <a href="#" data-target="panel-profile"><i data-lucide="user"></i> My Profile</a>
         </li>
+        <li class="db-menu-item" id="menu-apikeys">
+          <a href="#" data-target="panel-apikeys"><i data-lucide="key"></i> API Keys</a>
+        </li>
         <li class="db-menu-item">
           <a href="/logout" style="color: var(--color-danger);"><i data-lucide="log-out"></i> Log Out</a>
         </li>
@@ -572,6 +575,101 @@
                     <i data-lucide="key"></i> Update Password
                   </button>
                 </form>
+              </div>
+            </div>
+          <!-- Panel 9: API Keys -->
+          <div class="db-tab-panel" id="panel-apikeys">
+            <div class="db-grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+              <!-- Generate API Key Form -->
+              <div class="db-block">
+                <div class="db-block-header">
+                  <h3>Generate API Key</h3>
+                </div>
+                <div style="margin-top: 12px; color: var(--color-text-muted); font-size: 13px; line-height: 1.5;">
+                  Create credentials to securely access your container VPS via our premium REST API. 
+                  All requests must provide the key via the <code style="background-color: var(--color-background-soft); padding: 2px 6px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-family: monospace;">Authorization: Bearer &lt;key&gt;</code> header.
+                </div>
+                <form id="createApiKeyForm" onsubmit="handleCreateApiKey(event)" style="margin-top: 20px;">
+                  <div class="form-group">
+                    <label for="apiKeyName">Key Description / Name</label>
+                    <input type="text" id="apiKeyName" class="form-input" placeholder="e.g. Discord Bot, CLI Tool, Automation Script" required minlength="3" maxlength="64">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px; box-shadow: var(--shadow-sm);">
+                    <i data-lucide="key-round"></i> Generate API Key
+                  </button>
+                </form>
+
+                <!-- Premium Newly Generated Key Modal Display (inline) -->
+                <div id="newlyGeneratedKeyBlock" style="display: none; margin-top: 24px; padding: 16px; background: rgba(16, 185, 129, 0.05); border: 1px dashed var(--color-accent); border-radius: var(--radius-md);">
+                  <div style="display: flex; align-items: center; gap: 8px; color: var(--color-accent); font-weight: 700; font-size: 14px; margin-bottom: 8px;">
+                    <i data-lucide="shield-check" style="width: 18px; height: 18px;"></i>
+                    API Key Successfully Generated!
+                  </div>
+                  <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">
+                    Copy this key now. For your security, <strong>it will not be shown again</strong>.
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="text" id="newlyGeneratedKeyValue" class="form-input" readonly style="font-family: monospace; font-size: 13px; background-color: var(--color-background-soft); flex: 1; cursor: text;">
+                    <button class="btn btn-outline" onclick="copyGeneratedApiKey()" title="Copy to clipboard" style="padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+                      <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Active API Keys List -->
+              <div class="db-block">
+                <div class="db-block-header" style="display: flex; align-items: center; justify-content: space-between;">
+                  <h3>Active API Keys</h3>
+                  <button class="btn btn-outline btn-small" onclick="loadUserApiKeys()" style="padding: 4px 8px; font-size: 11px;">
+                    <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
+                  </button>
+                </div>
+                <div class="table-container" style="margin-top: 16px; overflow-x: auto;">
+                  <table class="db-table" style="width: 100%; border-collapse: collapse; min-width: 400px;">
+                    <thead>
+                      <tr>
+                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Name</th>
+                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Key Prefix</th>
+                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Last Used</th>
+                        <th style="text-align: right; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; width: 80px;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="userApiKeysTableBody">
+                      <tr>
+                        <td colspan="4" style="text-align: center; padding: 24px; color: var(--color-text-muted); font-size: 13px;">
+                          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                            <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px;"></i>
+                            <span>Fetching API credentials...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- API Quick Reference Banner -->
+            <div class="db-block" style="margin-top: 24px;">
+              <div class="db-block-header">
+                <h3>API Quick Integration Reference</h3>
+              </div>
+              <div class="db-grid" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px;">
+                <div>
+                  <h4 style="font-size: 14px; font-weight: 700; color: var(--color-text-main); margin-bottom: 8px;">Check VPS Status via cURL</h4>
+                  <pre style="background: var(--color-background-soft); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; font-family: monospace; font-size: 12px; overflow-x: auto; color: var(--color-text-main); line-height: 1.5; margin: 0;">curl -X GET \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  http://{{ request.host }}/api/v1/vps</pre>
+                </div>
+                <div>
+                  <h4 style="font-size: 14px; font-weight: 700; color: var(--color-text-main); margin-bottom: 8px;">Trigger VPS Action</h4>
+                  <pre style="background: var(--color-background-soft); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; font-family: monospace; font-size: 12px; overflow-x: auto; color: var(--color-text-main); line-height: 1.5; margin: 0;">curl -X POST \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "restart"}' \
+  http://{{ request.host }}/api/v1/vps/&lt;vps_id&gt;/action</pre>
+                </div>
               </div>
             </div>
           </div>

@@ -46,6 +46,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 150);
         }
 
+        // Auto-load API keys when clicking API Keys tab
+        if (targetId === 'panel-apikeys') {
+          loadUserApiKeys();
+        }
+
         // Mobile close sidebar
         const sidebar = document.querySelector('.db-sidebar');
         if (sidebar && sidebar.classList.contains('active')) {
@@ -1310,3 +1315,147 @@ window.handleChangePassword = async function(event) {
     submitBtn.disabled = false;
   }
 };
+
+// ───────────── API KEYS MANAGEMENT ─────────────
+
+window.loadUserApiKeys = async function() {
+  const tbody = document.getElementById('userApiKeysTableBody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/keys');
+    if (!res.ok) throw new Error("Failed to load API keys.");
+    const keys = await res.json();
+
+    if (keys.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align: center; padding: 32px; color: var(--color-text-muted); font-size: 13px;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+              <i data-lucide="key-round" style="width: 28px; height: 28px; stroke-width: 1.5;"></i>
+              <span>No API keys found. Generate one to get started!</span>
+            </div>
+          </td>
+        </tr>
+      `;
+      lucide.createIcons();
+      return;
+    }
+
+    tbody.innerHTML = keys.map(k => {
+      const created = new Date(k.created_at).toLocaleString();
+      const lastUsed = k.last_used ? new Date(k.last_used).toLocaleString() : 'Never';
+      return `
+        <tr style="border-bottom: 1px solid var(--color-border);">
+          <td style="padding: 12px 8px; font-weight: 600; font-size: 13px; color: var(--color-text-main);">${escapeHtml(k.name)}</td>
+          <td style="padding: 12px 8px; font-family: monospace; font-size: 13px; color: var(--color-text-muted);">${k.key_masked}</td>
+          <td style="padding: 12px 8px; font-size: 12px; color: var(--color-text-muted);">${lastUsed}</td>
+          <td style="padding: 12px 8px; text-align: right;">
+            <button class="btn btn-outline btn-small" onclick="revokeApiKey(${k.id}, '${escapeHtml(k.name)}')" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.02); padding: 4px 8px; font-size: 11px;">
+              <i data-lucide="trash-2" style="width: 12px; height: 12px; vertical-align: middle;"></i> Revoke
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    lucide.createIcons();
+  } catch (err) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align: center; padding: 24px; color: var(--color-danger); font-size: 13px;">
+          Error: ${err.message}
+        </td>
+      </tr>
+    `;
+  }
+};
+
+window.handleCreateApiKey = async function(event) {
+  event.preventDefault();
+  const nameInput = document.getElementById('apiKeyName');
+  const name = nameInput.value.trim();
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  const displayBlock = document.getElementById('newlyGeneratedKeyBlock');
+  const displayValue = document.getElementById('newlyGeneratedKeyValue');
+
+  if (!name) return;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width: 16px; height: 16px; margin-right: 8px; vertical-align: middle;"></i> Generating...`;
+  lucide.createIcons();
+
+  try {
+    const res = await fetch('/api/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.message || "Failed to generate key.");
+    }
+
+    const data = await res.json();
+    showToast("API key successfully generated!", "success");
+    
+    // Reset form
+    nameInput.value = '';
+    
+    // Display the full raw key once
+    displayValue.value = data.key.key;
+    displayBlock.style.display = 'block';
+    
+    // Refresh table
+    loadUserApiKeys();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<i data-lucide="key-round"></i> Generate API Key`;
+    lucide.createIcons();
+  }
+};
+
+window.revokeApiKey = async function(keyId, keyName) {
+  if (!confirm(`Are you sure you want to revoke the API key "${keyName}"? Any tools/bots using this key will immediately lose access.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/keys/${keyId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error("Failed to revoke key.");
+    const data = await res.json();
+    showToast(data.message || "API key revoked successfully.", "success");
+    loadUserApiKeys();
+    
+    // If the newly generated key display is showing this deleted key, hide it
+    document.getElementById('newlyGeneratedKeyBlock').style.display = 'none';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.copyGeneratedApiKey = function() {
+  const displayValue = document.getElementById('newlyGeneratedKeyValue');
+  if (!displayValue || !displayValue.value) return;
+
+  displayValue.select();
+  displayValue.setSelectionRange(0, 99999); // For mobile devices
+
+  navigator.clipboard.writeText(displayValue.value)
+    .then(() => {
+      showToast("API key copied to clipboard!", "success");
+    })
+    .catch(() => {
+      showToast("Failed to copy key automatically.", "error");
+    });
+};
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+}

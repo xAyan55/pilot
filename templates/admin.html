@@ -88,6 +88,9 @@
         <li class="db-menu-item">
           <a href="#" data-target="panel-customization"><i data-lucide="palette"></i> Customization</a>
         </li>
+        <li class="db-menu-item">
+          <a href="#" data-target="panel-apikeys"><i data-lucide="key"></i> API Keys</a>
+        </li>
         <li class="db-menu-item" id="menu-profile" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
           <a href="#" data-target="panel-profile"><i data-lucide="user"></i> My Profile</a>
         </li>
@@ -582,6 +585,75 @@
                   <i data-lucide="key"></i> Update Password
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel: API Keys System Management -->
+        <div class="db-tab-panel" id="panel-apikeys">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">API Keys Management</h3>
+              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Monitor, inspect, and revoke API keys issued to administrators and clients across the entire hosting platform.</p>
+            </div>
+            <button class="btn btn-outline" onclick="loadAdminApiKeys()"><i data-lucide="refresh-cw"></i> Refresh Keys</button>
+          </div>
+
+          <!-- API Overview Stats -->
+          <div class="db-stats-grid" style="margin-bottom: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="db-stat-card" style="padding: 20px;">
+              <div class="db-stat-info">
+                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Total Issued Keys</label>
+                <div class="db-stat-value" id="adminTotalKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
+              </div>
+            </div>
+            <div class="db-stat-card" style="padding: 20px;">
+              <div class="db-stat-info">
+                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Active Admin Keys</label>
+                <div class="db-stat-value" id="adminActiveAdminKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
+              </div>
+            </div>
+            <div class="db-stat-card" style="padding: 20px;">
+              <div class="db-stat-info">
+                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Active Client Keys</label>
+                <div class="db-stat-value" id="adminActiveClientKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Keys List Block -->
+          <div class="db-block">
+            <div class="db-block-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+              <h3>All Registered API Credentials</h3>
+              <div class="search-box" style="position: relative; width: 300px;">
+                <input type="text" id="adminKeysSearchInput" class="form-input" placeholder="Search by description or user..." onkeyup="filterAdminApiKeys()" style="padding-left: 36px; padding-right: 12px; height: 38px; font-size: 13px;">
+                <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--color-text-muted);"></i>
+              </div>
+            </div>
+            <div class="db-table-wrapper" style="margin-top: 16px;">
+              <table class="db-table">
+                <thead>
+                  <tr>
+                    <th>User / Account</th>
+                    <th>Key Description</th>
+                    <th>Key Prefix</th>
+                    <th>Role</th>
+                    <th>Created At</th>
+                    <th>Last Used</th>
+                    <th class="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-apikeys-table-body">
+                  <tr>
+                    <td colspan="7" style="text-align: center; padding: 32px; color: var(--color-text-muted); font-size: 13px;">
+                      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px;"></i>
+                        <span>Loading active credentials...</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

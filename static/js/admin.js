@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
               // Set branding tab active by default
               const brandingBtn = document.querySelector('.subnav-btn[data-subtarget="subpanel-branding"]');
               if (brandingBtn) brandingBtn.click();
+            } else if (targetId === 'panel-apikeys') {
+              loadAdminApiKeys();
             }
           } else {
             panel.classList.remove('active');
@@ -1416,4 +1418,126 @@ window.copyConfigField = function(elementId) {
   document.execCommand('copy');
   showToast("Command copied to clipboard!", "success");
 };
+
+// ───────────── ADMIN API KEYS MANAGEMENT ─────────────
+
+let adminApiKeysList = []; // Local cache for filtering
+
+window.loadAdminApiKeys = async function() {
+  const tbody = document.getElementById('admin-apikeys-table-body');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/admin/keys');
+    if (!res.ok) throw new Error("Failed to load active keys.");
+    const keys = await res.json();
+    adminApiKeysList = keys;
+
+    // Render Stats
+    const totalKeys = keys.length;
+    const adminKeys = keys.filter(k => k.role === 'admin').length;
+    const clientKeys = keys.filter(k => k.role !== 'admin').length;
+
+    document.getElementById('adminTotalKeysCount').textContent = totalKeys;
+    document.getElementById('adminActiveAdminKeysCount').textContent = adminKeys;
+    document.getElementById('adminActiveClientKeysCount').textContent = clientKeys;
+
+    renderAdminKeysTable(keys);
+  } catch (err) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 24px; color: var(--color-danger); font-size: 13px;">
+          Error: ${err.message}
+        </td>
+      </tr>
+    `;
+  }
+};
+
+function renderAdminKeysTable(keys) {
+  const tbody = document.getElementById('admin-apikeys-table-body');
+  if (!tbody) return;
+
+  if (keys.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 32px; color: var(--color-text-muted); font-size: 13px;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <i data-lucide="key-round" style="width: 28px; height: 28px; stroke-width: 1.5;"></i>
+            <span>No registered API keys found in the system.</span>
+          </div>
+        </td>
+      </tr>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  tbody.innerHTML = keys.map(k => {
+    const created = new Date(k.created_at).toLocaleString();
+    const lastUsed = k.last_used ? new Date(k.last_used).toLocaleString() : 'Never';
+    const roleBadge = k.role === 'admin' ? '<span class="badge badge-open">Admin</span>' : '<span class="badge badge-closed">Client</span>';
+    
+    return `
+      <tr style="border-bottom: 1px solid var(--color-border);">
+        <td style="padding: 12px 8px;">
+          <div style="font-weight: 700; color: var(--color-text-main); font-size: 13px;">${escapeHtml(k.username)}</div>
+          <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px;">${escapeHtml(k.email)}</div>
+        </td>
+        <td style="padding: 12px 8px; font-weight: 500; font-size: 13px; color: var(--color-text-main);">${escapeHtml(k.name)}</td>
+        <td style="padding: 12px 8px; font-family: monospace; font-size: 13px; color: var(--color-text-muted);">${k.key_masked}</td>
+        <td style="padding: 12px 8px;">${roleBadge}</td>
+        <td style="padding: 12px 8px; font-size: 12px; color: var(--color-text-muted);">${created}</td>
+        <td style="padding: 12px 8px; font-size: 12px; color: var(--color-text-muted);">${lastUsed}</td>
+        <td style="padding: 12px 8px; text-align: right;">
+          <button class="btn btn-outline btn-small" onclick="revokeAdminApiKey(${k.id}, '${escapeHtml(k.name)}')" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.02); padding: 4px 8px; font-size: 11px;">
+            <i data-lucide="trash-2" style="width: 12px; height: 12px; vertical-align: middle;"></i> Revoke
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  lucide.createIcons();
+}
+
+window.filterAdminApiKeys = function() {
+  const query = document.getElementById('adminKeysSearchInput').value.toLowerCase().trim();
+  if (!query) {
+    renderAdminKeysTable(adminApiKeysList);
+    return;
+  }
+
+  const filtered = adminApiKeysList.filter(k => {
+    return k.name.toLowerCase().includes(query) ||
+           k.username.toLowerCase().includes(query) ||
+           k.email.toLowerCase().includes(query) ||
+           k.key_masked.toLowerCase().includes(query);
+  });
+
+  renderAdminKeysTable(filtered);
+};
+
+window.revokeAdminApiKey = async function(keyId, keyName) {
+  if (!confirm(`Are you sure you want to revoke the API key "${keyName}"? This action will immediately terminate access for this credential.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/keys/${keyId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error("Failed to revoke key.");
+    const data = await res.json();
+    showToast(data.message || "API key successfully revoked.", "success");
+    loadAdminApiKeys();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+}
 

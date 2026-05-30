@@ -213,6 +213,26 @@ def init_db():
             cursor.execute("INSERT INTO faqs (question, answer) VALUES (?, ?)", faq)
         print("Auto-seeded default FAQs.")
 
+    # API Keys Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            key TEXT UNIQUE NOT NULL,
+            role TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used TIMESTAMP DEFAULT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ''')
+
+    # Migration: add last_used column if missing
+    try:
+        cursor.execute("ALTER TABLE api_keys ADD COLUMN last_used TIMESTAMP DEFAULT NULL")
+    except Exception:
+        pass
+
     # Auto-seed default local node if empty
     cursor.execute("SELECT COUNT(*) FROM nodes")
     if cursor.fetchone()[0] == 0:
