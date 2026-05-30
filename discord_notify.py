@@ -1,6 +1,7 @@
 import os
 import urllib.request
 import urllib.parse
+import urllib.error
 import json
 import time
 from database import get_db_connection
@@ -98,7 +99,14 @@ def send_discord_dm_embed(discord_user_id, embed_dict):
             msg_data = json.dumps({"embeds": [embed_dict]}).encode("utf-8")
             msg_req = urllib.request.Request(msg_url, data=msg_data, headers=headers, method="POST")
             with urllib.request.urlopen(msg_req, timeout=5) as msg_resp:
-                return msg_resp.status == 200
+                return msg_resp.status in (200, 201)
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode('utf-8')
+            print(f"Error sending Discord DM Embed to {discord_user_id}: HTTP {e.code} - {err_body}")
+        except Exception:
+            print(f"Error sending Discord DM Embed to {discord_user_id}: {e}")
+        return False
     except Exception as e:
         print(f"Error sending Discord DM Embed to {discord_user_id}: {e}")
         return False
