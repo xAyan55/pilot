@@ -1541,3 +1541,67 @@ function escapeHtml(str) {
             .replace(/'/g, "&#039;");
 }
 
+window.handleCreateApiKey = async function(event) {
+  event.preventDefault();
+  const nameInput = document.getElementById('apiKeyName');
+  const name = nameInput.value.trim();
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  const displayBlock = document.getElementById('newlyGeneratedKeyBlock');
+  const displayValue = document.getElementById('newlyGeneratedKeyValue');
+
+  if (!name) return;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width: 16px; height: 16px; margin-right: 8px; vertical-align: middle;"></i> Generating...`;
+  lucide.createIcons();
+
+  try {
+    const res = await fetch('/api/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.message || "Failed to generate key.");
+    }
+
+    const data = await res.json();
+    showToast("Admin API key successfully generated!", "success");
+    
+    // Reset form
+    nameInput.value = '';
+    
+    // Display the full raw key once
+    displayValue.value = data.key.key;
+    displayBlock.style.display = 'block';
+    
+    // Refresh table and counts
+    loadAdminApiKeys();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<i data-lucide="key-round"></i> Generate API Key`;
+    lucide.createIcons();
+  }
+};
+
+window.copyGeneratedApiKey = function() {
+  const displayValue = document.getElementById('newlyGeneratedKeyValue');
+  if (!displayValue || !displayValue.value) return;
+
+  displayValue.select();
+  displayValue.setSelectionRange(0, 99999);
+
+  navigator.clipboard.writeText(displayValue.value)
+    .then(() => {
+      showToast("API key copied to clipboard!", "success");
+    })
+    .catch(() => {
+      showToast("Failed to copy key automatically.", "error");
+    });
+};
+
+
