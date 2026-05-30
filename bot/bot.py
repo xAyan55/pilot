@@ -58,10 +58,15 @@ def get_branding():
             # Convert HEX color to discord.Color
             hex_color = data.get("color_primary", "#6367FF").lstrip("#")
             color_int = int(hex_color, 16) if len(hex_color) == 6 else 0x6367FF
+            
+            logo_url = data.get("logo_url")
+            if logo_url and not logo_url.startswith(("http://", "https://")):
+                logo_url = f"{PANEL_URL}/{logo_url.lstrip('/')}"
+            
             return {
                 "site_name": data.get("site_name", "MintyHost LXC"),
                 "color": discord.Color(color_int),
-                "logo_url": data.get("logo_url")
+                "logo_url": logo_url if logo_url else None
             }
     except Exception:
         return {
@@ -142,8 +147,9 @@ async def setup(interaction: discord.Interaction, api_key: str):
         embed.add_field(name="Email", value=res.get("email"), inline=True)
         embed.add_field(name="Role", value=res.get("role").upper(), inline=True)
         embed.set_footer(text=f"{branding['site_name']} REST Bot Integration")
-        if branding["logo_url"]:
-            embed.set_thumbnail(url=branding["logo_url"])
+        logo = branding.get("logo_url")
+        if logo and logo.startswith(("http://", "https://")):
+            embed.set_thumbnail(url=logo)
             
         await interaction.followup.send(embed=embed, ephemeral=True)
     else:
@@ -191,9 +197,14 @@ async def profile(interaction: discord.Interaction):
         
         pfp = res.get("pfp")
         if pfp:
-            embed.set_thumbnail(url=pfp)
-        elif branding["logo_url"]:
-            embed.set_thumbnail(url=branding["logo_url"])
+            if not pfp.startswith(("http://", "https://")):
+                pfp = f"{PANEL_URL}/{pfp.lstrip('/')}"
+            if pfp.startswith(("http://", "https://")):
+                embed.set_thumbnail(url=pfp)
+        else:
+            logo = branding.get("logo_url")
+            if logo and logo.startswith(("http://", "https://")):
+                embed.set_thumbnail(url=logo)
 
         embed.set_footer(text=f"Request sent by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
         await interaction.followup.send(embed=embed)
@@ -237,7 +248,11 @@ async def list_vps(interaction: discord.Interaction):
                 inline=False
             )
 
-        embed.set_footer(text=f"{branding['site_name']} Infrastructure Services", icon_url=branding["logo_url"])
+        logo = branding.get("logo_url")
+        if logo and logo.startswith(("http://", "https://")):
+            embed.set_footer(text=f"{branding['site_name']} Infrastructure Services", icon_url=logo)
+        else:
+            embed.set_footer(text=f"{branding['site_name']} Infrastructure Services")
         await interaction.followup.send(embed=embed)
     else:
         await interaction.followup.send(f"❌ Failed to fetch instances: {res.get('message', 'Unknown Error')}")
@@ -657,7 +672,11 @@ async def help_cmd(interaction: discord.Interaction):
         inline=False
     )
 
-    embed.set_footer(text=f"{branding['site_name']} REST API Bot Integrations", icon_url=branding["logo_url"])
+    logo = branding.get("logo_url")
+    if logo and logo.startswith(("http://", "https://")):
+        embed.set_footer(text=f"{branding['site_name']} REST API Bot Integrations", icon_url=logo)
+    else:
+        embed.set_footer(text=f"{branding['site_name']} REST API Bot Integrations")
     await interaction.response.send_message(embed=embed)
 
 
