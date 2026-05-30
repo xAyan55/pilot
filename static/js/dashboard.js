@@ -177,7 +177,7 @@ function renderVPSGrid() {
           </div>
           
           <div class="vps-card-ip-section" style="margin-top: 8px;">
-            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh root@${vps.tunnel_host || 'run.pinggy-free.link'}:${vps.tunnel_port || (40000 + vps.id)}</code>
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh root@${vps.tunnel_host || 'run.pinggy-free.link'} -p ${vps.tunnel_port || (40000 + vps.id)}</code>
             <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
               <i data-lucide="copy"></i>
             </button>
@@ -282,7 +282,7 @@ async function fetchSingleCardStats(vpsId) {
     if (tunnelEl) {
       const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
       const host = stats.tunnel_host || 'run.pinggy-free.link';
-      tunnelEl.textContent = `ssh root@${host}:${port}`;
+      tunnelEl.textContent = `ssh root@${host} -p ${port}`;
     }
 
     // Update Status Badge in card
@@ -589,7 +589,7 @@ async function loadVPSDetails(vpsId) {
   if (tunnelValEl) {
     const port = currentVPS.tunnel_port || currentVPS.bore_port || (40000 + vpsId);
     const host = currentVPS.tunnel_host || 'run.pinggy-free.link';
-    tunnelValEl.textContent = `ssh root@${host}:${port}`;
+    tunnelValEl.textContent = `ssh root@${host} -p ${port}`;
   }
 
   // Fetch Live Metrics and subcomponents lists
@@ -623,7 +623,7 @@ async function fetchLiveStats(vpsId) {
     if (tunnelValEl) {
       const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
       const host = stats.tunnel_host || 'run.pinggy-free.link';
-      tunnelValEl.textContent = `ssh root@${host}:${port}`;
+      tunnelValEl.textContent = `ssh root@${host} -p ${port}`;
     }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');
