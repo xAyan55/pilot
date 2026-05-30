@@ -768,7 +768,8 @@ async def admin_list_vps(interaction: discord.Interaction):
     cpu="CPU cores to allocate.",
     ram="RAM size in MB.",
     disk="Disk space in GB.",
-    root_password="Root SSH password."
+    root_password="Root SSH password.",
+    discord_user="Discord user to notify via DM with credentials"
 )
 @app_commands.choices(os=[
     app_commands.Choice(name="Ubuntu 22.04 LTS", value="ubuntu/22.04"),
@@ -778,14 +779,14 @@ async def admin_list_vps(interaction: discord.Interaction):
     app_commands.Choice(name="CentOS 9 Stream", value="centos/9-stream"),
     app_commands.Choice(name="Alpine Linux 3.18", value="alpine/3.18")
 ])
-async def admin_deploy_vps(interaction: discord.Interaction, name: str, user_id: int, os: app_commands.Choice[str], cpu: int, ram: int, disk: int, root_password: str):
+async def admin_deploy_vps(interaction: discord.Interaction, name: str, user_id: int, os: app_commands.Choice[str], cpu: int, ram: int, disk: int, root_password: str, discord_user: discord.User = None):
     if not is_discord_admin(interaction):
         await interaction.response.send_message("❌ Access Denied: Administrator role required.", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
     
-    res, status = make_api_request("/admin/vps", method="POST", data={
+    data = {
         "name": name.strip(),
         "user_id": user_id,
         "os": os.value,
@@ -793,10 +794,17 @@ async def admin_deploy_vps(interaction: discord.Interaction, name: str, user_id:
         "ram": ram,
         "disk": disk,
         "root_password": root_password.strip()
-    })
+    }
+    if discord_user:
+        data["discord_user_id"] = str(discord_user.id)
+
+    res, status = make_api_request("/admin/vps", method="POST", data=data)
 
     if status == 201:
-        await interaction.followup.send(f"🚀 Deploy started successfully! Created container `{res['vps']['container_name']}` (ID `{res['vps']['id']}`) for User `{user_id}`.", ephemeral=True)
+        msg = f"🚀 Deploy started successfully! Created container `{res['vps']['container_name']}` (ID `{res['vps']['id']}`) for User `{user_id}`."
+        if discord_user:
+            msg += f" Will send credentials DM to {discord_user.mention}."
+        await interaction.followup.send(msg, ephemeral=True)
     else:
         await interaction.followup.send(f"❌ Deploy failed: {res.get('message', 'Unknown error.')}", ephemeral=True)
 
@@ -861,25 +869,32 @@ async def admin_list_users_cmd(interaction: discord.Interaction):
 
 
 @admin_user_group.command(name="create", description="Register a new client or administrator panel account.")
-@app_commands.describe(username="Username", email="Email address", password="Initial password", role="Account privileges")
+@app_commands.describe(username="Username", email="Email address", password="Initial password", role="Account privileges", discord_user="Discord user to notify via DM with credentials")
 @app_commands.choices(role=[
     app_commands.Choice(name="Client (Default)", value="client"),
     app_commands.Choice(name="Administrator", value="admin")
 ])
-async def admin_create_user_cmd(interaction: discord.Interaction, username: str, email: str, password: str, role: app_commands.Choice[str]):
+async def admin_create_user_cmd(interaction: discord.Interaction, username: str, email: str, password: str, role: app_commands.Choice[str], discord_user: discord.User = None):
     if not is_discord_admin(interaction):
         await interaction.response.send_message("❌ Access Denied: Administrator role required.", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
-    res, status = make_api_request("/admin/users", method="POST", data={
+    data = {
         "username": username.strip().lower(),
         "email": email.strip().lower(),
         "password": password,
         "role": role.value
-    })
+    }
+    if discord_user:
+        data["discord_user_id"] = str(discord_user.id)
+
+    res, status = make_api_request("/admin/users", method="POST", data=data)
     if status == 201:
-        await interaction.followup.send(f"✅ User `{username}` successfully created (ID `{res.get('id')}`).", ephemeral=True)
+        msg = f"✅ User `{username}` successfully created (ID `{res.get('id')}`)."
+        if discord_user:
+            msg += f" Sent credentials DM to {discord_user.mention}."
+        await interaction.followup.send(msg, ephemeral=True)
     else:
         await interaction.followup.send(f"❌ User creation failed: {res.get('message')}", ephemeral=True)
 
@@ -1007,11 +1022,11 @@ async def help_cmd(interaction: discord.Interaction):
             value="`/admin stats` — Global hypervisor statistics.\n"
                   "`/admin logs` — Inspect audit logs.\n"
                   "`/admin vps list` — List all deployed containers in the entire hosting panel.\n"
-                  "`/admin vps deploy <name> <user_id> <os> <cpu> <ram> <disk> <password>` — Deploy new VPS.\n"
+                  "`/admin vps deploy <name> <user_id> <os> <cpu> <ram> <disk> <password> [discord_user]` — Deploy new VPS.\n"
                   "`/admin vps delete <vps_id>` — Destroy a container.\n"
                   "`/admin vps suspend <vps_id> <suspend>` — Suspend/unsuspend a container.\n"
                   "`/admin user list` — List accounts.\n"
-                  "`/admin user create <username> <email> <password> <role>` — Create accounts.\n"
+                  "`/admin user create <username> <email> <password> <role> [discord_user]` — Create accounts.\n"
                   "`/admin user delete <user_id>` — Delete user accounts.\n"
                   "`/admin user suspend <user_id> <suspend>` — Suspend user accounts.",
             inline=False
