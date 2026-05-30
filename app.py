@@ -321,7 +321,7 @@ def client_list_vps():
     conn.close()
 
     for v in vps_list:
-        v['tunnel_host'] = v.get('tunnel_host') or 'ap.pinggy.link'
+        v['tunnel_host'] = v.get('tunnel_host') or 'run.pinggy-free.link'
         v['tunnel_port'] = v.get('tunnel_port') or (40000 + v['id'])
 
     return jsonify(vps_list)
@@ -408,7 +408,7 @@ def client_vps_stats(vps_id):
     })
 
     stats['history'] = list(METRICS_HISTORY[container_name])
-    stats['tunnel_host'] = stats.get('tunnel_host') or 'ap.pinggy.link'
+    stats['tunnel_host'] = stats.get('tunnel_host') or 'run.pinggy-free.link'
     stats['tunnel_port'] = stats.get('tunnel_port') or (40000 + vps_id)
 
     return jsonify(stats)
@@ -2318,4 +2318,12 @@ def download_node_sh():
 
 
 if __name__ == '__main__':
+    import os
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        try:
+            from pinggy_monitor import start_monitor
+            start_monitor()
+        except Exception as e:
+            print(f"[WARNING] Failed to start Pinggy background monitor: {e}")
+            
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

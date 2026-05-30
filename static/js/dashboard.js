@@ -177,7 +177,7 @@ function renderVPSGrid() {
           </div>
           
           <div class="vps-card-ip-section" style="margin-top: 8px;">
-            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh -p ${vps.tunnel_port || (40000 + vps.id)} root@${vps.tunnel_host || 'bore.pub'}</code>
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh root@${vps.tunnel_host || 'run.pinggy-free.link'}:${vps.tunnel_port || (40000 + vps.id)}</code>
             <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
               <i data-lucide="copy"></i>
             </button>
@@ -281,8 +281,8 @@ async function fetchSingleCardStats(vpsId) {
     const tunnelEl = document.getElementById(`card-tunnel-${vpsId}`);
     if (tunnelEl) {
       const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
-      const host = stats.tunnel_host || 'bore.pub';
-      tunnelEl.textContent = `ssh -p ${port} root@${host}`;
+      const host = stats.tunnel_host || 'run.pinggy-free.link';
+      tunnelEl.textContent = `ssh root@${host}:${port}`;
     }
 
     // Update Status Badge in card
@@ -588,8 +588,8 @@ async function loadVPSDetails(vpsId) {
   const tunnelValEl = document.getElementById('tunnel-val');
   if (tunnelValEl) {
     const port = currentVPS.tunnel_port || currentVPS.bore_port || (40000 + vpsId);
-    const host = currentVPS.tunnel_host || 'bore.pub';
-    tunnelValEl.textContent = `ssh -p ${port} root@${host}`;
+    const host = currentVPS.tunnel_host || 'run.pinggy-free.link';
+    tunnelValEl.textContent = `ssh root@${host}:${port}`;
   }
 
   // Fetch Live Metrics and subcomponents lists
@@ -622,8 +622,8 @@ async function fetchLiveStats(vpsId) {
     const tunnelValEl = document.getElementById('tunnel-val');
     if (tunnelValEl) {
       const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
-      const host = stats.tunnel_host || 'bore.pub';
-      tunnelValEl.textContent = `ssh -p ${port} root@${host}`;
+      const host = stats.tunnel_host || 'run.pinggy-free.link';
+      tunnelValEl.textContent = `ssh root@${host}:${port}`;
     }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');

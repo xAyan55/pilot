@@ -115,7 +115,7 @@ while true; do
     echo "[PINGGY] Starting SSH tunnel..." >> /var/run/pinggy.log
     
     # Start SSH tunnel to Pinggy (no TTY, bypass prompts)
-    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:localhost:22 tcp@a.pinggy.io > /var/run/pinggy.log 2>&1 &
+    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:127.0.0.1:22 tcp@free.pinggy.io > /var/run/pinggy.log 2>&1 &
     SSH_PID=$!
     
     # Monitor log to extract public hostname and port
@@ -335,7 +335,7 @@ WantedBy=multi-user.target"""
                 'net_in': net_in_mb,
                 'net_out': net_out_mb,
                 'uptime': uptime_str,
-                'tunnel_host': 'ap.pinggy.link',
+                'tunnel_host': 'run.pinggy-free.link',
                 'tunnel_port': 40000 + vps_id if vps_id is not None else None
             }
 
@@ -347,7 +347,7 @@ WantedBy=multi-user.target"""
                 'cpu': 0.0, 'ram_used': 0, 'ram_limit': plan_ram,
                 'disk_used': 0.0, 'disk_limit': plan_disk,
                 'net_in': 0.0, 'net_out': 0.0, 'uptime': 'Offline',
-                'tunnel_host': 'ap.pinggy.link',
+                'tunnel_host': 'run.pinggy-free.link',
                 'tunnel_port': 40000 + vps_id if vps_id is not None else None
             }
 
@@ -430,7 +430,7 @@ WantedBy=multi-user.target"""
         ip_addr = cls.get_container_ip(name)
 
         # Get dynamic Pinggy tunnel host and port if it exists
-        tunnel_host = 'ap.pinggy.link'
+        tunnel_host = 'run.pinggy-free.link'
         tunnel_port = 40000 + vps_id if vps_id is not None else None
         if not IS_MOCK_LXC and status == 'running':
             try:
