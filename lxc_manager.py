@@ -189,8 +189,67 @@ WantedBy=multi-user.target"""
         return True
 
     @classmethod
-    def post_deploy_setup(cls, name, vps_id, root_password, site_name=None, log_callback=None):
-        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and installs/starts Bore tunnel."""
+    def ensure_ssh_relay_setup(cls, name, vps_id, host, port, username, password, remote_port):
+        """Ensures that the SSH reverse tunnel script and systemd service are configured and running in the container."""
+        if IS_MOCK_LXC:
+            return True
+
+        import base64
+        if not port:
+            port = '22'
+        if not remote_port:
+            remote_port = 40000 + vps_id
+
+        # 1. Write the bash wrapper script
+        # Note: We use sshpass to pass the password to ssh.
+        # We also use ExitOnForwardFailure=yes and ServerAliveInterval=60 to keep it stable.
+        ssh_script_content = f"""#!/bin/bash
+# Wait for network interface to be ready
+for i in {{1..30}}; do
+    if ping -c 1 -W 1 {host} >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+echo "Starting SSH reverse tunnel to {username}@{host}:{port} forwarding local port 22 to remote port {remote_port}..."
+sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=60 -N -R {remote_port}:localhost:22 {username}@{host} -p {port}
+"""
+        encoded_script = base64.b64encode(ssh_script_content.encode('utf-8')).decode('utf-8')
+        
+        # 2. Write the systemd service file pointing to the script
+        ssh_service_content = f"""[Unit]
+Description=SSH Reverse Tunnel Relay
+After=network.target
+
+[Service]
+ExecStart=/bin/bash /usr/local/bin/ssh-tunnel.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target"""
+        encoded_service = base64.b64encode(ssh_service_content.encode('utf-8')).decode('utf-8')
+
+        try:
+            # Clean up old bore service if running
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop bore || true; systemctl disable bore || true"], check=False)
+            # Create script inside container
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/ssh-tunnel.sh && chmod +x /usr/local/bin/ssh-tunnel.sh"])
+            # Create service inside container
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/ssh-tunnel.service"])
+            # Reload daemon and restart/start service
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable ssh-tunnel && (systemctl restart ssh-tunnel || systemctl start ssh-tunnel)"])
+        except Exception as e:
+            print(f"[WARNING] Failed to ensure SSH relay setup on container {name}: {e}")
+            return False
+        return True
+
+    @classmethod
+    def post_deploy_setup(cls, name, vps_id, root_password, site_name=None, log_callback=None,
+                          ssh_relay_enabled=None, ssh_relay_host=None, ssh_relay_port=None,
+                          ssh_relay_user=None, ssh_relay_password=None, tunnel_port=None):
+        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and configures the tunnel (SSH or Bore)."""
         if IS_MOCK_LXC:
             return True
 
@@ -204,6 +263,8 @@ WantedBy=multi-user.target"""
  If this feels laggy, use the built-in terminal.
 =====================================================================
 """
+
+        is_relay = (ssh_relay_enabled == '1' or ssh_relay_enabled is True or ssh_relay_enabled == 'true')
 
         steps = [
             ('Updating container package repositories...',
@@ -231,9 +292,18 @@ WantedBy=multi-user.target"""
                  f"  if [ -x /usr/sbin/update-motd ]; then /usr/sbin/update-motd; fi\n"
                  f"fi"
              )]),
-            ('Downloading and installing Bore TCP tunneling client...',
-             ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"]),
         ]
+
+        if is_relay:
+            steps.append(
+                ('Installing sshpass utility for SSH Relay...',
+                 ['lxc', 'exec', name, '--', 'apt-get', 'install', '-y', 'sshpass'])
+            )
+        else:
+            steps.append(
+                ('Downloading and installing Bore TCP tunneling client...',
+                 ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"])
+            )
 
         for desc, cmd in steps:
             if log_callback:
@@ -241,14 +311,20 @@ WantedBy=multi-user.target"""
             try:
                 cls._run(cmd)
             except Exception as e:
-                # Log warning but do not crash the deployment flow if post-install tunnel fails
+                # Log warning but do not crash the deployment flow if post-install fails
                 print(f'[WARNING] post_deploy_setup step failed: {desc}. Error: {e}')
                 if log_callback:
                     log_callback(f'[WARNING] {desc} failed: {str(e)}')
 
-        if log_callback:
-            log_callback('[INFO] Setting up dynamic Bore TCP Tunnel service...')
-        cls.ensure_dynamic_bore_setup(name, vps_id)
+        if is_relay:
+            if log_callback:
+                log_callback('[INFO] Setting up SSH Tunnel Relay service...')
+            cls.ensure_ssh_relay_setup(name, vps_id, ssh_relay_host, ssh_relay_port, ssh_relay_user, ssh_relay_password, tunnel_port)
+        else:
+            if log_callback:
+                log_callback('[INFO] Setting up dynamic Bore TCP Tunnel service...')
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop ssh-tunnel || true; systemctl disable ssh-tunnel || true"], check=False)
+            cls.ensure_dynamic_bore_setup(name, vps_id)
         return True
 
     @classmethod

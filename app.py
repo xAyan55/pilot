@@ -30,6 +30,45 @@ def get_node_by_id(node_id):
     conn.close()
     return node
 
+def allocate_relay_port(vps_id, ports_setting):
+    if not ports_setting:
+        return 40000 + vps_id
+    
+    # Parse list of ports
+    try:
+        ports = [int(p.strip()) for p in ports_setting.split(',') if p.strip().isdigit()]
+    except Exception:
+        return 40000 + vps_id
+        
+    if not ports:
+        return 40000 + vps_id
+
+    # Find currently used ports
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT tunnel_port FROM vps WHERE tunnel_port IS NOT NULL AND id != ?", (vps_id,))
+    used_ports = {row['tunnel_port'] for row in cursor.fetchall()}
+    
+    # Find first free port
+    allocated_port = None
+    for p in ports:
+        if p not in used_ports:
+            allocated_port = p
+            break
+            
+    if allocated_port is not None:
+        # Save to this VPS
+        cursor.execute("UPDATE vps SET tunnel_port = ? WHERE id = ?", (allocated_port, vps_id))
+        conn.commit()
+    else:
+        # Fallback if all ports are exhausted
+        allocated_port = 40000 + vps_id
+        cursor.execute("UPDATE vps SET tunnel_port = ? WHERE id = ?", (allocated_port, vps_id))
+        conn.commit()
+        
+    conn.close()
+    return allocated_port
+
 def make_node_request(node, endpoint, method='POST', data=None):
     import urllib.request
     import urllib.parse
@@ -279,7 +318,19 @@ def client_list_vps():
     cursor.execute("SELECT * FROM vps WHERE user_id = ? ORDER BY id DESC", (session['user_id'],))
     rows = cursor.fetchall()
     vps_list = [dict(row) for row in rows]
+    # Fetch settings
+    cursor.execute("SELECT key, value FROM settings")
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
     conn.close()
+
+    for v in vps_list:
+        if settings.get('ssh_relay_enabled') == '1':
+            v['tunnel_host'] = settings.get('ssh_relay_host', 'bore.pub')
+            if v.get('tunnel_port') is None:
+                v['tunnel_port'] = allocate_relay_port(v['id'], settings.get('ssh_relay_ports', ''))
+        else:
+            v['tunnel_host'] = 'bore.pub'
+            v['tunnel_port'] = 40000 + v['id']
 
     return jsonify(vps_list)
 
@@ -292,10 +343,23 @@ def client_vps_stats(vps_id):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM vps WHERE id = ? AND user_id = ?", (vps_id, session['user_id']))
     vps_row = cursor.fetchone()
+    # Fetch settings
+    cursor.execute("SELECT key, value FROM settings")
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
     conn.close()
 
     if not vps_row:
         return jsonify({"message": "VPS not found or permission denied."}), 404
+
+    # Determine dynamic tunnel_port and tunnel_host
+    if settings.get('ssh_relay_enabled') == '1':
+        tunnel_host = settings.get('ssh_relay_host', 'bore.pub')
+        tunnel_port = vps_row['tunnel_port']
+        if tunnel_port is None:
+            tunnel_port = allocate_relay_port(vps_id, settings.get('ssh_relay_ports', ''))
+    else:
+        tunnel_host = 'bore.pub'
+        tunnel_port = 40000 + vps_id
 
     if vps_row['node_id'] != 1:
         node = get_node_by_id(vps_row['node_id'])
@@ -360,6 +424,8 @@ def client_vps_stats(vps_id):
     })
 
     stats['history'] = list(METRICS_HISTORY[container_name])
+    stats['tunnel_host'] = tunnel_host
+    stats['tunnel_port'] = tunnel_port
 
     return jsonify(stats)
 
@@ -383,6 +449,18 @@ def client_vps_action(vps_id):
         conn.close()
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
+    # Fetch settings
+    cursor.execute("SELECT key, value FROM settings")
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
+
+    # Determine dynamic tunnel_port
+    tunnel_port = vps_row['tunnel_port']
+    if settings.get('ssh_relay_enabled') == '1':
+        if tunnel_port is None:
+            tunnel_port = allocate_relay_port(vps_id, settings.get('ssh_relay_ports', ''))
+    else:
+        tunnel_port = 40000 + vps_id
+
     try:
         if vps_row['node_id'] != 1:
             node = get_node_by_id(vps_row['node_id'])
@@ -392,7 +470,13 @@ def client_vps_action(vps_id):
             res, code = make_node_request(node, "/api/vps/action", data={
                 "name": vps_row['container_name'],
                 "action": action,
-                "vps_id": vps_id
+                "vps_id": vps_id,
+                "ssh_relay_enabled": settings.get('ssh_relay_enabled'),
+                "ssh_relay_host": settings.get('ssh_relay_host'),
+                "ssh_relay_port": settings.get('ssh_relay_port'),
+                "ssh_relay_user": settings.get('ssh_relay_user'),
+                "ssh_relay_password": settings.get('ssh_relay_password'),
+                "tunnel_port": tunnel_port
             })
             if code != 200:
                 conn.close()
@@ -400,7 +484,21 @@ def client_vps_action(vps_id):
         else:
             LXCManager.execute_action(vps_row['container_name'], action)
             if action in ['start', 'restart']:
-                threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(vps_row['container_name'], vps_id)).start()
+                if settings.get('ssh_relay_enabled') == '1':
+                    threading.Thread(
+                        target=LXCManager.ensure_ssh_relay_setup,
+                        args=(
+                            vps_row['container_name'],
+                            vps_id,
+                            settings.get('ssh_relay_host'),
+                            settings.get('ssh_relay_port'),
+                            settings.get('ssh_relay_user'),
+                            settings.get('ssh_relay_password'),
+                            tunnel_port
+                        )
+                    ).start()
+                else:
+                    threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(vps_row['container_name'], vps_id)).start()
 
         new_status = 'running' if action in ['start', 'restart', 'resume'] else ('stopped' if action == 'stop' else 'suspended')
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
@@ -532,15 +630,18 @@ def client_vps_reinstall(vps_id):
         conn.close()
         return jsonify({"message": "VPS not found or permission denied."}), 404
 
-    # Fetch site name for MOTD configuration
-    site_name_val = "MintyHost LXC"
-    try:
-        cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
-        row = cursor.fetchone()
-        if row:
-            site_name_val = row['value']
-    except Exception:
-        pass
+    # Fetch settings for MOTD and relay configurations
+    cursor.execute("SELECT key, value FROM settings")
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
+    site_name_val = settings.get('site_name', 'MintyHost LXC')
+
+    # Determine dynamic tunnel_port
+    tunnel_port = vps['tunnel_port']
+    if settings.get('ssh_relay_enabled') == '1':
+        if tunnel_port is None:
+            tunnel_port = allocate_relay_port(vps_id, settings.get('ssh_relay_ports', ''))
+    else:
+        tunnel_port = 40000 + vps_id
 
     try:
         if vps['node_id'] != 1:
@@ -573,7 +674,13 @@ def client_vps_reinstall(vps_id):
                 "name": vps['container_name'],
                 "vps_id": vps_id,
                 "password": root_password,
-                "site_name": site_name_val
+                "site_name": site_name_val,
+                "ssh_relay_enabled": settings.get('ssh_relay_enabled'),
+                "ssh_relay_host": settings.get('ssh_relay_host'),
+                "ssh_relay_port": settings.get('ssh_relay_port'),
+                "ssh_relay_user": settings.get('ssh_relay_user'),
+                "ssh_relay_password": settings.get('ssh_relay_password'),
+                "tunnel_port": tunnel_port
             })
             if code != 200:
                 conn.close()
@@ -589,21 +696,27 @@ def client_vps_reinstall(vps_id):
                 root_password=root_password
             )
 
-            # Run post-deployment environment setup (packages and Bore tunnel) in background
-            def run_reinstall_setup(name, target_id, root_pw, s_name):
+            # Run post-deployment environment setup (packages and Bore/SSH tunnel) in background
+            def run_reinstall_setup(name, target_id, root_pw, s_name, relay_settings, t_port):
                 try:
                     LXCManager.post_deploy_setup(
                         name=name,
                         vps_id=target_id,
                         root_password=root_pw,
-                        site_name=s_name
+                        site_name=s_name,
+                        ssh_relay_enabled=relay_settings.get('ssh_relay_enabled'),
+                        ssh_relay_host=relay_settings.get('ssh_relay_host'),
+                        ssh_relay_port=relay_settings.get('ssh_relay_port'),
+                        ssh_relay_user=relay_settings.get('ssh_relay_user'),
+                        ssh_relay_password=relay_settings.get('ssh_relay_password'),
+                        tunnel_port=t_port
                     )
                 except Exception as ex:
                     print(f"[ERROR] Background reinstall post_deploy_setup failed: {ex}")
 
             threading.Thread(
                 target=run_reinstall_setup,
-                args=(vps['container_name'], vps_id, root_password, site_name_val)
+                args=(vps['container_name'], vps_id, root_password, site_name_val, settings, tunnel_port)
             ).start()
 
         cursor.execute(
@@ -1034,17 +1147,19 @@ def admin_vps_deploy_stream():
             vps_id = cursor.lastrowid
             conn.commit()
 
-            # Execute post-deployment environment setup (packages and Bore tunnel)
-            yield "data: [INFO] Initiating background installation of standard packages and Bore tunnel...\n\n"
-            
-            site_name_val = "MintyHost LXC"
-            try:
-                cursor.execute("SELECT value FROM settings WHERE key = 'site_name'")
-                row = cursor.fetchone()
-                if row:
-                    site_name_val = row['value']
-            except Exception:
-                pass
+            # Fetch all settings
+            cursor.execute("SELECT key, value FROM settings")
+            settings = {row['key']: row['value'] for row in cursor.fetchall()}
+            site_name_val = settings.get('site_name', 'MintyHost LXC')
+
+            # Determine dynamic tunnel_port
+            if settings.get('ssh_relay_enabled') == '1':
+                tunnel_port = allocate_relay_port(vps_id, settings.get('ssh_relay_ports', ''))
+            else:
+                tunnel_port = 40000 + vps_id
+
+            # Execute post-deployment environment setup (packages and Bore/SSH tunnel)
+            yield "data: [INFO] Initiating background installation of standard packages and tunnel client...\n\n"
 
             if node_id != 1:
                 # Trigger post-deploy on remote node
@@ -1052,25 +1167,37 @@ def admin_vps_deploy_stream():
                     "name": container_name,
                     "vps_id": vps_id,
                     "password": root_pw,
-                    "site_name": site_name_val
+                    "site_name": site_name_val,
+                    "ssh_relay_enabled": settings.get('ssh_relay_enabled'),
+                    "ssh_relay_host": settings.get('ssh_relay_host'),
+                    "ssh_relay_port": settings.get('ssh_relay_port'),
+                    "ssh_relay_user": settings.get('ssh_relay_user'),
+                    "ssh_relay_password": settings.get('ssh_relay_password'),
+                    "tunnel_port": tunnel_port
                 })
                 if code != 200:
                     yield f"data: [WARNING] Remote post-deploy trigger failed: {res.get('message', '')}\n\n"
             else:
-                def run_deploy_setup(name, target_id, root_pw, s_name):
+                def run_deploy_setup(name, target_id, root_pw, s_name, relay_settings, t_port):
                     try:
                         LXCManager.post_deploy_setup(
                             name=name,
                             vps_id=target_id,
                             root_password=root_pw,
-                            site_name=s_name
+                            site_name=s_name,
+                            ssh_relay_enabled=relay_settings.get('ssh_relay_enabled'),
+                            ssh_relay_host=relay_settings.get('ssh_relay_host'),
+                            ssh_relay_port=relay_settings.get('ssh_relay_port'),
+                            ssh_relay_user=relay_settings.get('ssh_relay_user'),
+                            ssh_relay_password=relay_settings.get('ssh_relay_password'),
+                            tunnel_port=t_port
                         )
                     except Exception as ex:
                         print(f"[ERROR] Background deploy post_deploy_setup failed: {ex}")
 
                 threading.Thread(
                     target=run_deploy_setup,
-                    args=(container_name, vps_id, root_pw, site_name_val)
+                    args=(container_name, vps_id, root_pw, site_name_val, settings, tunnel_port)
                 ).start()
             
             yield "data: [INFO] Background setup task successfully queued.\n\n"
@@ -1254,6 +1381,43 @@ def admin_settings_branding():
         return jsonify({"status": "success", "message": "Branding settings saved successfully."})
     except Exception as e:
         return jsonify({"message": f"Failed to save settings: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/admin/settings/relay', methods=['POST'])
+def admin_settings_relay():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    
+    data = request.get_json() or {}
+    enabled = data.get('enabled', '0')
+    host = data.get('host', '').strip()
+    port = data.get('port', '22').strip()
+    user = data.get('user', '').strip()
+    password = data.get('password', '').strip()
+    ports = data.get('ports', '').strip()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        updates = {
+            'ssh_relay_enabled': enabled,
+            'ssh_relay_host': host,
+            'ssh_relay_port': port,
+            'ssh_relay_user': user,
+            'ssh_relay_password': password,
+            'ssh_relay_ports': ports
+        }
+        for key, val in updates.items():
+            cursor.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, val, val)
+            )
+        conn.commit()
+        log_audit(session['user_id'], "Updated custom SSH Tunnel Relay configuration.")
+        return jsonify({"status": "success", "message": "SSH Tunnel Relay settings saved successfully."})
+    except Exception as e:
+        return jsonify({"message": f"Failed to save relay settings: {str(e)}"}), 500
     finally:
         conn.close()
 

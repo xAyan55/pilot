@@ -177,7 +177,7 @@ function renderVPSGrid() {
           </div>
           
           <div class="vps-card-ip-section" style="margin-top: 8px;">
-            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh -p ${40000 + vps.id} root@bore.pub</code>
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh -p ${vps.tunnel_port || (40000 + vps.id)} root@${vps.tunnel_host || 'bore.pub'}</code>
             <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
               <i data-lucide="copy"></i>
             </button>
@@ -280,11 +280,9 @@ async function fetchSingleCardStats(vpsId) {
     // Update Tunnel SSH command in card
     const tunnelEl = document.getElementById(`card-tunnel-${vpsId}`);
     if (tunnelEl) {
-      if (stats.bore_port) {
-        tunnelEl.textContent = `ssh -p ${stats.bore_port} root@bore.pub`;
-      } else {
-        tunnelEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
-      }
+      const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
+      const host = stats.tunnel_host || 'bore.pub';
+      tunnelEl.textContent = `ssh -p ${port} root@${host}`;
     }
 
     // Update Status Badge in card
@@ -437,13 +435,13 @@ window.copyCardTunnel = function(event, vpsId) {
   }
   const tunnelText = document.getElementById(`card-tunnel-${vpsId}`).textContent;
   if (!tunnelText || tunnelText.includes('Pending')) return;
-  copyTextToClipboard(tunnelText, "Bore SSH command copied to clipboard!", "Failed to copy Bore SSH command.");
+  copyTextToClipboard(tunnelText, "SSH command copied to clipboard!", "Failed to copy SSH command.");
 };
 
 window.copyOverviewTunnel = function() {
   const tunnelText = document.getElementById('tunnel-val').textContent;
   if (!tunnelText || tunnelText.includes('Pending') || tunnelText === 'N/A') return;
-  copyTextToClipboard(tunnelText, "Bore SSH command copied to clipboard!", "Failed to copy Bore SSH command.");
+  copyTextToClipboard(tunnelText, "SSH command copied to clipboard!", "Failed to copy SSH command.");
 };
 
 // Select a VPS from the grid to manage in detailed tabs
@@ -589,11 +587,9 @@ async function loadVPSDetails(vpsId) {
 
   const tunnelValEl = document.getElementById('tunnel-val');
   if (tunnelValEl) {
-    if (currentVPS && currentVPS.bore_port) {
-      tunnelValEl.textContent = `ssh -p ${currentVPS.bore_port} root@bore.pub`;
-    } else {
-      tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
-    }
+    const port = currentVPS.tunnel_port || currentVPS.bore_port || (40000 + vpsId);
+    const host = currentVPS.tunnel_host || 'bore.pub';
+    tunnelValEl.textContent = `ssh -p ${port} root@${host}`;
   }
 
   // Fetch Live Metrics and subcomponents lists
@@ -625,11 +621,9 @@ async function fetchLiveStats(vpsId) {
     
     const tunnelValEl = document.getElementById('tunnel-val');
     if (tunnelValEl) {
-      if (stats.bore_port) {
-        tunnelValEl.textContent = `ssh -p ${stats.bore_port} root@bore.pub`;
-      } else {
-        tunnelValEl.textContent = `ssh -p ${40000 + vpsId} root@bore.pub`;
-      }
+      const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
+      const host = stats.tunnel_host || 'bore.pub';
+      tunnelValEl.textContent = `ssh -p ${port} root@${host}`;
     }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');

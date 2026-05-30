@@ -115,7 +115,13 @@ def post_deploy():
                     name=name,
                     vps_id=vps_id,
                     root_password=password,
-                    site_name=site_name
+                    site_name=site_name,
+                    ssh_relay_enabled=data.get('ssh_relay_enabled'),
+                    ssh_relay_host=data.get('ssh_relay_host'),
+                    ssh_relay_port=data.get('ssh_relay_port'),
+                    ssh_relay_user=data.get('ssh_relay_user'),
+                    ssh_relay_password=data.get('ssh_relay_password'),
+                    tunnel_port=data.get('tunnel_port')
                 )
             except Exception as ex:
                 print(f"[ERROR] Remote post_deploy_setup failed: {ex}")
@@ -140,7 +146,21 @@ def action():
         LXCManager.execute_action(name, action)
         if action in ['start', 'restart'] and vps_id:
             import threading
-            threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(name, int(vps_id))).start()
+            if data.get('ssh_relay_enabled') == '1':
+                threading.Thread(
+                    target=LXCManager.ensure_ssh_relay_setup,
+                    args=(
+                        name,
+                        int(vps_id),
+                        data.get('ssh_relay_host'),
+                        data.get('ssh_relay_port'),
+                        data.get('ssh_relay_user'),
+                        data.get('ssh_relay_password'),
+                        data.get('tunnel_port')
+                    )
+                ).start()
+            else:
+                threading.Thread(target=LXCManager.ensure_dynamic_bore_setup, args=(name, int(vps_id))).start()
         return jsonify({"status": "success", "message": f"Action '{action}' executed successfully."})
     except Exception as e:
         return jsonify({"message": f"Action failed: {str(e)}"}), 500

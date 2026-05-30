@@ -617,6 +617,38 @@ async function savePagesContent(event) {
 }
 window.savePagesContent = savePagesContent;
 
+// Save SSH Tunnel Relay settings
+async function saveRelaySettings(event) {
+  event.preventDefault();
+  const enabled = document.getElementById('relayEnabled').checked ? '1' : '0';
+  const host = document.getElementById('relayHost').value.trim();
+  const port = document.getElementById('relayPort').value.trim();
+  const user = document.getElementById('relayUser').value.trim();
+  const password = document.getElementById('relayPassword').value.trim();
+  const ports = document.getElementById('relayPorts').value.trim();
+
+  try {
+    const response = await fetch('/api/admin/settings/relay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled,
+        host,
+        port,
+        user,
+        password,
+        ports
+      })
+    });
+    const result = await window.handleFetchResponse(response);
+    showToast(result.message || "Relay settings saved successfully.", "success");
+    setTimeout(() => location.reload(), 1000);
+  } catch (err) {
+    showToast(`Failed to save relay settings: ${err.message}`, "error");
+  }
+}
+window.saveRelaySettings = saveRelaySettings;
+
 // --- VPS PLANS CRUD ---
 window.loadedPlans = [];
 
