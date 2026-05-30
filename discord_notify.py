@@ -46,7 +46,8 @@ def fetch_discord_guild_members():
     url = f"https://discord.com/api/v10/guilds/{guild_id}/members?limit=1000"
     headers = {
         "Authorization": f"Bot {token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
@@ -80,7 +81,8 @@ def send_discord_dm_embed(discord_user_id, embed_dict):
     
     headers = {
         "Authorization": f"Bot {token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
     }
     
     # 1. Create DM channel
