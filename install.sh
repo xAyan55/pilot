@@ -51,17 +51,37 @@ pip install -r requirements.txt
 
 echo "[*] Seeding database schema..."
 python seed.py
+deactivate
 
-echo "[*] Registering and starting systemd service..."
+echo "[*] Registering and starting web panel systemd service..."
 sudo cp "$INSTALL_DIR/mintyhost.service" /etc/systemd/system/mintyhost.service
 sudo systemctl daemon-reload
 sudo systemctl enable mintyhost.service
 sudo systemctl restart mintyhost.service
 
+echo "[*] Setting up Discord Bot virtual environment..."
+if [ ! -f "$INSTALL_DIR/bot/.env" ]; then
+    cp "$INSTALL_DIR/bot/.env.example" "$INSTALL_DIR/bot/.env"
+    echo "[!] Created default bot/.env. Please configure your Discord Token, Guild ID, and API keys."
+fi
+
+python3 -m venv "$INSTALL_DIR/bot/venv"
+source "$INSTALL_DIR/bot/venv/bin/activate"
+pip install --upgrade pip
+pip install -r "$INSTALL_DIR/bot/requirements.txt"
+deactivate
+
+echo "[*] Registering and starting Discord bot systemd service..."
+sudo cp "$INSTALL_DIR/bot/mintyhost-bot.service" /etc/systemd/system/mintyhost-bot.service
+sudo systemctl daemon-reload
+sudo systemctl enable mintyhost-bot.service
+sudo systemctl restart mintyhost-bot.service || echo "[WARNING] Discord bot service failed to start. Make sure to configure bot/.env first."
+
 echo "=========================================================="
 echo " Installation Complete!"
-echo " The panel is now running under systemd (port 5000)."
-echo " Access it at: http://YOUR_SERVER_IP:5000"
-echo " Check status with: systemctl status mintyhost.service"
+echo " Web Panel running on: http://YOUR_SERVER_IP:5000"
+echo "   - View status: systemctl status mintyhost.service"
+echo " Discord Bot running under systemd."
+echo "   - View status: systemctl status mintyhost-bot.service"
 echo "=========================================================="
 sudo systemctl status mintyhost.service
