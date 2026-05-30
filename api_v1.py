@@ -730,6 +730,138 @@ def admin_suspend_user(target_id):
     return jsonify({"status": "success", "message": f"User {action}."})
 
 
+@bp.route('/admin/users/verify', methods=['POST'])
+@require_api_key(roles=['admin'])
+def admin_verify_user_credentials():
+    data = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+    if not username or not password:
+        return jsonify({"error": "validation", "message": "username and password required."}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, password_hash, role FROM users WHERE username = ? OR email = ?", (username, username))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return jsonify({"valid": False, "message": "User not found."}), 404
+        
+    from werkzeug.security import check_password_hash
+    if check_password_hash(row['password_hash'], password):
+        return jsonify({"valid": True, "user": {"id": row['id'], "role": row['role']}})
+    else:
+        return jsonify({"valid": False, "message": "Invalid password."}), 401
+
+
+@bp.route('/admin/vps', methods=['POST'])
+@require_api_key(roles=['admin'])
+def admin_deploy_vps():
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    user_id = data.get('user_id')
+    os_sel = data.get('os')
+    cpu = data.get('cpu')
+    ram = data.get('ram')
+    disk = data.get('disk')
+    root_pw = data.get('root_password', '').strip()
+    node_id = data.get('node_id', 1)
+
+    if not all([name, user_id, os_sel, cpu, ram, disk, root_pw]):
+        return jsonify({"error": "validation", "message": "name, user_id, os, cpu, ram, disk, root_password required."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({"error": "not_found", "message": "Target user not found."}), 404
+
+    container_name = f"vps-{name}-{random.randint(100, 999)}"
+    cursor.execute("SELECT * FROM vps WHERE container_name = ?", (container_name,))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({"error": "conflict", "message": "Container name already taken."}), 409
+
+    try:
+        if node_id != 1:
+            node = _get_node(node_id)
+            if not node:
+                conn.close()
+                return jsonify({"error": "not_found", "message": "Remote node not found."}), 404
+            
+            res, code = _make_node_request(node, "/api/vps/deploy", data={
+                "name": container_name,
+                "os": os_sel,
+                "cpu": int(cpu),
+                "ram": int(ram),
+                "disk": int(disk),
+                "password": root_pw
+            })
+            if code != 200:
+                conn.close()
+                return jsonify({"error": "node_error", "message": res.get('message', 'Remote deploy failed.')}), code
+        else:
+            LXCManager.deploy_container(
+                name=container_name,
+                os_image=os_sel,
+                cpu_cores=int(cpu),
+                ram_mb=int(ram),
+                disk_gb=int(disk),
+                root_password=root_pw
+            )
+
+        cursor.execute(
+            '''INSERT INTO vps (user_id, container_name, os, cpu, ram, disk, root_password, status, node_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)''',
+            (user_id, container_name, os_sel, cpu, ram, disk, root_pw, node_id)
+        )
+        vps_id = cursor.lastrowid
+        conn.commit()
+
+        cursor.execute("SELECT key, value FROM settings")
+        settings = {row['key']: row['value'] for row in cursor.fetchall()}
+        site_name_val = settings.get('site_name', 'MintyHost LXC')
+
+        if node_id != 1:
+            _make_node_request(node, "/api/vps/post-deploy", data={
+                "name": container_name,
+                "vps_id": vps_id,
+                "password": root_pw,
+                "site_name": site_name_val
+            })
+        else:
+            def run_deploy_setup(name, target_id, root_pw, s_name):
+                try:
+                    LXCManager.post_deploy_setup(name=name, vps_id=target_id, root_password=root_pw, site_name=s_name)
+                except Exception as ex:
+                    print(f"Deploy post setup failed: {ex}")
+
+            import threading
+            threading.Thread(target=run_deploy_setup, args=(container_name, vps_id, root_pw, site_name_val)).start()
+
+        _log(g.api_user_id, f"API Admin: Deployed container {container_name} assigned to user ID {user_id}")
+        conn.close()
+        return jsonify({
+            "status": "success",
+            "message": "VPS successfully deployed and allocated.",
+            "vps": {
+                "id": vps_id,
+                "container_name": container_name,
+                "os": os_sel,
+                "cpu": cpu,
+                "ram": ram,
+                "disk": disk,
+                "status": "running"
+            }
+        }), 201
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
 @bp.route('/admin/vps', methods=['GET'])
 @require_api_key(roles=['admin'])
 def admin_list_vps():
@@ -762,7 +894,7 @@ def admin_delete_vps(vps_id):
             if node:
                 _make_node_request(node, "/api/vps/delete", data={"name": vps['container_name']})
         else:
-            LXCManager.delete_container(vps['container_name'])
+            LXCManager.destroy_container(vps['container_name'])
         cursor.execute("DELETE FROM vps WHERE id = ?", (vps_id,))
         conn.commit()
         _log(g.api_user_id, f"API Admin: Destroyed VPS {vps['container_name']}")

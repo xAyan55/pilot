@@ -79,8 +79,40 @@ def test_api_v1():
     vps_list = resp.json()
     print(f"[SUCCESS] Total VPS in system: {len(vps_list)}")
 
+    # Verify user credentials via Admin API
+    print("\n--- 11. Verify User Credentials via Admin API ---")
+    resp = requests.post(f"{BASE_URL}/api/v1/admin/users/verify", headers=headers, json={
+        "username": "admin",
+        "password": "admin123"
+    })
+    assert resp.status_code == 200
+    assert resp.json().get("valid") is True
+    print("[SUCCESS] Credentials verified successfully.")
+
+    # Deploy VPS via Admin API
+    print("\n--- 12. Deploy VPS via Admin API ---")
+    resp = requests.post(f"{BASE_URL}/api/v1/admin/vps", headers=headers, json={
+        "name": "apitestvps",
+        "user_id": 1,
+        "os": "alpine/3.18",
+        "cpu": 1,
+        "ram": 512,
+        "disk": 10,
+        "root_password": "securesshpassword123"
+    })
+    assert resp.status_code == 201
+    deployed = resp.json()
+    vps_id = deployed['vps']['id']
+    print(f"[SUCCESS] Deployed VPS ID: {vps_id}")
+
+    # Delete VPS via Admin API
+    print("\n--- 13. Destroy VPS via Admin API ---")
+    resp = requests.delete(f"{BASE_URL}/api/v1/admin/vps/{vps_id}", headers=headers)
+    assert resp.status_code == 200
+    print("[SUCCESS] Destroyed VPS successfully.")
+
     # Cleanup the test keys we generated to keep DB tidy
-    print("\n--- 11. Clean Up Test Key ---")
+    print("\n--- 14. Clean Up Test Key ---")
     key_id_to_delete = key_data['key']['id']
     resp = session.delete(f"{BASE_URL}/api/keys/{key_id_to_delete}")
     assert resp.status_code == 200
