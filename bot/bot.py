@@ -41,6 +41,9 @@ def get_user_key(discord_id: int) -> str:
     return row[0] if row else None
 
 # Load Environment Variables / Defaults
+from dotenv import load_dotenv
+load_dotenv()
+
 PANEL_URL = os.getenv("PANEL_URL", "http://127.0.0.1:5000").rstrip("/")
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
