@@ -100,148 +100,78 @@ class LXCManager:
             log_callback('[SUCCESS] Container deployed successfully!')
 
     @classmethod
-    def ensure_dynamic_bore_setup(cls, name, vps_id):
-        """Ensures that the dynamic Bore tunnel script and systemd service are configured and running in the container."""
+    def ensure_pinggy_tunnel_setup(cls, name):
+        """Ensures that the Pinggy SSH tunnel script and systemd service are configured and running in the container."""
         if IS_MOCK_LXC:
             return True
 
         import base64
-        tunnel_port = 40000 + vps_id
-        
-        # 1. Write the bash wrapper script
-        bore_script_content = f"""#!/bin/bash
-rm -f /var/run/bore_port
-TUNNEL_PORT=$1
 
-run_bore() {{
-    local port_arg=$1
-    local success=0
+        # 1. Write the bash wrapper script that starts the ssh tunnel and parses host/port
+        pinggy_script_content = """#!/bin/bash
+rm -f /var/run/pinggy_host /var/run/pinggy_port /var/run/pinggy.log
+
+while true; do
+    echo "[PINGGY] Starting SSH tunnel..." >> /var/run/pinggy.log
     
-    if [ -n "$port_arg" ]; then
-        /usr/local/bin/bore local 22 --to bore.pub --port "$port_arg" > /var/run/bore.log 2>&1 &
-    else
-        /usr/local/bin/bore local 22 --to bore.pub > /var/run/bore.log 2>&1 &
-    fi
-    BORE_PID=$!
+    # Start SSH tunnel to Pinggy (no TTY, bypass prompts)
+    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:localhost:22 tcp@ap.pinggy.io > /var/run/pinggy.log 2>&1 &
+    SSH_PID=$!
     
-    for i in {{1..25}}; do
-        if ! kill -0 $BORE_PID 2>/dev/null; then
+    # Monitor log to extract public hostname and port
+    for i in {1..60}; do
+        if ! kill -0 $SSH_PID 2>/dev/null; then
             break
         fi
-        if grep -q "listening at bore.pub:" /var/run/bore.log; then
-            local bound_port=$(grep -oE "listening at bore.pub:[0-9]+" /var/run/bore.log | cut -d: -f3)
-            if [ -n "$bound_port" ]; then
-                echo "$bound_port" > /var/run/bore_port
-                success=1
-                break
-            fi
+        if grep -o "tcp://[a-zA-Z0-9.-]*:[0-9]\\+" /var/run/pinggy.log > /dev/null; then
+            ADDR=$(grep -o "tcp://[a-zA-Z0-9.-]*:[0-9]\\+" /var/run/pinggy.log | head -n 1)
+            ADDR_STR=${ADDR#tcp://}
+            HOST=${ADDR_STR%:*}
+            PORT=${ADDR_STR##*:}
+            echo "$HOST" > /var/run/pinggy_host
+            echo "$PORT" > /var/run/pinggy_port
+            echo "[PINGGY] Tunnel established on $HOST:$PORT" >> /var/run/pinggy.log
+            break
         fi
-        sleep 0.2
+        sleep 0.5
     done
     
-    if [ $success -eq 1 ]; then
-        wait $BORE_PID
-        rm -f /var/run/bore_port
-        return 0
-    else
-        kill -9 $BORE_PID 2>/dev/null
-        wait $BORE_PID 2>/dev/null
-        return 1
-    fi
-}}
-
-if [ -n "$TUNNEL_PORT" ]; then
-    echo "Attempting static port $TUNNEL_PORT..."
-    if run_bore "$TUNNEL_PORT"; then
-        exit 0
-    fi
-    echo "Static port $TUNNEL_PORT failed or in use. Falling back to dynamic port..."
-fi
-
-run_bore ""
-"""
-        encoded_script = base64.b64encode(bore_script_content.encode('utf-8')).decode('utf-8')
-        
-        # 2. Write the systemd service file pointing to the script
-        bore_service_content = f"""[Unit]
-Description=Bore TCP Tunnel
-After=network.target
-
-[Service]
-ExecStart=/bin/bash /usr/local/bin/bore-tunnel.sh {tunnel_port}
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target"""
-        encoded_service = base64.b64encode(bore_service_content.encode('utf-8')).decode('utf-8')
-
-        try:
-            # Create script inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/bore-tunnel.sh && chmod +x /usr/local/bin/bore-tunnel.sh"])
-            # Create service inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/bore.service"])
-            # Reload daemon and restart/start service
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable bore && (systemctl restart bore || systemctl start bore)"])
-        except Exception as e:
-            print(f"[WARNING] Failed to ensure dynamic bore setup on container {name}: {e}")
-            return False
-        return True
-
-    @classmethod
-    def ensure_ssh_relay_setup(cls, name, vps_id, host, port, username, password, remote_port):
-        """Ensures that the SSH reverse tunnel script and systemd service are configured and running in the container."""
-        if IS_MOCK_LXC:
-            return True
-
-        import base64
-        if not port:
-            port = '22'
-        if not remote_port:
-            remote_port = 40000 + vps_id
-
-        # 1. Write the bash wrapper script
-        # Note: We use sshpass to pass the password to ssh.
-        # We also use ExitOnForwardFailure=yes and ServerAliveInterval=60 to keep it stable.
-        ssh_script_content = f"""#!/bin/bash
-# Wait for network interface to be ready
-for i in {{1..30}}; do
-    if ping -c 1 -W 1 {host} >/dev/null 2>&1; then
-        break
-    fi
-    sleep 1
+    # Wait for SSH process to exit
+    wait $SSH_PID
+    
+    # Cleanup files and wait before restarting
+    rm -f /var/run/pinggy_host /var/run/pinggy_port
+    echo "[PINGGY] Tunnel closed. Restarting in 5s..." >> /var/run/pinggy.log
+    sleep 5
 done
-
-echo "Starting SSH reverse tunnel to {username}@{host}:{port} forwarding local port 22 to remote port {remote_port}..."
-sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=60 -N -R {remote_port}:localhost:22 {username}@{host} -p {port}
 """
-        encoded_script = base64.b64encode(ssh_script_content.encode('utf-8')).decode('utf-8')
+        encoded_script = base64.b64encode(pinggy_script_content.encode('utf-8')).decode('utf-8')
         
-        # 2. Write the systemd service file pointing to the script
-        ssh_service_content = f"""[Unit]
-Description=SSH Reverse Tunnel Relay
+        # 2. Write the systemd service file
+        pinggy_service_content = """[Unit]
+Description=Pinggy SSH Tunnel
 After=network.target
 
 [Service]
-ExecStart=/bin/bash /usr/local/bin/ssh-tunnel.sh
+ExecStart=/bin/bash /usr/local/bin/pinggy-tunnel.sh
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target"""
-        encoded_service = base64.b64encode(ssh_service_content.encode('utf-8')).decode('utf-8')
+        encoded_service = base64.b64encode(pinggy_service_content.encode('utf-8')).decode('utf-8')
 
         try:
-            # Clean up old bore service if running
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop bore || true; systemctl disable bore || true"], check=False)
+            # Clean up old bore and ssh-relay services if running
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop bore || true; systemctl disable bore || true; systemctl stop ssh-tunnel || true; systemctl disable ssh-tunnel || true"], check=False)
             # Create script inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/ssh-tunnel.sh && chmod +x /usr/local/bin/ssh-tunnel.sh"])
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/pinggy-tunnel.sh && chmod +x /usr/local/bin/pinggy-tunnel.sh"])
             # Create service inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/ssh-tunnel.service"])
-            # Reload daemon and restart/start service
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable ssh-tunnel && (systemctl restart ssh-tunnel || systemctl start ssh-tunnel)"])
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/pinggy.service"])
+            # Reload daemon and enable/start service
+            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable pinggy && (systemctl restart pinggy || systemctl start pinggy)"])
         except Exception as e:
-            print(f"[WARNING] Failed to ensure SSH relay setup on container {name}: {e}")
+            print(f"[WARNING] Failed to ensure Pinggy setup on container {name}: {e}")
             return False
         return True
 
@@ -316,15 +246,9 @@ WantedBy=multi-user.target"""
                 if log_callback:
                     log_callback(f'[WARNING] {desc} failed: {str(e)}')
 
-        if is_relay:
-            if log_callback:
-                log_callback('[INFO] Setting up SSH Tunnel Relay service...')
-            cls.ensure_ssh_relay_setup(name, vps_id, ssh_relay_host, ssh_relay_port, ssh_relay_user, ssh_relay_password, tunnel_port)
-        else:
-            if log_callback:
-                log_callback('[INFO] Setting up dynamic Bore TCP Tunnel service...')
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop ssh-tunnel || true; systemctl disable ssh-tunnel || true"], check=False)
-            cls.ensure_dynamic_bore_setup(name, vps_id)
+        if log_callback:
+            log_callback('[INFO] Setting up Pinggy SSH Tunnel Relay service...')
+        cls.ensure_pinggy_tunnel_setup(name)
         return True
 
     @classmethod
@@ -411,7 +335,8 @@ WantedBy=multi-user.target"""
                 'net_in': net_in_mb,
                 'net_out': net_out_mb,
                 'uptime': uptime_str,
-                'bore_port': 40000 + vps_id if vps_id is not None else None
+                'tunnel_host': 'ap.pinggy.link',
+                'tunnel_port': 40000 + vps_id if vps_id is not None else None
             }
 
         try:
@@ -422,7 +347,8 @@ WantedBy=multi-user.target"""
                 'cpu': 0.0, 'ram_used': 0, 'ram_limit': plan_ram,
                 'disk_used': 0.0, 'disk_limit': plan_disk,
                 'net_in': 0.0, 'net_out': 0.0, 'uptime': 'Offline',
-                'bore_port': 40000 + vps_id if vps_id is not None else None
+                'tunnel_host': 'ap.pinggy.link',
+                'tunnel_port': 40000 + vps_id if vps_id is not None else None
             }
 
         status = 'stopped'
@@ -503,14 +429,16 @@ WantedBy=multi-user.target"""
 
         ip_addr = cls.get_container_ip(name)
 
-        # Get dynamic bore tunnel port if it exists, fallback to standard port
-        bore_port = 40000 + vps_id if vps_id is not None else None
+        # Get dynamic Pinggy tunnel host and port if it exists
+        tunnel_host = 'ap.pinggy.link'
+        tunnel_port = 40000 + vps_id if vps_id is not None else None
         if not IS_MOCK_LXC and status == 'running':
             try:
-                # We query /var/run/bore_port inside the container
-                port_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/bore_port'], check=False)
-                if port_out.strip().isdigit():
-                    bore_port = int(port_out.strip())
+                host_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/pinggy_host'], check=False).strip()
+                port_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/pinggy_port'], check=False).strip()
+                if host_out and port_out.isdigit():
+                    tunnel_host = host_out
+                    tunnel_port = int(port_out)
             except Exception:
                 pass
 
@@ -526,7 +454,8 @@ WantedBy=multi-user.target"""
             'net_in': net_in_mb,
             'net_out': net_out_mb,
             'uptime': uptime_str if status == 'running' else 'Offline',
-            'bore_port': bore_port
+            'tunnel_host': tunnel_host,
+            'tunnel_port': tunnel_port
         }
 
     @staticmethod

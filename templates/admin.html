@@ -88,9 +88,6 @@
         <li class="db-menu-item">
           <a href="#" data-target="panel-customization"><i data-lucide="palette"></i> Customization</a>
         </li>
-        <li class="db-menu-item">
-          <a href="#" data-target="panel-relay"><i data-lucide="network"></i> SSH Tunnel Relay</a>
-        </li>
         <li class="db-menu-item" id="menu-profile" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
           <a href="#" data-target="panel-profile"><i data-lucide="user"></i> My Profile</a>
         </li>
@@ -653,56 +650,7 @@
           </div>
         </div>
 
-        <!-- Panel: SSH Tunnel Relay -->
-        <div class="db-tab-panel" id="panel-relay">
-          <div class="db-block" style="max-width: 600px; margin: 0 auto;">
-            <div class="db-block-header">
-              <h3>SSH Reverse Tunnel Relay (e.g. Serv00 or custom VPS)</h3>
-            </div>
-            <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 20px; line-height: 1.5;">
-              Configure an external SSH relay host (like a free Serv00.com account or your own VPS) to provide your clients with static, reliable SSH connection endpoints. If disabled, containers will default to using the public (but unstable) <code>bore.pub</code> tunnel.
-            </p>
-            <form id="relayForm" onsubmit="saveRelaySettings(event)" style="margin-top: 16px;">
-              <div class="form-group" style="margin-bottom: 20px;">
-                <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
-                  <input type="checkbox" id="relayEnabled" value="1" {% if settings.get('ssh_relay_enabled') == '1' %}checked{% endif %}>
-                  <span>Enable Custom SSH Tunnel Relay</span>
-                </label>
-              </div>
 
-              <div class="form-group">
-                <label for="relayHost">Relay Hostname / IP (e.g., s15.serv00.com or your VPS IP)</label>
-                <input type="text" id="relayHost" class="form-input" placeholder="s15.serv00.com" value="{{ settings.get('ssh_relay_host', '') }}">
-              </div>
-
-              <div class="form-group">
-                <label for="relayPort">Relay SSH Port</label>
-                <input type="number" id="relayPort" class="form-input" value="{{ settings.get('ssh_relay_port', '22') }}" min="1" max="65535">
-              </div>
-
-              <div class="form-group">
-                <label for="relayUser">Relay SSH Username</label>
-                <input type="text" id="relayUser" class="form-input" placeholder="myusername" value="{{ settings.get('ssh_relay_user', '') }}">
-              </div>
-
-              <div class="form-group">
-                <label for="relayPassword">Relay SSH Password</label>
-                <input type="password" id="relayPassword" class="form-input" placeholder="••••••••" value="{{ settings.get('ssh_relay_password', '') }}">
-                <small style="font-size: 11px; color: var(--color-text-muted);">Credentials will be securely used inside containers to initialize reverse port forwarding.</small>
-              </div>
-
-              <div class="form-group">
-                <label for="relayPorts">Reserved Relay Ports (comma-separated list)</label>
-                <input type="text" id="relayPorts" class="form-input" placeholder="e.g. 31822,31823,31824" value="{{ settings.get('ssh_relay_ports', '') }}">
-                <small style="font-size: 11px; color: var(--color-text-muted);">Enter the static TCP ports you've reserved on Serv00/VPS (one port per active container).</small>
-              </div>
-
-              <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                <i data-lucide="save"></i> Save Relay Settings
-              </button>
-            </form>
-          </div>
-        </div>
 
       </div>
     </div>

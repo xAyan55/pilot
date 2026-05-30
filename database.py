@@ -75,6 +75,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migration to add tunnel_host to vps table if it does not exist
+    try:
+        cursor.execute("ALTER TABLE vps ADD COLUMN tunnel_host TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+
     # Logs Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs (
