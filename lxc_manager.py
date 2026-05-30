@@ -335,8 +335,8 @@ WantedBy=multi-user.target"""
                 'net_in': net_in_mb,
                 'net_out': net_out_mb,
                 'uptime': uptime_str,
-                'tunnel_host': 'run.pinggy-free.link',
-                'tunnel_port': 40000 + vps_id if vps_id is not None else None
+                'tunnel_host': None,
+                'tunnel_port': None
             }
 
         try:
@@ -347,8 +347,8 @@ WantedBy=multi-user.target"""
                 'cpu': 0.0, 'ram_used': 0, 'ram_limit': plan_ram,
                 'disk_used': 0.0, 'disk_limit': plan_disk,
                 'net_in': 0.0, 'net_out': 0.0, 'uptime': 'Offline',
-                'tunnel_host': 'run.pinggy-free.link',
-                'tunnel_port': 40000 + vps_id if vps_id is not None else None
+                'tunnel_host': None,
+                'tunnel_port': None
             }
 
         status = 'stopped'
@@ -430,8 +430,8 @@ WantedBy=multi-user.target"""
         ip_addr = cls.get_container_ip(name)
 
         # Get dynamic Pinggy tunnel host and port if it exists
-        tunnel_host = 'run.pinggy-free.link'
-        tunnel_port = 40000 + vps_id if vps_id is not None else None
+        tunnel_host = None
+        tunnel_port = None
         if not IS_MOCK_LXC and status == 'running':
             try:
                 host_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/pinggy_host'], check=False).strip()

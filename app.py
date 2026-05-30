@@ -320,10 +320,6 @@ def client_list_vps():
     vps_list = [dict(row) for row in rows]
     conn.close()
 
-    for v in vps_list:
-        v['tunnel_host'] = v.get('tunnel_host') or 'run.pinggy-free.link'
-        v['tunnel_port'] = v.get('tunnel_port') or (40000 + v['id'])
-
     return jsonify(vps_list)
 
 @app.route('/api/client/vps/<int:vps_id>/stats')
@@ -408,8 +404,6 @@ def client_vps_stats(vps_id):
     })
 
     stats['history'] = list(METRICS_HISTORY[container_name])
-    stats['tunnel_host'] = stats.get('tunnel_host') or 'run.pinggy-free.link'
-    stats['tunnel_port'] = stats.get('tunnel_port') or (40000 + vps_id)
 
     return jsonify(stats)
 

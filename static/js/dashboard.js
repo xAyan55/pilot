@@ -177,7 +177,7 @@ function renderVPSGrid() {
           </div>
           
           <div class="vps-card-ip-section" style="margin-top: 8px;">
-            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">ssh root@${vps.tunnel_host || 'run.pinggy-free.link'} -p ${vps.tunnel_port || (40000 + vps.id)}</code>
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">${vps.tunnel_host && vps.tunnel_port ? 'ssh root@' + vps.tunnel_host + ' -p ' + vps.tunnel_port : 'Connecting to Pinggy...'}</code>
             <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
               <i data-lucide="copy"></i>
             </button>
@@ -280,9 +280,11 @@ async function fetchSingleCardStats(vpsId) {
     // Update Tunnel SSH command in card
     const tunnelEl = document.getElementById(`card-tunnel-${vpsId}`);
     if (tunnelEl) {
-      const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
-      const host = stats.tunnel_host || 'run.pinggy-free.link';
-      tunnelEl.textContent = `ssh root@${host} -p ${port}`;
+      if (stats.tunnel_host && stats.tunnel_port) {
+        tunnelEl.textContent = `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
+      } else {
+        tunnelEl.textContent = 'Connecting to Pinggy...';
+      }
     }
 
     // Update Status Badge in card
@@ -434,13 +436,13 @@ window.copyCardTunnel = function(event, vpsId) {
     event.stopPropagation();
   }
   const tunnelText = document.getElementById(`card-tunnel-${vpsId}`).textContent;
-  if (!tunnelText || tunnelText.includes('Pending')) return;
+  if (!tunnelText || tunnelText.includes('Pending') || tunnelText.includes('Connecting')) return;
   copyTextToClipboard(tunnelText, "SSH command copied to clipboard!", "Failed to copy SSH command.");
 };
 
 window.copyOverviewTunnel = function() {
   const tunnelText = document.getElementById('tunnel-val').textContent;
-  if (!tunnelText || tunnelText.includes('Pending') || tunnelText === 'N/A') return;
+  if (!tunnelText || tunnelText.includes('Pending') || tunnelText.includes('Connecting') || tunnelText === 'N/A') return;
   copyTextToClipboard(tunnelText, "SSH command copied to clipboard!", "Failed to copy SSH command.");
 };
 
@@ -587,9 +589,11 @@ async function loadVPSDetails(vpsId) {
 
   const tunnelValEl = document.getElementById('tunnel-val');
   if (tunnelValEl) {
-    const port = currentVPS.tunnel_port || currentVPS.bore_port || (40000 + vpsId);
-    const host = currentVPS.tunnel_host || 'run.pinggy-free.link';
-    tunnelValEl.textContent = `ssh root@${host} -p ${port}`;
+    if (currentVPS.tunnel_host && currentVPS.tunnel_port) {
+      tunnelValEl.textContent = `ssh root@${currentVPS.tunnel_host} -p ${currentVPS.tunnel_port}`;
+    } else {
+      tunnelValEl.textContent = 'Connecting to Pinggy...';
+    }
   }
 
   // Fetch Live Metrics and subcomponents lists
@@ -621,9 +625,11 @@ async function fetchLiveStats(vpsId) {
     
     const tunnelValEl = document.getElementById('tunnel-val');
     if (tunnelValEl) {
-      const port = stats.tunnel_port || stats.bore_port || (40000 + vpsId);
-      const host = stats.tunnel_host || 'run.pinggy-free.link';
-      tunnelValEl.textContent = `ssh root@${host} -p ${port}`;
+      if (stats.tunnel_host && stats.tunnel_port) {
+        tunnelValEl.textContent = `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
+      } else {
+        tunnelValEl.textContent = 'Connecting to Pinggy...';
+      }
     }
     
     const sidebarIp = document.getElementById('sidebar-vps-ip');
