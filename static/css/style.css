@@ -206,10 +206,12 @@ a {
 
 .btn-secondary {
   background-color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .btn-secondary:hover {
   background-color: var(--color-secondary);
+  color: var(--color-secondary-text);
 }
 
 .btn-outline {
@@ -218,6 +220,7 @@ a {
 
 .btn-outline:hover {
   background-color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .btn-cool {
@@ -357,6 +360,7 @@ a {
 
 .details-box {
   background-color: var(--color-primary);
+  color: var(--color-primary-text);
   border: 2px solid var(--color-border);
   padding: 12px;
   border-radius: var(--radius-md);
@@ -366,7 +370,8 @@ a {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: inherit;
+  opacity: 0.8;
   display: block;
   margin-bottom: 4px;
 }
@@ -426,7 +431,7 @@ a {
   align-items: center;
   justify-content: center;
   margin-bottom: 24px;
-  color: var(--color-text-main);
+  color: var(--color-primary-text);
   box-shadow: 2px 2px 0px var(--color-border);
 }
 
@@ -561,6 +566,7 @@ a {
 /* Statistics section */
 .stats-bar {
   background-color: var(--color-primary);
+  color: var(--color-primary-text);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 44px;
@@ -579,7 +585,8 @@ a {
 }
 
 .stat-item p {
-  color: var(--color-text-muted);
+  color: inherit;
+  opacity: 0.8;
   font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;

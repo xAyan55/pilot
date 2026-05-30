@@ -81,6 +81,20 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 with app.app_context():
     init_db()
 
+def get_contrast_color(hex_color):
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) != 6:
+        return '#0f172a'
+    try:
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        # Relative luminance formula
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return '#ffffff' if luminance < 0.5 else '#0f172a'
+    except ValueError:
+        return '#0f172a'
+
 @app.context_processor
 def inject_settings():
     try:
@@ -91,13 +105,25 @@ def inject_settings():
         settings = {row['key']: row['value'] for row in rows}
         conn.close()
     except Exception:
-        settings = {
-            'site_name': 'MintyHost LXC',
-            'color_primary': '#ECF4E8',
-            'color_secondary': '#CBF3BB',
-            'color_accent': '#ABE7B2',
-            'color_cool': '#93BFC7'
-        }
+        settings = {}
+        
+    defaults = {
+        'site_name': 'MintyHost LXC',
+        'color_primary': '#ECF4E8',
+        'color_secondary': '#CBF3BB',
+        'color_accent': '#ABE7B2',
+        'color_cool': '#93BFC7'
+    }
+    for k, v in defaults.items():
+        if k not in settings:
+            settings[k] = v
+            
+    # Calculate contrast colors for dynamic text readability on theme backgrounds
+    settings['color_primary_text'] = get_contrast_color(settings['color_primary'])
+    settings['color_secondary_text'] = get_contrast_color(settings['color_secondary'])
+    settings['color_accent_text'] = get_contrast_color(settings['color_accent'])
+    settings['color_cool_text'] = get_contrast_color(settings['color_cool'])
+            
     return dict(settings=settings)
 
 # Helper: Log audit action
