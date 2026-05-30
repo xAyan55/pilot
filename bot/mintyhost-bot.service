@@ -4,11 +4,11 @@ After=network.target mintyhost.service
 
 [Service]
 User=root
-WorkingDirectory=/lxc/bot
-ExecStart=/lxc/bot/venv/bin/python bot.py
+WorkingDirectory=/root/lxc/bot
+ExecStart=/root/lxc/bot/venv/bin/python bot.py
 Restart=always
 RestartSec=5
-Environment=PATH=/lxc/bot/venv/bin:/usr/bin:/bin
+Environment=PATH=/root/lxc/bot/venv/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
