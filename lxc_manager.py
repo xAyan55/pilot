@@ -115,7 +115,7 @@ while true; do
     echo "[PINGGY] Starting SSH tunnel..." >> /var/run/pinggy.log
     
     # Start SSH tunnel to Pinggy (no TTY, bypass prompts)
-    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:localhost:22 tcp@ap.pinggy.io > /var/run/pinggy.log 2>&1 &
+    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:localhost:22 tcp@a.pinggy.io > /var/run/pinggy.log 2>&1 &
     SSH_PID=$!
     
     # Monitor log to extract public hostname and port
