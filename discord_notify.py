@@ -121,7 +121,7 @@ def send_user_creation_dm(discord_user_id, username, email, password, panel_url)
         "description": "An administrator has created an account for you on the MintyHost LXC Control Panel.",
         "color": 6512639, # HSL Primary theme blueish tone
         "fields": [
-            {"name": "Panel Link", "value": f"[{panel_url}]({panel_url})", "inline": False},
+            {"name": "Panel Link", "value": f"🔗 [Go to Control Panel]({panel_url})", "inline": False},
             {"name": "Username", "value": f"`{username}`", "inline": True},
             {"name": "Email", "value": f"`{email}`", "inline": True},
             {"name": "Default Password", "value": f"`{password}`", "inline": False}
@@ -151,7 +151,7 @@ def send_vps_creation_dm(discord_user_id, vps_id, root_password, ip_address, tun
         "description": "Your new virtual private server container is now online and ready to use.",
         "color": 6512639,
         "fields": [
-            {"name": "Panel Link", "value": f"[{panel_url}]({panel_url})", "inline": False},
+            {"name": "Panel Link", "value": f"🔗 [Go to Control Panel]({panel_url})", "inline": False},
             {"name": "Server ID", "value": f"`{vps['id']}`", "inline": True},
             {"name": "Container Name", "value": f"`{vps['container_name']}`", "inline": True},
             {"name": "OS Distribution", "value": f"`{vps['os']}`", "inline": True},
