@@ -74,6 +74,9 @@ class LXCManager:
         # Use official ubuntu: remote for Ubuntu, fallback to images: remote for community distros
         if os_image.startswith('ubuntu/'):
             image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
+        elif 'windows' in os_image.lower():
+            # Windows images are custom/local, do not prepend 'images:' remote prefix
+            image_source = os_image
         else:
             image_source = f"images:{os_image}"
 
