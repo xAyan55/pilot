@@ -174,6 +174,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Bind OS cards click events dynamically
+  const osCards = document.querySelectorAll('.os-card');
+  if (osCards.length > 0) {
+    osCards.forEach(card => {
+      card.addEventListener('click', () => {
+        window.selectOSCard(card);
+      });
+    });
+  }
+
   // Initialize Page Loader
   loadOverview();
 
