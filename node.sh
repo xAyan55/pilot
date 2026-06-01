@@ -19,7 +19,11 @@ echo "[*] Installing LXD snap..."
 sudo snap install lxd
 
 echo "[*] Initializing LXD bridge configuration..."
-sudo lxd init --auto
+if ! sudo lxd init --auto; then
+    echo "[!] Auto-initialization failed (subnet conflict). Creating a custom lxdbr0 bridge manually..."
+    sudo /snap/bin/lxc network create lxdbr0 ipv4.address=10.99.0.1/24 ipv4.nat=true || true
+    sudo lxd init --auto
+fi
 
 echo "[*] Setting active community images remote URL..."
 sudo /snap/bin/lxc remote set-url images https://images.lxd.canonical.com/ || true
