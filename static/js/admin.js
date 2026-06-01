@@ -233,169 +233,174 @@ function hexToRgba(hex, alpha) {
 
 // Update the real-time Chart.js line graph
 function updateHostStatsChart(history) {
-  if (!history || !Array.isArray(history)) return;
-  const labels = history.map(h => h.timestamp);
-  const cpuData = history.map(h => h.cpu);
-  const ramData = history.map(h => h.ram);
+  try {
+    if (!history || !Array.isArray(history)) return;
+    const labels = history.map(h => h.timestamp);
+    const cpuData = history.map(h => h.cpu);
+    const ramData = history.map(h => h.ram);
 
-  if (window.hostStatsChart) {
-    window.hostStatsChart.data.labels = labels;
-    window.hostStatsChart.data.datasets[0].data = cpuData;
-    window.hostStatsChart.data.datasets[1].data = ramData;
-    window.hostStatsChart.update('none'); // silent update
-  } else {
-    const canvas = document.getElementById('hostStatsChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    if (window.hostStatsChart) {
+      window.hostStatsChart.data.labels = labels;
+      window.hostStatsChart.data.datasets[0].data = cpuData;
+      window.hostStatsChart.data.datasets[1].data = ramData;
+      window.hostStatsChart.update('none'); // silent update
+    } else {
+      const canvas = document.getElementById('hostStatsChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
 
-    // Get dynamic styles from HTML document
-    const style = getComputedStyle(document.documentElement);
-    const accentColor = style.getPropertyValue('--color-accent').trim() || '#ABE7B2';
-    const coolColor = style.getPropertyValue('--color-cool').trim() || '#93BFC7';
-    const textMainColor = style.getPropertyValue('--color-text-main').trim() || '#0f172a';
-    const textMutedColor = style.getPropertyValue('--color-text-muted').trim() || '#475569';
-    const fontHeading = style.getPropertyValue('--font-heading').trim() || 'Outfit';
-    const fontBody = style.getPropertyValue('--font-body').trim() || 'Inter';
+      // Get dynamic styles from HTML document
+      const style = getComputedStyle(document.documentElement);
+      const accentColor = style.getPropertyValue('--color-accent').trim() || '#ABE7B2';
+      const coolColor = style.getPropertyValue('--color-cool').trim() || '#93BFC7';
+      const textMainColor = style.getPropertyValue('--color-text-main').trim() || '#0f172a';
+      const textMutedColor = style.getPropertyValue('--color-text-muted').trim() || '#475569';
+      const fontHeading = style.getPropertyValue('--font-heading').trim() || 'Outfit';
+      const fontBody = style.getPropertyValue('--font-body').trim() || 'Inter';
 
-    const cpuGradient = ctx.createLinearGradient(0, 0, 0, 200);
-    cpuGradient.addColorStop(0, hexToRgba(accentColor, 0.3));
-    cpuGradient.addColorStop(1, hexToRgba(accentColor, 0.0));
+      const cpuGradient = ctx.createLinearGradient(0, 0, 0, 200);
+      cpuGradient.addColorStop(0, hexToRgba(accentColor, 0.3));
+      cpuGradient.addColorStop(1, hexToRgba(accentColor, 0.0));
 
-    const ramGradient = ctx.createLinearGradient(0, 0, 0, 200);
-    ramGradient.addColorStop(0, hexToRgba(coolColor, 0.3));
-    ramGradient.addColorStop(1, hexToRgba(coolColor, 0.0));
+      const ramGradient = ctx.createLinearGradient(0, 0, 0, 200);
+      ramGradient.addColorStop(0, hexToRgba(coolColor, 0.3));
+      ramGradient.addColorStop(1, hexToRgba(coolColor, 0.0));
 
-    window.hostStatsChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'CPU Usage (%)',
-            data: cpuData,
-            borderColor: accentColor,
-            backgroundColor: cpuGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 6,
-            yAxisID: 'yCPU'
-          },
-          {
-            label: 'RAM Usage (%)',
-            data: ramData,
-            borderColor: coolColor,
-            backgroundColor: ramGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 6,
-            yAxisID: 'yRAM'
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top',
-            labels: {
-              color: textMainColor,
-              font: {
-                family: fontHeading,
-                size: 12,
-                weight: 'bold'
-              }
-            }
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            titleFont: {
-              family: fontHeading,
-              size: 13,
-              weight: 'bold'
+      window.hostStatsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'CPU Usage (%)',
+              data: cpuData,
+              borderColor: accentColor,
+              backgroundColor: cpuGradient,
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              yAxisID: 'yCPU'
             },
-            bodyFont: {
-              family: fontBody,
-              size: 12
+            {
+              label: 'RAM Usage (%)',
+              data: ramData,
+              borderColor: coolColor,
+              backgroundColor: ramGradient,
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              yAxisID: 'yRAM'
             }
-          }
+          ]
         },
-        scales: {
-          x: {
-            grid: {
-              display: false
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                color: textMainColor,
+                font: {
+                  family: fontHeading,
+                  size: 12,
+                  weight: 'bold'
+                }
+              }
             },
-            ticks: {
-              color: textMutedColor,
-              font: {
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              titleFont: {
+                family: fontHeading,
+                size: 13,
+                weight: 'bold'
+              },
+              bodyFont: {
                 family: fontBody,
-                size: 11
+                size: 12
               }
             }
           },
-          yCPU: {
-            type: 'linear',
-            display: true,
-            position: 'left',
-            min: 0,
-            max: 100,
-            title: {
+          scales: {
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: textMutedColor,
+                font: {
+                  family: fontBody,
+                  size: 11
+                }
+              }
+            },
+            yCPU: {
+              type: 'linear',
               display: true,
-              text: 'CPU Usage (%)',
-              color: textMainColor,
-              font: {
-                family: fontHeading,
-                size: 12,
-                weight: 'bold'
+              position: 'left',
+              min: 0,
+              max: 100,
+              title: {
+                display: true,
+                text: 'CPU Usage (%)',
+                color: textMainColor,
+                font: {
+                  family: fontHeading,
+                  size: 12,
+                  weight: 'bold'
+                }
+              },
+              grid: {
+                color: '#e2e8f0'
+              },
+              ticks: {
+                color: textMutedColor,
+                font: {
+                  family: fontBody,
+                  size: 11
+                }
               }
             },
-            grid: {
-              color: '#e2e8f0'
-            },
-            ticks: {
-              color: textMutedColor,
-              font: {
-                family: fontBody,
-                size: 11
-              }
-            }
-          },
-          yRAM: {
-            type: 'linear',
-            display: true,
-            position: 'right',
-            min: 0,
-            max: 100,
-            title: {
+            yRAM: {
+              type: 'linear',
               display: true,
-              text: 'RAM Usage (%)',
-              color: textMainColor,
-              font: {
-                family: fontHeading,
-                size: 12,
-                weight: 'bold'
-              }
-            },
-            grid: {
-              drawOnChartArea: false
-            },
-            ticks: {
-              color: textMutedColor,
-              font: {
-                family: fontBody,
-                size: 11
+              position: 'right',
+              min: 0,
+              max: 100,
+              title: {
+                display: true,
+                text: 'RAM Usage (%)',
+                color: textMainColor,
+                font: {
+                  family: fontHeading,
+                  size: 12,
+                  weight: 'bold'
+                }
+              },
+              grid: {
+                drawOnChartArea: false
+              },
+              ticks: {
+                color: textMutedColor,
+                font: {
+                  family: fontBody,
+                  size: 11
+                }
               }
             }
           }
         }
-      }
-    });
+      });
+    }
+  } catch (err) {
+    console.error("Error rendering Chart.js Live Monitor:", err);
+    showToast(`Chart error: ${err.message}`, 'error');
   }
 }
 
