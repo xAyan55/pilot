@@ -26,6 +26,9 @@ if ! sudo lxd init --auto; then
     sudo lxd init --auto
 fi
 
+# Ensure default profile has the network device eth0 attached to lxdbr0
+sudo /snap/bin/lxc profile device add default eth0 nic network=lxdbr0 name=eth0 || true
+
 echo "[*] Configuring firewall rules to allow LXD bridge routing (resolves Docker/UFW conflicts)..."
 sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT || true
 sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT || true
