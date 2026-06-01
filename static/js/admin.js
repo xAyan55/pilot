@@ -205,12 +205,15 @@ window.showAuditTab = function() {
 // Sliders updates
 window.updateDeployCPUVal = function(val) {
   document.getElementById('cpu-slider-val').textContent = `${val} Cores`;
+  if (window.updateHostImpactPreview) window.updateHostImpactPreview();
 };
 window.updateDeployRAMVal = function(val) {
   document.getElementById('ram-slider-val').textContent = `${val} MB`;
+  if (window.updateHostImpactPreview) window.updateHostImpactPreview();
 };
 window.updateDeployDiskVal = function(val) {
   document.getElementById('disk-slider-val').textContent = `${val} GB`;
+  if (window.updateHostImpactPreview) window.updateHostImpactPreview();
 };
 
 // Helper function to convert HEX color to RGBA for Chart.js
@@ -409,6 +412,7 @@ async function loadOverview(silent = false) {
   try {
     const response = await fetch('/api/admin/stats');
     const stats = await window.handleFetchResponse(response);
+    window.lastHostStats = stats; // Cache stats globally for preview
 
     document.getElementById('stats-vps-count').textContent = stats.vps_count;
     document.getElementById('stats-cpu-count').textContent = `${stats.allocated_cpu} Cores`;
@@ -437,6 +441,11 @@ async function loadOverview(silent = false) {
 
     // Render / update the Chart.js line graph
     updateHostStatsChart(stats.history);
+
+    // Trigger host impact calculation
+    if (window.updateHostImpactPreview) {
+      window.updateHostImpactPreview();
+    }
 
     // Fetch and populate top 5 logs
     if (!silent) {
@@ -678,13 +687,20 @@ window.handleDeployVPS = function(event) {
   const closeBtnB = document.getElementById('btn-close-deploy');
   const logsArea = document.getElementById('deploy-terminal-logs');
   const progressFill = document.getElementById('deploy-progress-fill');
+  const progressPercent = document.getElementById('deploy-progress-percent');
 
   modal.classList.add('active');
   closeBtnH.style.display = 'none';
   closeBtnB.style.display = 'none';
   progressFill.style.width = '0%';
   progressFill.style.backgroundColor = 'var(--color-cool)';
+  progressPercent.textContent = '0%';
   logsArea.innerHTML = '<div style="color: #7de8a3;">[SYSTEM] Initiating server side EventStream connection...</div>';
+
+  // Reset stepper states
+  for (let i = 1; i <= 4; i++) {
+    window.updateStepper(i, i === 1 ? 'active' : 'pending');
+  }
 
   // Open SSE stream
   const url = `/api/admin/vps/deploy-stream?name=${name}&user_id=${userId}&os=${os}&cpu=${cpu}&ram=${ram}&disk=${disk}&root_password=${encodeURIComponent(password)}&node_id=${nodeId}&discord_user_id=${encodeURIComponent(discordUserId)}`;
@@ -697,12 +713,37 @@ window.handleDeployVPS = function(event) {
     const lineDiv = document.createElement('div');
     lineDiv.textContent = line;
     
+    // Parse stepper states and progress bar percentage based on SSE log lines
+    if (line.includes('[INFO] Validating parameters')) {
+      currentProgress = 15;
+      window.updateStepper(1, 'active');
+    } else if (line.includes('[INFO] Initiating LXC deploy')) {
+      currentProgress = 35;
+      window.updateStepper(1, 'completed');
+      window.updateStepper(2, 'active');
+    } else if (line.includes('[INFO] Container image downloaded')) {
+      currentProgress = 60;
+      window.updateStepper(2, 'completed');
+      window.updateStepper(3, 'active');
+    } else if (line.includes('[INFO] Initiating background installation')) {
+      currentProgress = 85;
+      window.updateStepper(3, 'completed');
+      window.updateStepper(4, 'active');
+    }
+    
+    progressFill.style.width = `${currentProgress}%`;
+    progressPercent.textContent = `${currentProgress}%`;
+
     // Add colored line styling based on keywords
     if (line.includes('[SUCCESS]')) {
       lineDiv.style.color = '#7de8a3';
       lineDiv.style.fontWeight = 'bold';
+      
+      currentProgress = 100;
       progressFill.style.width = '100%';
+      progressPercent.textContent = '100%';
       progressFill.style.backgroundColor = 'var(--color-accent)';
+      window.updateStepper(4, 'completed');
       
       // Enable close
       closeBtnH.style.display = 'block';
@@ -711,9 +752,15 @@ window.handleDeployVPS = function(event) {
       
       // Reset form
       document.getElementById('deployVPSForm').reset();
-      updateDeployCPUVal(2);
-      updateDeployRAMVal(2048);
-      updateDeployDiskVal(20);
+      window.updateDeployCPUVal(2);
+      window.updateDeployRAMVal(2048);
+      window.updateDeployDiskVal(20);
+      
+      // Reset OS selection to default card
+      const defaultCard = document.querySelector('.os-card[data-os="ubuntu/22.04"]');
+      if (defaultCard) {
+        window.selectOSCard(defaultCard);
+      }
       
       source.close();
     } else if (line.includes('[ERROR]')) {
@@ -721,6 +768,18 @@ window.handleDeployVPS = function(event) {
       lineDiv.style.fontWeight = 'bold';
       progressFill.style.backgroundColor = 'var(--color-danger)';
       
+      // Mark active stepper item as failed
+      const activeStep = document.querySelector('.step-item.active');
+      if (activeStep) {
+        activeStep.className = 'step-item pending';
+        const badge = activeStep.querySelector('.step-icon-badge');
+        if (badge) {
+          badge.innerHTML = '✗';
+          badge.style.backgroundColor = 'var(--color-danger)';
+          badge.style.color = '#fff';
+        }
+      }
+
       // Enable close
       closeBtnH.style.display = 'block';
       closeBtnB.style.display = 'block';
@@ -728,8 +787,6 @@ window.handleDeployVPS = function(event) {
       source.close();
     } else if (line.includes('[INFO]')) {
       lineDiv.style.color = '#d6e87d';
-      currentProgress = Math.min(95, currentProgress + 12);
-      progressFill.style.width = `${currentProgress}%`;
     }
     
     logsArea.appendChild(lineDiv);
@@ -752,6 +809,133 @@ window.handleDeployVPS = function(event) {
 
 window.closeDeployModal = function() {
   document.getElementById('deployLogModal').classList.remove('active');
+};
+
+// --- OS SELECTOR, PASSWORD HELPERS & RESOURCE PREVIEW UTILITIES ---
+
+// OS card selection
+window.selectOSCard = function(el) {
+  const cards = document.querySelectorAll('.os-card');
+  cards.forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('deployOS').value = el.getAttribute('data-os');
+};
+
+// Toggle password input type (visibility)
+window.toggleDeployPassword = function() {
+  const input = document.getElementById('deployPassword');
+  const icon = document.getElementById('password-toggle-icon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.setAttribute('data-lucide', 'eye-off');
+  } else {
+    input.type = 'password';
+    icon.setAttribute('data-lucide', 'eye');
+  }
+  lucide.createIcons();
+};
+
+// Copy password to clipboard
+window.copyGeneratedPassword = function() {
+  const password = document.getElementById('deployPassword').value;
+  if (!password) {
+    showToast("No password to copy!", "error");
+    return;
+  }
+  navigator.clipboard.writeText(password).then(() => {
+    showToast("Password copied to clipboard!", "success");
+  }).catch(() => {
+    showToast("Failed to copy password", "error");
+  });
+};
+
+// Generate random strong password
+window.triggerPasswordGeneration = function() {
+  const length = 12;
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+  password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+  password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+  password += "0123456789"[Math.floor(Math.random() * 10)];
+  password += "!@#$%^&*"[Math.floor(Math.random() * 8)];
+  for (let i = 4; i < length; i++) {
+    password += charset[Math.floor(Math.random() * charset.length)];
+  }
+  // Shuffle
+  password = password.split('').sort(() => 0.5 - Math.random()).join('');
+  
+  const input = document.getElementById('deployPassword');
+  input.value = password;
+  input.type = 'text'; // Reveal
+  const icon = document.getElementById('password-toggle-icon');
+  icon.setAttribute('data-lucide', 'eye-off');
+  lucide.createIcons();
+  showToast("Secure password generated!", "success");
+};
+
+// Update stepper step UI
+window.updateStepper = function(stepNumber, status) {
+  const stepItem = document.getElementById(`step-${stepNumber}`);
+  if (!stepItem) return;
+  
+  stepItem.className = `step-item ${status}`;
+  const badge = stepItem.querySelector('.step-icon-badge');
+  if (!badge) return;
+
+  if (status === 'completed') {
+    badge.innerHTML = '✓';
+  } else if (status === 'active') {
+    badge.innerHTML = `<span style="display:inline-block; animation: spin 1.5s linear infinite;">↻</span>`;
+  } else {
+    badge.innerHTML = stepNumber;
+  }
+};
+
+// Update dynamic projected resource bars
+window.updateHostImpactPreview = function() {
+  if (!window.lastHostStats) return;
+  const stats = window.lastHostStats;
+
+  const allocCPU = parseInt(document.getElementById('deployCPU').value) || 2;
+  const allocRAM = parseInt(document.getElementById('deployRAM').value) || 2048;
+  const allocDisk = parseInt(document.getElementById('deployDisk').value) || 20;
+
+  const currentCPU = stats.host_cpu || 0;
+  const projectedCPU = Math.min(100, Math.round(currentCPU + (allocCPU * 3))); // Estimation model
+  
+  const hostRAMTotal = stats.host_ram_total || 16.0;
+  const currentRAMUsed = stats.host_ram_used || 0;
+  const allocRAMGb = allocRAM / 1024;
+  const projectedRAMUsed = Math.min(hostRAMTotal, currentRAMUsed + allocRAMGb);
+  const projectedRAMPercent = Math.round((projectedRAMUsed / hostRAMTotal) * 100);
+
+  const hostDiskTotal = stats.host_disk_total || 120.0;
+  const currentDiskUsed = stats.host_disk_used || 0;
+  const projectedDiskUsed = Math.min(hostDiskTotal, currentDiskUsed + allocDisk);
+  const projectedDiskPercent = Math.round((projectedDiskUsed / hostDiskTotal) * 100);
+
+  document.getElementById('preview-cpu-text').textContent = `${projectedCPU}%`;
+  document.getElementById('preview-cpu-bar').style.width = `${projectedCPU}%`;
+  document.getElementById('preview-cpu-delta').textContent = `Current: ${currentCPU}% | Allocation: +${allocCPU} cores`;
+
+  document.getElementById('preview-ram-text').textContent = `${projectedRAMUsed.toFixed(1)} GB / ${hostRAMTotal.toFixed(1)} GB`;
+  document.getElementById('preview-ram-bar').style.width = `${projectedRAMPercent}%`;
+  document.getElementById('preview-ram-delta').textContent = `Current: ${currentRAMUsed.toFixed(1)} GB | Allocation: +${(allocRAM/1024).toFixed(1)} GB`;
+
+  document.getElementById('preview-disk-text').textContent = `${projectedDiskUsed.toFixed(1)} GB / ${hostDiskTotal.toFixed(1)} GB`;
+  document.getElementById('preview-disk-bar').style.width = `${projectedDiskPercent}%`;
+  document.getElementById('preview-disk-delta').textContent = `Current: ${currentDiskUsed.toFixed(1)} GB | Allocation: +${allocDisk} GB`;
+
+  const warningBadge = document.getElementById('allocation-warning-badge');
+  if (projectedRAMPercent > 95 || projectedDiskPercent > 95) {
+    warningBadge.style.display = 'block';
+    document.getElementById('preview-ram-bar').style.backgroundColor = 'var(--color-danger)';
+    document.getElementById('preview-disk-bar').style.backgroundColor = 'var(--color-danger)';
+  } else {
+    warningBadge.style.display = 'none';
+    document.getElementById('preview-ram-bar').style.backgroundColor = 'var(--color-accent)';
+    document.getElementById('preview-disk-bar').style.backgroundColor = 'var(--color-accent)';
+  }
 };
 
 // --- CUSTOMIZATION & BRANDING ACTIONS ---

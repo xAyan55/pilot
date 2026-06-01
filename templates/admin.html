@@ -48,6 +48,130 @@
       background: var(--color-white);
       box-shadow: 4px 4px 0px var(--color-accent);
     }
+
+    /* Custom OS cards selector */
+    .os-card {
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      cursor: pointer;
+      text-align: center;
+      background: var(--color-white);
+      box-shadow: 2px 2px 0px var(--color-border);
+      transition: var(--transition-smooth);
+    }
+    .os-card:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0px var(--color-border);
+    }
+    .os-card.active {
+      background-color: var(--color-primary);
+      box-shadow: 4px 4px 0px var(--color-accent);
+    }
+
+    /* Provisioning Stepper Styles */
+    .stepper-container {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      background: var(--color-primary);
+      border: 2px solid var(--color-border);
+      padding: 16px;
+      border-radius: var(--radius-md);
+      box-shadow: 2.5px 2.5px 0px var(--color-border);
+    }
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: calc(50% + 15px);
+      right: calc(-50% + 15px);
+      height: 2px;
+      background-color: var(--color-border-light);
+      z-index: 1;
+    }
+    .step-item.completed:not(:last-child)::after {
+      background-color: var(--color-success);
+    }
+    .step-icon-badge {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--color-border);
+      border-radius: 50%;
+      background: var(--color-white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 13px;
+      z-index: 2;
+      transition: var(--transition-smooth);
+    }
+    .step-item.pending .step-icon-badge {
+      color: var(--color-text-muted);
+      border-color: var(--color-border-light);
+    }
+    .step-item.active .step-icon-badge {
+      background-color: var(--color-accent);
+      color: var(--color-text-main);
+      box-shadow: 0 0 0 4px var(--color-secondary);
+      animation: stepPulse 1.5s infinite;
+    }
+    .step-item.completed .step-icon-badge {
+      background-color: var(--color-success);
+      color: var(--color-white);
+      border-color: var(--color-border);
+    }
+    .step-label {
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 8px;
+      text-align: center;
+    }
+    .step-item.pending .step-label {
+      color: var(--color-text-muted);
+    }
+    .step-item.active .step-label {
+      color: var(--color-text-main);
+    }
+    .step-item.completed .step-label {
+      color: var(--color-text-main);
+    }
+
+    @keyframes stepPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* Terminal Mockup Styles */
+    .terminal-mockup {
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-md);
+      box-shadow: 4px 4px 0px var(--color-border);
+      overflow: hidden;
+    }
+    .terminal-header {
+      background-color: #e2e8f0;
+      border-bottom: 2px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      gap: 8px;
+    }
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
   </style>
 </head>
 <body>
@@ -257,82 +381,168 @@
         </div>
 
         <!-- Panel 2: Deploy VPS -->
+        <!-- Panel 2: Deploy VPS -->
         <div class="db-tab-panel" id="panel-deploy">
-          <div class="db-block" style="max-width: 700px; margin: 0 auto;">
-            <div class="db-block-header">
-              <h3>Provision Virtual Server Instance</h3>
+          <div class="db-grid" style="grid-template-columns: 1.2fr 0.8fr; align-items: start; gap: 32px;">
+            <!-- Left Block: Provision Form -->
+            <div class="db-block">
+              <div class="db-block-header">
+                <h3>Provision Virtual Server Instance</h3>
+              </div>
+              
+              <form id="deployVPSForm" onsubmit="handleDeployVPS(event)" style="margin-top: 16px;">
+                <div class="form-group">
+                  <label for="deployName">Virtual Server Hostname (e.g. webserver)</label>
+                  <input type="text" id="deployName" class="form-input" placeholder="webserver" required pattern="[a-zA-Z0-9\-]+">
+                  <small style="font-size: 11px; color: var(--color-text-muted);">Alphanumeric name. The backend automatically appends random suffix.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="deployOwner">Owner Client Account</label>
+                  <select id="deployOwner" class="form-input" required>
+                    <option value="" disabled selected>Select client...</option>
+                    <!-- Populated from users api -->
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="deployNode">Deployment Target Node</label>
+                  <select id="deployNode" class="form-input" required>
+                    <!-- Populated from nodes api -->
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>OS Installation Template</label>
+                  <input type="hidden" id="deployOS" value="ubuntu/22.04" required>
+                  <div class="os-card-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px;">
+                    <div class="os-card active" data-os="ubuntu/22.04" onclick="selectOSCard(this)">
+                      <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #E95420;">U</div>
+                      <strong style="font-size: 13px; display: block;">Ubuntu</strong>
+                      <span style="font-size: 10px; color: var(--color-text-muted);">22.04 LTS</span>
+                    </div>
+                    <div class="os-card" data-os="debian/11" onclick="selectOSCard(this)">
+                      <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #D70A53;">D</div>
+                      <strong style="font-size: 13px; display: block;">Debian</strong>
+                      <span style="font-size: 10px; color: var(--color-text-muted);">11 Bullseye</span>
+                    </div>
+                    <div class="os-card" data-os="alpine/3.18" onclick="selectOSCard(this)">
+                      <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #0D597F;">A</div>
+                      <strong style="font-size: 13px; display: block;">Alpine</strong>
+                      <span style="font-size: 10px; color: var(--color-text-muted);">3.18 Light</span>
+                    </div>
+                    <div class="os-card" data-os="centos/9-stream" onclick="selectOSCard(this)">
+                      <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #F0C30F;">C</div>
+                      <strong style="font-size: 13px; display: block;">CentOS</strong>
+                      <span style="font-size: 10px; color: var(--color-text-muted);">9 Stream</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>vCPU Cores limit</span>
+                    <strong id="cpu-slider-val">2 Cores</strong>
+                  </label>
+                  <input type="range" id="deployCPU" min="1" max="8" value="2" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployCPUVal(this.value)">
+                </div>
+
+                <div class="form-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>RAM Memory limit (MB)</span>
+                    <strong id="ram-slider-val">2048 MB</strong>
+                  </label>
+                  <input type="range" id="deployRAM" min="512" max="8192" step="512" value="2048" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployRAMVal(this.value)">
+                </div>
+
+                <div class="form-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>NVMe Root Storage size (GB)</span>
+                    <strong id="disk-slider-val">20 GB</strong>
+                  </label>
+                  <input type="range" id="deployDisk" min="10" max="100" step="5" value="20" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployDiskVal(this.value)">
+                </div>
+
+                <div class="form-group">
+                  <label for="deployPassword">Default Root Password</label>
+                  <div style="display: flex; gap: 8px; align-items: center; position: relative;">
+                    <input type="password" id="deployPassword" class="form-input" placeholder="••••••••" required minlength="6" style="padding-right: 80px; flex: 1;">
+                    <div style="position: absolute; right: 120px; top: 50%; transform: translateY(-50%); display: flex; gap: 8px; align-items: center; z-index: 10;">
+                      <button type="button" onclick="toggleDeployPassword()" style="background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center;" title="Toggle Password">
+                        <i data-lucide="eye" id="password-toggle-icon" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                      </button>
+                      <button type="button" onclick="copyGeneratedPassword()" style="background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center;" title="Copy Password">
+                        <i data-lucide="copy" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-outline" style="padding: 10px; margin: 0; box-shadow: 2px 2px 0px var(--color-border); font-size: 13px; font-weight: 700; width: 105px;" onclick="triggerPasswordGeneration()" title="Generate Random Password">
+                      <i data-lucide="refresh-cw" style="width: 13px; height: 13px; vertical-align: middle;"></i> Generate
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="deployDiscordUser">Discord User to Notify (Optional)</label>
+                  <select id="deployDiscordUser" class="form-input">
+                    <option value="">No Discord notification</option>
+                  </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 24px;">
+                  <i data-lucide="play-circle"></i> Deploy Container Instance
+                </button>
+              </form>
             </div>
-            
-            <form id="deployVPSForm" onsubmit="handleDeployVPS(event)" style="margin-top: 16px;">
-              <div class="form-group">
-                <label for="deployName">Virtual Server Hostname (e.g. webserver)</label>
-                <input type="text" id="deployName" class="form-input" placeholder="webserver" required pattern="[a-zA-Z0-9\-]+">
-                <small style="font-size: 11px; color: var(--color-text-muted);">Alphanumeric name. The backend automatically appends random suffix.</small>
-              </div>
 
-              <div class="form-group">
-                <label for="deployOwner">Owner Client Account</label>
-                <select id="deployOwner" class="form-input" required>
-                  <option value="" disabled selected>Select client...</option>
-                  <!-- Populated from users api -->
-                </select>
+            <!-- Right Block: Host Capacity Impact Preview -->
+            <div class="db-block" id="host-impact-preview-block" style="position: sticky; top: 100px;">
+              <div class="db-block-header">
+                <h3>Projected Host Impact</h3>
               </div>
+              <p style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 20px; line-height: 1.5;">
+                Visual estimation of host hypervisor resource utilization after provisioning this container.
+              </p>
+              
+              <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Projected Host CPU Load</span>
+                    <strong id="preview-cpu-text">0%</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="preview-cpu-bar" style="width: 0%;"></div>
+                  </div>
+                  <small id="preview-cpu-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0% | Allocation: +2 cores</small>
+                </div>
 
-              <div class="form-group">
-                <label for="deployNode">Deployment Target Node</label>
-                <select id="deployNode" class="form-input" required>
-                  <!-- Populated from nodes api -->
-                </select>
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Projected Host RAM Load</span>
+                    <strong id="preview-ram-text">0 GB / 0 GB</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="preview-ram-bar" style="width: 0%;"></div>
+                  </div>
+                  <small id="preview-ram-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0 GB | Allocation: +2048 MB</small>
+                </div>
+
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Projected Local Storage Load</span>
+                    <strong id="preview-disk-text">0 GB / 0 GB</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="preview-disk-bar" style="width: 0%;"></div>
+                  </div>
+                  <small id="preview-disk-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0 GB | Allocation: +20 GB</small>
+                </div>
               </div>
-
-              <div class="form-group">
-                <label for="deployOS">OS Installation Template</label>
-                <select id="deployOS" class="form-input" required>
-                  <option value="ubuntu/22.04">Ubuntu 22.04 LTS (images:ubuntu/22.04)</option>
-                  <option value="debian/11">Debian 11 Bullseye (images:debian/11)</option>
-                </select>
+              
+              <div id="allocation-warning-badge" style="display: none; margin-top: 24px; padding: 12px; background-color: #fee2e2; border: 2px solid var(--color-danger); border-radius: var(--radius-sm); color: var(--color-danger); font-size: 12px; font-weight: 700; text-align: center; box-shadow: 2px 2px 0px var(--color-danger);">
+                <i data-lucide="alert-triangle" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                Warning: Exceeds host physical capacity!
               </div>
-
-              <div class="form-group">
-                <label style="display: flex; justify-content: space-between;">
-                  <span>vCPU Cores limit</span>
-                  <strong id="cpu-slider-val">2 Cores</strong>
-                </label>
-                <input type="range" id="deployCPU" min="1" max="8" value="2" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployCPUVal(this.value)">
-              </div>
-
-              <div class="form-group">
-                <label style="display: flex; justify-content: space-between;">
-                  <span>RAM Memory limit (MB)</span>
-                  <strong id="ram-slider-val">2048 MB</strong>
-                </label>
-                <input type="range" id="deployRAM" min="512" max="8192" step="512" value="2048" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployRAMVal(this.value)">
-              </div>
-
-              <div class="form-group">
-                <label style="display: flex; justify-content: space-between;">
-                  <span>NVMe Root Storage size (GB)</span>
-                  <strong id="disk-slider-val">20 GB</strong>
-                </label>
-                <input type="range" id="deployDisk" min="10" max="100" step="5" value="20" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployDiskVal(this.value)">
-              </div>
-
-              <div class="form-group">
-                <label for="deployPassword">Default Root Password</label>
-                <input type="password" id="deployPassword" class="form-input" placeholder="••••••••" required minlength="6">
-              </div>
-
-              <div class="form-group">
-                <label for="deployDiscordUser">Discord User to Notify (Optional)</label>
-                <select id="deployDiscordUser" class="form-input">
-                  <option value="">No Discord notification</option>
-                </select>
-              </div>
-
-              <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                <i data-lucide="play-circle"></i> Deploy Container Instance
-              </button>
-            </form>
+            </div>
           </div>
         </div>
 
@@ -816,20 +1026,53 @@
 
   <!-- SSE Provisioning Overlay Modal -->
   <div class="modal-overlay" id="deployLogModal">
-    <div class="modal-card" style="max-width: 650px;">
+    <div class="modal-card" style="max-width: 750px;">
       <div class="modal-header">
         <h3>LXD Provisioning logs</h3>
         <button class="modal-close" id="closeDeployModal" style="display: none;" onclick="closeDeployModal()"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
-        <div class="deploy-progress-container" style="margin-bottom: 16px;">
-          <div class="deploy-progress-bar" style="height: 6px; background-color: var(--color-border); border-radius: 3px; overflow: hidden;">
-            <div id="deploy-progress-fill" style="height: 100%; width: 0%; background-color: var(--color-cool); transition: width 0.3s;"></div>
+        <!-- Interactive 4-step Provisioning Stepper -->
+        <div class="stepper-container" id="deployStepper">
+          <div class="step-item active" id="step-1">
+            <div class="step-icon-badge">1</div>
+            <div class="step-label">Initializing</div>
+          </div>
+          <div class="step-item pending" id="step-2">
+            <div class="step-icon-badge">2</div>
+            <div class="step-label">LXD Deploy</div>
+          </div>
+          <div class="step-item pending" id="step-3">
+            <div class="step-icon-badge">3</div>
+            <div class="step-label">OS Setup</div>
+          </div>
+          <div class="step-item pending" id="step-4">
+            <div class="step-icon-badge">4</div>
+            <div class="step-label">Finished</div>
+          </div>
+        </div>
+
+        <div class="deploy-progress-container" style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 6px;">
+            <span>Overall Setup Progress</span>
+            <span id="deploy-progress-percent">0%</span>
+          </div>
+          <div class="deploy-progress-bar" style="height: 10px; background-color: var(--color-border); border-radius: 5px; overflow: hidden; border: 1.5px solid var(--color-border);">
+            <div id="deploy-progress-fill" style="height: 100%; width: 0%; background-color: var(--color-accent); transition: width 0.3s;"></div>
           </div>
         </div>
         
-        <div style="background-color: #000; color: #fff; padding: 16px; border-radius: var(--radius-sm); font-family: monospace; font-size: 13px; min-height: 250px; max-height: 350px; overflow-y: auto;" id="deploy-terminal-logs">
-          <!-- Dynamically populated stream lines -->
+        <!-- Premium OS Terminal Mockup -->
+        <div class="terminal-mockup">
+          <div class="terminal-header">
+            <div class="terminal-dot" style="background-color: #ef4444; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
+            <div class="terminal-dot" style="background-color: #eab308; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
+            <div class="terminal-dot" style="background-color: #22c55e; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
+            <span style="font-family: monospace; font-size: 11px; font-weight: bold; margin-left: 8px; color: var(--color-text-muted);">lxd-provisioner@mintyhost:~</span>
+          </div>
+          <div style="background-color: #0f172a; color: #38bdf8; padding: 18px; font-family: 'Courier New', Courier, monospace; font-size: 12px; min-height: 250px; max-height: 350px; overflow-y: auto; line-height: 1.5;" id="deploy-terminal-logs">
+            <!-- Dynamically populated stream lines -->
+          </div>
         </div>
         
         <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
