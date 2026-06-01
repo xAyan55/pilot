@@ -112,7 +112,8 @@ def make_api_request(endpoint: str, method: str = "GET", data: dict = None):
     url = f"{PANEL_URL}/api/v1{endpoint}"
     headers = {
         "Authorization": f"Bearer {PANEL_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     req_data = json.dumps(data).encode("utf-8") if data else None
     req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
@@ -125,6 +126,10 @@ def make_api_request(endpoint: str, method: str = "GET", data: dict = None):
             err_json = json.loads(err_data)
             return err_json, e.code
         except Exception:
+            try:
+                print(f"[ERROR] API HTTP Error {e.code} response body: {err_data}")
+            except Exception:
+                pass
             return {"message": f"HTTP Error {e.code}: {e.reason}"}, e.code
     except Exception as e:
         return {"message": f"Connection error: {str(e)}"}, 500
