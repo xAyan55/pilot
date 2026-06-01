@@ -26,6 +26,14 @@ if ! sudo lxd init --auto; then
     sudo lxd init --auto
 fi
 
+echo "[*] Configuring firewall rules to allow LXD bridge routing (resolves Docker/UFW conflicts)..."
+sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT || true
+sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT || true
+if command -v ufw >/dev/null; then
+    sudo ufw route allow in on lxdbr0 || true
+    sudo ufw route allow out on lxdbr0 || true
+fi
+
 echo "[*] Setting active community images remote URL..."
 sudo /snap/bin/lxc remote set-url images https://images.lxd.canonical.com/ || true
 
