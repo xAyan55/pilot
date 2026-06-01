@@ -159,7 +159,8 @@ def make_node_request(node, endpoint, method='POST', data=None):
     import urllib.parse
     import json
     
-    url = f"http://{node['fqdn']}:{node['port']}{endpoint}"
+    scheme = "https" if node['port'] in (443, 8443) else "http"
+    url = f"{scheme}://{node['fqdn']}:{node['port']}{endpoint}"
     headers = {
         "Authorization": f"Bearer {node['api_key']}",
         "Content-Type": "application/json"
