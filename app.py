@@ -2352,8 +2352,10 @@ def admin_nodes_create():
     port = data.get('port', 5001)
     location = data.get('location', '').strip()
 
-    if not name or not fqdn:
-        return jsonify({"message": "Name and FQDN are required."}), 400
+    if not name:
+        return jsonify({"message": "Name is required."}), 400
+    if not fqdn:
+        fqdn = 'dynamic'
 
     try:
         port_int = int(port)
@@ -2420,19 +2422,59 @@ def admin_nodes_config(node_id):
     if not node:
         return jsonify({"message": "Node not found."}), 404
 
+    panel_url = request.host_url.rstrip('/')
     config_yaml = f"""# MintyHost LXC Node Config File
 port: {node['port']}
 api_key: "{node['api_key']}"
 node_id: {node['id']}
 name: "{node['name']}"
+panel_url: "{panel_url}"
 """
 
-    install_cmd = f"curl -sSL {request.host_url}node.sh | NODE_PORT={node['port']} NODE_API_KEY=\"{node['api_key']}\" NODE_ID={node['id']} NODE_NAME=\"{node['name']}\" bash"
+    install_cmd = f"curl -sSL {request.host_url}node.sh | NODE_PORT={node['port']} NODE_API_KEY=\"{node['api_key']}\" NODE_ID={node['id']} NODE_NAME=\"{node['name']}\" PANEL_URL=\"{panel_url}\" bash"
 
     return jsonify({
         "config_yaml": config_yaml,
         "install_cmd": install_cmd
     })
+
+@app.route('/api/nodes/register_tunnel', methods=['POST'])
+def register_node_tunnel():
+    data = request.get_json() or {}
+    node_id = data.get('node_id')
+    api_key = data.get('api_key')
+    fqdn = data.get('fqdn', '').strip()
+    port = data.get('port')
+
+    if not node_id or not api_key or not fqdn or not port:
+        return jsonify({"message": "Missing tunnel registration parameters"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
+    node = cursor.fetchone()
+
+    if not node:
+        conn.close()
+        return jsonify({"message": "Node not found"}), 404
+
+    # Verify API key matches
+    if node['api_key'] != api_key:
+        conn.close()
+        return jsonify({"message": "Invalid node API key"}), 403
+
+    try:
+        cursor.execute(
+            "UPDATE nodes SET fqdn = ?, port = ?, status = 'online' WHERE id = ?",
+            (fqdn, int(port), node_id)
+        )
+        conn.commit()
+        conn.close()
+        print(f"[NODE SYSTEM] Node {node_id} ('{node['name']}') dynamically registered tunnel at {fqdn}:{port}")
+        return jsonify({"status": "success", "message": "Tunnel registered successfully"})
+    except Exception as e:
+        conn.close()
+        return jsonify({"message": f"Failed to register tunnel: {str(e)}"}), 500
 
 @app.route('/api/admin/nodes/<int:node_id>/status')
 def admin_node_status(node_id):

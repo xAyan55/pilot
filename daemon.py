@@ -8,7 +8,8 @@ def load_config():
         'port': 5001,
         'api_key': 'default-node-key',
         'node_id': 0,
-        'name': 'Remote Node'
+        'name': 'Remote Node',
+        'panel_url': ''
     }
     config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yml')
     if os.path.exists(config_path):
@@ -305,7 +306,89 @@ def destroy():
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+# Helper to start Pinggy tunnel and register with the master panel dynamically
+def start_pinggy_tunnel(local_port, panel_url, node_id, api_key):
+    import subprocess
+    import re
+    import time
+    import urllib.request
+    import json
+    import threading
+
+    def tunnel_thread():
+        print(f"[*] Starting Pinggy tunnel background thread for local port {local_port}...")
+        while True:
+            try:
+                # Start SSH tunnel to Pinggy forwarding daemon port
+                cmd = [
+                    "ssh", "-T", "-p", "443",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "ServerAliveInterval=30",
+                    f"-R0:127.0.0.1:{local_port}",
+                    "tcp@free.pinggy.io"
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+                
+                for line in iter(proc.stdout.readline, ''):
+                    print(f"[Pinggy Tunnel Log] {line.strip()}")
+                    # Look for tcp://rporty-XXXXX.free.pinggy.link:XXXXX
+                    match = re.search(r"tcp://([a-zA-Z0-9.-]+):(\d+)", line)
+                    if match:
+                        host = match.group(1)
+                        port = int(match.group(2))
+                        print(f"[+] Pinggy tunnel established: {host}:{port}")
+                        register_tunnel_with_panel(panel_url, node_id, api_key, host, port)
+                        
+                proc.wait()
+                print("[-] Pinggy tunnel process exited. Restarting in 5 seconds...")
+            except Exception as e:
+                print(f"[!] Error in Pinggy tunnel: {e}")
+            time.sleep(5)
+
+    def register_tunnel_with_panel(panel_url, node_id, api_key, host, port):
+        if not panel_url:
+            return
+        url = f"{panel_url.rstrip('/')}/api/nodes/register_tunnel"
+        payload = {
+            "node_id": node_id,
+            "api_key": api_key,
+            "fqdn": host,
+            "port": port
+        }
+        req_data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            url,
+            data=req_data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res = json.loads(resp.read().decode('utf-8'))
+                print(f"[+] Registered tunnel with panel: {res}")
+        except Exception as e:
+            print(f"[!] Failed to register tunnel with panel at {url}: {e}")
+
+    t = threading.Thread(target=tunnel_thread, daemon=True)
+    t.start()
+
+
 if __name__ == '__main__':
     port = config.get('port', 5001)
+    
+    # Start the tunnel if panel_url is configured and this is not the local node
+    panel_url = config.get('panel_url')
+    node_id = config.get('node_id')
+    api_key = config.get('api_key')
+    if panel_url and node_id and api_key and node_id != 1:
+        start_pinggy_tunnel(port, panel_url, node_id, api_key)
+
     print(f"[*] Starting MintyHost Node Daemon on port {port}...")
     app.run(host='0.0.0.0', port=port)

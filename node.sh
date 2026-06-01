@@ -12,8 +12,8 @@ echo "=========================================================="
 echo "[*] Updating apt package lists..."
 sudo apt update -y
 
-echo "[*] Installing system dependencies (Python, Git, LXC bridging)..."
-sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap
+echo "[*] Installing system dependencies (Python, Git, LXC bridging, SSH client)..."
+sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
 
 echo "[*] Installing LXD snap..."
 sudo snap install lxd
@@ -53,10 +53,24 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Read config from environment variables passed during curl execution
+# If running interactively, prompt the user for missing details
+if [ -z "$NODE_ID" ] || [ "$NODE_ID" = "0" ]; then
+    read -p "Enter Node ID (e.g. 2): " NODE_ID < /dev/tty
+fi
+
+if [ -z "$NODE_API_KEY" ] || [ "$NODE_API_KEY" = "default-node-key" ]; then
+    read -p "Enter Node API Key: " NODE_API_KEY < /dev/tty
+fi
+
+if [ -z "$PANEL_URL" ]; then
+    read -p "Enter Panel URL (e.g., http://panel-ip:5000): " PANEL_URL < /dev/tty
+fi
+
 NODE_PORT=${NODE_PORT:-5001}
-NODE_API_KEY=${NODE_API_KEY:-"default-node-key"}
-NODE_ID=${NODE_ID:-0}
 NODE_NAME=${NODE_NAME:-"Remote Node"}
+
+# Clean panel_url trailing slash
+PANEL_URL=$(echo "$PANEL_URL" | sed 's/\/$//')
 
 echo "[*] Writing configuration file config.yml..."
 cat <<EOF > config.yml
@@ -64,6 +78,7 @@ port: $NODE_PORT
 api_key: "$NODE_API_KEY"
 node_id: $NODE_ID
 name: "$NODE_NAME"
+panel_url: "$PANEL_URL"
 EOF
 
 echo "[*] Creating systemd service file..."

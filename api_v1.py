@@ -977,8 +977,10 @@ def admin_create_node():
     fqdn = data.get('fqdn', '').strip()
     port = data.get('port', 5001)
     location = data.get('location', '')
-    if not name or not fqdn:
-        return jsonify({"error": "validation", "message": "name and fqdn required."}), 400
+    if not name:
+        return jsonify({"error": "validation", "message": "name is required."}), 400
+    if not fqdn:
+        fqdn = 'dynamic'
     import secrets as _s
     api_key = _s.token_hex(24)
     conn = get_db_connection()
