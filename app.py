@@ -16,7 +16,7 @@ import threading
 import uuid
 from werkzeug.utils import secure_filename
 from database import get_db_connection, init_db
-from lxc_manager import LXCManager, LXC_BIN, IS_MOCK_LXC
+from lxc_manager import LXCManager, LXC_BIN, IS_MOCK_LXC, WindowsImageNotFoundError
 from collections import deque
 from api_auth import generate_api_key
 from api_v1 import bp as api_v1_bp
@@ -1204,6 +1204,10 @@ def admin_vps_deploy_stream():
             conn.close()
 
             yield "data: [SUCCESS] Container deployed and allocated to user.\n\n"
+        except WindowsImageNotFoundError as e:
+            yield f"data: [ERROR] Windows image not available: {str(e)}\n\n"
+            yield "data: [ERROR] To deploy Windows VPS, you must first import a Windows disk image into LXD.\n\n"
+            yield "data: [ERROR] Run on your server: bash /root/lxc/setup_windows_image.sh\n\n"
         except Exception as e:
             yield f"data: [ERROR] Deployment failed: {str(e)}\n\n"
             try:

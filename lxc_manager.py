@@ -15,6 +15,11 @@ if not os.path.exists(LXC_BIN):
     LXC_BIN = 'lxc'  # fallback
 
 
+class WindowsImageNotFoundError(Exception):
+    """Raised when no locally-imported Windows VM image is found in LXD."""
+    pass
+
+
 class LXCManager:
     _cpu_cache = {}  # Tracks {container_name: (timestamp, cpu_seconds)}
 
@@ -54,7 +59,15 @@ class LXCManager:
 
     @classmethod
     def _resolve_windows_image(cls):
-        """Auto-detects any local image matching Windows in the aliases list."""
+        """Auto-detects any local image matching Windows in the aliases list.
+        
+        Unlike Linux distros (Ubuntu, Debian, Alpine, etc.), Windows images are NOT
+        available on any standard LXD remote image server. The administrator must
+        manually import a Windows ISO/disk image into LXD before Windows VPS can
+        be deployed. This method searches for such a locally-imported image.
+        
+        Raises WindowsImageNotFoundError if no local Windows image is found.
+        """
         if IS_MOCK_LXC:
             return "windows/10"
         try:
@@ -89,19 +102,27 @@ class LXCManager:
         except Exception as e:
             print(f"[WARNING] Failed to query local image list for Windows: {e}")
         
-        return "windows/10"
+        raise WindowsImageNotFoundError(
+            "No Windows VM image found in LXD. Windows images are not available on standard LXD remotes. "
+            "You must import a Windows image manually before deploying Windows VPS instances. "
+            "Run: bash /root/lxc/setup_windows_image.sh  (or see install.sh for instructions)"
+        )
 
     @classmethod
     def deploy_container(cls, name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback=None):
-        """Launches a real LXC container and configures resource limits."""
+        """Launches a real LXC container/VM and configures resource limits."""
         if IS_MOCK_LXC:
+            is_windows = 'windows' in os_image.lower()
             steps = [
                 ('Downloading and launching container image...', 0.5),
                 ('Setting CPU core limit...', 0.2),
                 ('Setting RAM memory limit...', 0.2),
                 ('Configuring root storage limit...', 0.2),
-                ('Setting root password...', 0.3),
             ]
+            if not is_windows:
+                steps.append(('Setting root password...', 0.3))
+            else:
+                steps.append(('Initializing Windows VM (password must be set via RDP/console)...', 0.3))
             for desc, delay in steps:
                 if log_callback:
                     log_callback(f'[INFO] {desc}')
@@ -110,12 +131,17 @@ class LXCManager:
                 log_callback('[SUCCESS] Container deployed successfully!')
             return True
 
-        # Use official ubuntu: remote for Ubuntu, fallback to images: remote for community distros
+        # Resolve the image source
         if os_image.startswith('ubuntu/'):
             image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
         elif 'windows' in os_image.lower():
-            # Auto-detect local custom Windows VM image alias/fingerprint
+            # Windows images must be pre-imported locally by the admin.
+            # _resolve_windows_image() will raise WindowsImageNotFoundError if missing.
+            if log_callback:
+                log_callback('[INFO] Searching for locally-imported Windows VM image...')
             image_source = cls._resolve_windows_image()
+            if log_callback:
+                log_callback(f'[INFO] Found Windows image: {image_source}')
         else:
             image_source = f"images:{os_image}"
 
