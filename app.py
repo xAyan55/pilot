@@ -1031,6 +1031,7 @@ def admin_vps_deploy_stream():
         return "data: [ERROR] Missing deployment configurations\n\n"
 
     admin_id = session.get('user_id')
+    panel_url = request.url_root.rstrip('/')
 
     def generate():
         yield "data: [INFO] Validating parameters and DB hooks...\n\n"
@@ -1115,7 +1116,6 @@ def admin_vps_deploy_stream():
             yield "data: [INFO] Initiating background installation of standard packages and tunnel client...\n\n"
 
             # Spawn background thread to execute setup (packages & Pinggy tunnel) and send Discord notification
-            panel_url = request.url_root.rstrip('/')
             threading.Thread(
                 target=discord_notify.run_post_deploy_and_notify,
                 args=(container_name, vps_id, root_pw, site_name_val, node_id, node if node_id != 1 else None, discord_user_id, panel_url)
