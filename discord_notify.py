@@ -13,21 +13,22 @@ load_dotenv()
 load_dotenv(os.path.join(os.path.dirname(__file__), 'bot', '.env'))
 
 def get_config_setting(key, env_name=None):
-    """Retrieve config value from environment variable first, then from sqlite database settings."""
-    if env_name:
-        val = os.getenv(env_name)
-        if val:
-            return val
+    """Retrieve config value from sqlite database settings first, then from environment variable."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = cursor.fetchone()
         conn.close()
-        if row:
-            return row['value']
+        if row and row['value'] and row['value'].strip() and not row['value'].strip().startswith("your_"):
+            return row['value'].strip()
     except Exception:
         pass
+
+    if env_name:
+        val = os.getenv(env_name)
+        if val and val.strip() and not val.strip().startswith("your_"):
+            return val.strip()
     return None
 
 def get_discord_bot_token():
