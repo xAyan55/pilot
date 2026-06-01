@@ -185,6 +185,15 @@
                     <div class="meter-bar" id="node-ram-bar" style="width: 0%;"></div>
                   </div>
                 </div>
+                <div class="meter-group">
+                  <label style="display: flex; justify-content: space-between;">
+                    <span>Host Local Storage Space</span>
+                    <strong id="node-disk-usage">0 GB / 0 GB</strong>
+                  </label>
+                  <div class="meter-track">
+                    <div class="meter-bar" id="node-disk-bar" style="width: 0%;"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -210,6 +219,16 @@
                   <strong id="mock-badge" style="color: var(--color-cool);">Checking...</strong>
                 </li>
               </ul>
+            </div>
+          </div>
+
+          <!-- System Live Trend Monitor -->
+          <div class="db-block" style="margin-bottom: 32px;">
+            <div class="db-block-header">
+              <h3>System Live Monitor (Real-time CPU & RAM)</h3>
+            </div>
+            <div class="chart-container" style="height: 250px; position: relative; margin-top: 16px;">
+              <canvas id="hostStatsChart"></canvas>
             </div>
           </div>
 
@@ -1034,6 +1053,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
 </html>

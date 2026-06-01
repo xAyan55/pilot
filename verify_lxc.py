@@ -214,10 +214,11 @@ def test_lxc_lifecycle():
     assert resp.status_code == 200
     print(f"[SUCCESS] Destroyed VPS: {resp.json()}")
 
-    # Check empty list
+    # Check deleted vps is not in list
     resp = session.get(f"{BASE_URL}/api/admin/vps")
-    assert len(resp.json()) == 0
-    print("[SUCCESS] VPS list is empty now. Lifecycle testing successful!")
+    remaining_ids = [v['id'] for v in resp.json()]
+    assert vps_id not in remaining_ids
+    print("[SUCCESS] Created VPS is no longer in the active list. Lifecycle testing successful!")
 
 if __name__ == '__main__':
     try:

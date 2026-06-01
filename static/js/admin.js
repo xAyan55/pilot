@@ -176,15 +176,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Page Loader
   loadOverview();
-  // Auto refresh overview stats and container lists every 15 seconds
+
+  // Auto refresh overview stats every 3 seconds
   setInterval(() => {
     const activePanel = document.querySelector('.db-tab-panel.active');
-    if (activePanel) {
-      if (activePanel.id === 'panel-overview') {
-        loadOverview(true); // silent update
-      } else if (activePanel.id === 'panel-containers') {
-        loadContainers(true);
-      }
+    if (activePanel && activePanel.id === 'panel-overview') {
+      loadOverview(true); // silent update
+    }
+  }, 3000);
+
+  // Auto refresh container lists every 15 seconds
+  setInterval(() => {
+    const activePanel = document.querySelector('.db-tab-panel.active');
+    if (activePanel && activePanel.id === 'panel-containers') {
+      loadContainers(true);
     }
   }, 15000);
 });
@@ -208,6 +213,192 @@ window.updateDeployDiskVal = function(val) {
   document.getElementById('disk-slider-val').textContent = `${val} GB`;
 };
 
+// Helper function to convert HEX color to RGBA for Chart.js
+function hexToRgba(hex, alpha) {
+  if (!hex || typeof hex !== 'string') return `rgba(0, 0, 0, ${alpha})`;
+  hex = hex.trim();
+  if (!hex.startsWith('#')) {
+    if (hex.includes('rgb')) return hex;
+    return `rgba(0, 0, 0, ${alpha})`;
+  }
+  hex = hex.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Update the real-time Chart.js line graph
+function updateHostStatsChart(history) {
+  if (!history || !Array.isArray(history)) return;
+  const labels = history.map(h => h.timestamp);
+  const cpuData = history.map(h => h.cpu);
+  const ramData = history.map(h => h.ram);
+
+  if (window.hostStatsChart) {
+    window.hostStatsChart.data.labels = labels;
+    window.hostStatsChart.data.datasets[0].data = cpuData;
+    window.hostStatsChart.data.datasets[1].data = ramData;
+    window.hostStatsChart.update('none'); // silent update
+  } else {
+    const canvas = document.getElementById('hostStatsChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // Get dynamic styles from HTML document
+    const style = getComputedStyle(document.documentElement);
+    const accentColor = style.getPropertyValue('--color-accent').trim() || '#ABE7B2';
+    const coolColor = style.getPropertyValue('--color-cool').trim() || '#93BFC7';
+    const textMainColor = style.getPropertyValue('--color-text-main').trim() || '#0f172a';
+    const textMutedColor = style.getPropertyValue('--color-text-muted').trim() || '#475569';
+    const fontHeading = style.getPropertyValue('--font-heading').trim() || 'Outfit';
+    const fontBody = style.getPropertyValue('--font-body').trim() || 'Inter';
+
+    const cpuGradient = ctx.createLinearGradient(0, 0, 0, 200);
+    cpuGradient.addColorStop(0, hexToRgba(accentColor, 0.3));
+    cpuGradient.addColorStop(1, hexToRgba(accentColor, 0.0));
+
+    const ramGradient = ctx.createLinearGradient(0, 0, 0, 200);
+    ramGradient.addColorStop(0, hexToRgba(coolColor, 0.3));
+    ramGradient.addColorStop(1, hexToRgba(coolColor, 0.0));
+
+    window.hostStatsChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'CPU Usage (%)',
+            data: cpuData,
+            borderColor: accentColor,
+            backgroundColor: cpuGradient,
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            yAxisID: 'yCPU'
+          },
+          {
+            label: 'RAM Usage (%)',
+            data: ramData,
+            borderColor: coolColor,
+            backgroundColor: ramGradient,
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            yAxisID: 'yRAM'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: textMainColor,
+              font: {
+                family: fontHeading,
+                size: 12,
+                weight: 'bold'
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            titleFont: {
+              family: fontHeading,
+              size: 13,
+              weight: 'bold'
+            },
+            bodyFont: {
+              family: fontBody,
+              size: 12
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: textMutedColor,
+              font: {
+                family: fontBody,
+                size: 11
+              }
+            }
+          },
+          yCPU: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            min: 0,
+            max: 100,
+            title: {
+              display: true,
+              text: 'CPU Usage (%)',
+              color: textMainColor,
+              font: {
+                family: fontHeading,
+                size: 12,
+                weight: 'bold'
+              }
+            },
+            grid: {
+              color: '#e2e8f0'
+            },
+            ticks: {
+              color: textMutedColor,
+              font: {
+                family: fontBody,
+                size: 11
+              }
+            }
+          },
+          yRAM: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            min: 0,
+            max: 100,
+            title: {
+              display: true,
+              text: 'RAM Usage (%)',
+              color: textMainColor,
+              font: {
+                family: fontHeading,
+                size: 12,
+                weight: 'bold'
+              }
+            },
+            grid: {
+              drawOnChartArea: false
+            },
+            ticks: {
+              color: textMutedColor,
+              font: {
+                family: fontBody,
+                size: 11
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
 // Load Overview Statistics
 async function loadOverview(silent = false) {
   try {
@@ -229,19 +420,18 @@ async function loadOverview(silent = false) {
       badge.style.color = "var(--color-success)";
     }
 
-    // Host node resource simulation (CPU fluctuates, RAM is base + active containers RAM)
-    const mockCPU = Math.floor(Math.random() * 15) + 5; // 5% - 20%
-    const totalRAM = 16384; // 16GB hypervisor node
-    const baseRAM = 1536; // 1.5GB OS baseline
-    const containerRAM = stats.allocated_ram;
-    const currentRAMLoad = Math.min(totalRAM, baseRAM + containerRAM);
-    const ramPercent = Math.round((currentRAMLoad / totalRAM) * 100);
-
-    document.getElementById('node-cpu-percent').textContent = `${mockCPU}%`;
-    document.getElementById('node-cpu-bar').style.width = `${mockCPU}%`;
+    // Populate actual host stats from the backend API response
+    document.getElementById('node-cpu-percent').textContent = `${stats.host_cpu}%`;
+    document.getElementById('node-cpu-bar').style.width = `${stats.host_cpu}%`;
     
-    document.getElementById('node-ram-usage').textContent = `${currentRAMLoad} MB / ${totalRAM} MB`;
-    document.getElementById('node-ram-bar').style.width = `${ramPercent}%`;
+    document.getElementById('node-ram-usage').textContent = `${stats.host_ram_used} GB / ${stats.host_ram_total} GB`;
+    document.getElementById('node-ram-bar').style.width = `${stats.host_ram_percent}%`;
+
+    document.getElementById('node-disk-usage').textContent = `${stats.host_disk_used} GB / ${stats.host_disk_total} GB`;
+    document.getElementById('node-disk-bar').style.width = `${stats.host_disk_percent}%`;
+
+    // Render / update the Chart.js line graph
+    updateHostStatsChart(stats.history);
 
     // Fetch and populate top 5 logs
     if (!silent) {
