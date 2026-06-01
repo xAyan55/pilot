@@ -415,7 +415,7 @@
                 <div class="form-group">
                   <label>OS Installation Template</label>
                   <input type="hidden" id="deployOS" value="ubuntu/22.04" required>
-                  <div class="os-card-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px;">
+                  <div class="os-card-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 8px;">
                     <div class="os-card active" data-os="ubuntu/22.04" onclick="selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #E95420;">U</div>
                       <strong style="font-size: 13px; display: block;">Ubuntu</strong>
@@ -435,6 +435,11 @@
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #F0C30F;">C</div>
                       <strong style="font-size: 13px; display: block;">CentOS</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">9 Stream</span>
+                    </div>
+                    <div class="os-card" data-os="windows/10" onclick="selectOSCard(this)">
+                      <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #0078D4;">W</div>
+                      <strong style="font-size: 13px; display: block;">Windows</strong>
+                      <span style="font-size: 10px; color: var(--color-text-muted);">10 Pro</span>
                     </div>
                   </div>
                 </div>

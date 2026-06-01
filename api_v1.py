@@ -361,7 +361,7 @@ def vps_reinstall(vps_id):
     data = request.get_json() or {}
     new_os = data.get('os', vps['os'])
     password = data.get('password', vps['root_password'])
-    SUPPORTED_OS = ['ubuntu/22.04', 'debian/11', 'debian/12', 'ubuntu/24.04', 'centos/9-stream', 'alpine/3.18']
+    SUPPORTED_OS = ['ubuntu/22.04', 'debian/11', 'debian/12', 'ubuntu/24.04', 'centos/9-stream', 'alpine/3.18', 'windows/10']
     if new_os not in SUPPORTED_OS:
         return jsonify({"error": "validation", "message": f"Unsupported OS. Choose from: {', '.join(SUPPORTED_OS)}"}), 400
     try:

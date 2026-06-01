@@ -909,6 +909,30 @@
   background-color: #d70751;
 }
 
+.os-alpine {
+  background-color: rgba(13, 89, 127, 0.08);
+  color: #0d597f;
+}
+.os-alpine .os-icon-logo {
+  background-color: #0d597f;
+}
+
+.os-centos {
+  background-color: rgba(240, 195, 15, 0.08);
+  color: #f0c30f;
+}
+.os-centos .os-icon-logo {
+  background-color: #f0c30f;
+}
+
+.os-windows {
+  background-color: rgba(0, 120, 212, 0.08);
+  color: #0078d4;
+}
+.os-windows .os-icon-logo {
+  background-color: #0078d4;
+}
+
 .vps-card-status-badge {
   display: inline-flex;
   align-items: center;
@@ -1153,6 +1177,24 @@
 
 .active-os-icon.os-debian {
   background-color: #d70751;
+  color: var(--color-white);
+  border-color: var(--color-border);
+}
+
+.active-os-icon.os-alpine {
+  background-color: #0d597f;
+  color: var(--color-white);
+  border-color: var(--color-border);
+}
+
+.active-os-icon.os-centos {
+  background-color: #f0c30f;
+  color: var(--color-white);
+  border-color: var(--color-border);
+}
+
+.active-os-icon.os-windows {
+  background-color: #0078d4;
   color: var(--color-white);
   border-color: var(--color-border);
 }

@@ -77,13 +77,20 @@ class LXCManager:
         else:
             image_source = f"images:{os_image}"
 
+        is_windows = 'windows' in os_image.lower()
+        launch_cmd = ['lxc', 'launch', image_source, name]
+        if is_windows:
+            launch_cmd.append('--vm')
+
         steps = [
-            ('Downloading and launching container image...', ['lxc', 'launch', image_source, name]),
+            ('Downloading and launching container image...', launch_cmd),
             ('Setting CPU core limit...', ['lxc', 'config', 'set', name, 'limits.cpu', str(cpu_cores)]),
             ('Setting RAM memory limit...', ['lxc', 'config', 'set', name, 'limits.memory', f'{ram_mb}MB']),
             ('Configuring root storage limit...', ['lxc', 'config', 'device', 'override', name, 'root', f'size={disk_gb}GB']),
-            ('Setting root password...', ['lxc', 'exec', name, '--', 'bash', '-c', f'echo root:{root_password} | chpasswd']),
         ]
+
+        if not is_windows:
+            steps.append(('Setting root password...', ['lxc', 'exec', name, '--', 'bash', '-c', f'echo root:{root_password} | chpasswd']))
 
         for desc, cmd in steps:
             if log_callback:
@@ -98,6 +105,12 @@ class LXCManager:
 
         if log_callback:
             log_callback('[SUCCESS] Container deployed successfully!')
+
+    @classmethod
+    def reinstall_os(cls, name, os_image, root_password, cpu_cores, ram_mb, disk_gb, log_callback=None):
+        """Reinstalls OS by destroying and redeploying the container/VM."""
+        cls.destroy_container(name)
+        cls.deploy_container(name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback)
 
     @classmethod
     def ensure_pinggy_tunnel_setup(cls, name):
@@ -180,6 +193,25 @@ WantedBy=multi-user.target"""
                           ssh_relay_enabled=None, ssh_relay_host=None, ssh_relay_port=None,
                           ssh_relay_user=None, ssh_relay_password=None, tunnel_port=None):
         """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and configures the tunnel (SSH or Bore)."""
+        is_windows = False
+        if vps_id:
+            try:
+                from database import get_db_connection
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT os FROM vps WHERE id = ?", (vps_id,))
+                row = cursor.fetchone()
+                if row and 'windows' in row['os'].lower():
+                    is_windows = True
+                conn.close()
+            except Exception:
+                pass
+
+        if is_windows:
+            if log_callback:
+                log_callback('[INFO] Windows VM post-deployment configuration complete (automated package installation skipped for Windows OS).')
+            return True
+
         if IS_MOCK_LXC:
             return True
 

@@ -417,7 +417,8 @@ async def vps_password(interaction: discord.Interaction, vps_id: int, password: 
     app_commands.Choice(name="Debian 11", value="debian/11"),
     app_commands.Choice(name="Debian 12", value="debian/12"),
     app_commands.Choice(name="CentOS 9 Stream", value="centos/9-stream"),
-    app_commands.Choice(name="Alpine Linux 3.18", value="alpine/3.18")
+    app_commands.Choice(name="Alpine Linux 3.18", value="alpine/3.18"),
+    app_commands.Choice(name="Windows 10 Pro", value="windows/10")
 ])
 async def vps_reinstall(interaction: discord.Interaction, vps_id: int, os: app_commands.Choice[str], root_password: str):
     linked = await ensure_linked(interaction)
@@ -782,7 +783,8 @@ async def admin_list_vps(interaction: discord.Interaction):
     app_commands.Choice(name="Debian 11", value="debian/11"),
     app_commands.Choice(name="Debian 12", value="debian/12"),
     app_commands.Choice(name="CentOS 9 Stream", value="centos/9-stream"),
-    app_commands.Choice(name="Alpine Linux 3.18", value="alpine/3.18")
+    app_commands.Choice(name="Alpine Linux 3.18", value="alpine/3.18"),
+    app_commands.Choice(name="Windows 10 Pro", value="windows/10")
 ])
 async def admin_deploy_vps(interaction: discord.Interaction, name: str, user_id: int, os: app_commands.Choice[str], cpu: int, ram: int, disk: int, root_password: str, discord_user: discord.User = None):
     if not is_discord_admin(interaction):

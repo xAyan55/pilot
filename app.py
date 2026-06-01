@@ -650,8 +650,8 @@ def client_vps_reinstall(vps_id):
     os_selection = data.get('os')
     root_password = data.get('root_password', '').strip()
 
-    if os_selection not in ['ubuntu/22.04', 'debian/11']:
-        return jsonify({"message": "Invalid OS selection. Must be Ubuntu 22.04 or Debian 11."}), 400
+    if os_selection not in ['ubuntu/22.04', 'debian/11', 'debian/12', 'ubuntu/24.04', 'centos/9-stream', 'alpine/3.18', 'windows/10']:
+        return jsonify({"message": "Invalid OS selection."}), 400
     if not root_password or len(root_password) < 6:
         return jsonify({"message": "Password must be at least 6 characters."}), 400
 

@@ -143,6 +143,23 @@ async function fetchClientVPSList() {
   }
 }
 
+// Helper to get OS-specific naming, styling, and letter-icon details
+function getOSMetadata(osString) {
+  const osLower = (osString || '').toLowerCase();
+  if (osLower.includes('ubuntu')) {
+    return { name: 'Ubuntu', class: 'os-ubuntu', letter: 'U' };
+  } else if (osLower.includes('debian')) {
+    return { name: 'Debian', class: 'os-debian', letter: 'D' };
+  } else if (osLower.includes('alpine')) {
+    return { name: 'Alpine', class: 'os-alpine', letter: 'A' };
+  } else if (osLower.includes('centos')) {
+    return { name: 'CentOS', class: 'os-centos', letter: 'C' };
+  } else if (osLower.includes('windows')) {
+    return { name: 'Windows', class: 'os-windows', letter: 'W' };
+  }
+  return { name: 'Linux', class: 'os-debian', letter: 'L' };
+}
+
 // Render the grid layout of VPS cards
 function renderVPSGrid() {
   const gridContainer = document.getElementById('vps-grid-container');
@@ -151,10 +168,10 @@ function renderVPSGrid() {
   gridContainer.innerHTML = '';
 
   vpsList.forEach(vps => {
-    const isUbuntu = vps.os.toLowerCase().includes('ubuntu');
-    const osName = isUbuntu ? 'Ubuntu' : 'Debian';
-    const osClass = isUbuntu ? 'os-ubuntu' : 'os-debian';
-    const osLetter = isUbuntu ? 'U' : 'D';
+    const meta = getOSMetadata(vps.os);
+    const osName = meta.name;
+    const osClass = meta.class;
+    const osLetter = meta.letter;
 
     const cardHtml = `
       <div class="vps-grid-card" id="vps-card-${vps.id}">
@@ -478,8 +495,8 @@ window.selectAndManageVPS = function(vpsId) {
   });
 
   // Populate Active Server Card widget in sidebar
-  const isUbuntu = currentVPS.os.toLowerCase().includes('ubuntu');
-  const osLetter = isUbuntu ? 'U' : 'D';
+  const meta = getOSMetadata(currentVPS.os);
+  const osLetter = meta.letter;
   document.getElementById('sidebar-vps-os-icon').textContent = osLetter;
   document.getElementById('sidebar-vps-name').textContent = currentVPS.container_name;
   document.getElementById('sidebar-vps-ip').textContent = 'Fetching IP...';
@@ -487,7 +504,7 @@ window.selectAndManageVPS = function(vpsId) {
   // Set correct background classes for OS badge in sidebar card
   const osIcon = document.getElementById('sidebar-vps-os-icon');
   if (osIcon) {
-    osIcon.className = `active-os-icon ${isUbuntu ? 'os-ubuntu' : 'os-debian'}`;
+    osIcon.className = `active-os-icon ${meta.class}`;
   }
 
   // Update Console Tab Toolbar OS Details
@@ -495,8 +512,8 @@ window.selectAndManageVPS = function(vpsId) {
   const consoleOsText = document.getElementById('console-os-text');
   if (consoleOsBadge && consoleOsText) {
     consoleOsBadge.textContent = osLetter;
-    consoleOsBadge.className = `active-os-icon ${isUbuntu ? 'os-ubuntu' : 'os-debian'}`;
-    consoleOsText.textContent = `OS: ${isUbuntu ? 'Ubuntu' : 'Debian'}`;
+    consoleOsBadge.className = `active-os-icon ${meta.class}`;
+    consoleOsText.textContent = `OS: ${meta.name}`;
   }
 
   const activeCard = document.getElementById('active-server-card');
