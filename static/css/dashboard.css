@@ -58,8 +58,12 @@
   font-size: 14px;
   font-weight: 600;
   color: #94a3b8;
-  transition: var(--transition-smooth);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, color 0.2s ease, padding-left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
+}
+
+.db-menu-item a i, .db-menu-item a svg {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease;
 }
 
 .db-menu-item a::before {
@@ -72,7 +76,7 @@
   height: 60%;
   background-color: var(--color-accent);
   border-radius: 0 4px 4px 0;
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .db-menu-item.active a::before {
@@ -82,6 +86,12 @@
 .db-menu-item a:hover {
   color: #ffffff;
   background-color: #1e293b;
+  padding-left: 20px;
+}
+
+.db-menu-item a:hover i, .db-menu-item a:hover svg {
+  transform: scale(1.2) rotate(-6deg);
+  color: var(--color-accent);
 }
 
 .db-menu-item.active a {
@@ -220,13 +230,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  animation: cardEntrance 0.3s ease both;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
+  animation: cardEntrance 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .db-stat-card:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0px var(--color-accent);
+  transform: translate(-4px, -4px) scale(1.02);
+  box-shadow: 8px 8px 0px var(--color-border);
+  border-color: var(--color-border);
+}
+
+.db-stat-card .db-stat-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.db-stat-card:hover .db-stat-icon {
+  transform: scale(1.15) rotate(5deg);
+  box-shadow: 3px 3px 0px var(--color-border);
 }
 
 .db-stat-card:nth-child(1) { animation-delay: 0.02s; }
@@ -237,11 +257,11 @@
 @keyframes cardEntrance {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(16px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -289,13 +309,13 @@
   border-radius: var(--radius-lg);
   padding: 32px;
   box-shadow: 4px 4px 0px var(--color-border);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  animation: blockFadeIn 0.3s ease both;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
+  animation: blockFadeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .db-block:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0px var(--color-border);
+  transform: translate(-3px, -3px);
+  box-shadow: 7px 7px 0px var(--color-border);
 }
 
 @keyframes blockFadeIn {
@@ -328,12 +348,13 @@
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: 4px 4px 0px var(--color-border);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
 }
 
 .vps-control-card:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0px var(--color-accent);
+  transform: translate(-4px, -4px) scale(1.01);
+  box-shadow: 8px 8px 0px var(--color-border);
+  border-color: var(--color-border);
 }
 
 .vps-card-main {
@@ -427,9 +448,17 @@
 .meter-bar {
   height: 100%;
   background-color: var(--color-accent);
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0) 100%);
+  background-size: 200% 100%;
   border-radius: 4px;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
+  animation: meterShimmer 2.5s infinite linear;
+}
+
+@keyframes meterShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .meter-bar.high {
@@ -475,15 +504,24 @@
   border-bottom: 2px solid #e2e8f0;
   vertical-align: middle;
   font-weight: 600;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
 }
 
 .db-table tr:last-child td {
   border-bottom: none;
 }
 
+.db-table tr {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.db-table tr:hover {
+  transform: scale(1.005);
+}
+
 .db-table tr:hover td {
-  background-color: #f8fafc;
+  background-color: var(--color-primary);
+  color: var(--color-text-main);
 }
 
 .badge {
@@ -606,18 +644,14 @@
   max-width: 540px;
   box-shadow: 8px 8px 0px var(--color-border);
   overflow: hidden;
-  transform: translateY(20px);
-  transition: var(--transition-smooth);
+  transform: translateY(30px) scale(0.95);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
 }
 
 .modal-overlay.active .modal-card {
-  transform: translateY(0);
-  animation: modalPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-@keyframes modalPop {
-  from { transform: translateY(20px) scale(0.96); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
+  transform: translateY(0) scale(1);
+  opacity: 1;
 }
 
 .modal-header {
@@ -849,15 +883,25 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
   position: relative;
   overflow: hidden;
-  animation: cardEntrance 0.3s ease both;
+  animation: cardEntrance 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .vps-grid-card:hover {
-  transform: translate(-3px, -3px);
-  box-shadow: 7px 7px 0px var(--color-accent);
+  transform: translate(-5px, -5px) scale(1.015);
+  box-shadow: 8px 8px 0px var(--color-border);
+  border-color: var(--color-border);
+}
+
+.vps-grid-card:hover .vps-card-os-badge {
+  transform: scale(1.05) rotate(2deg);
+  border-color: var(--color-border);
+}
+
+.vps-grid-card:hover .btn-manage {
+  background-color: var(--color-accent) !important;
 }
 
 /* Card Header styles */
@@ -878,6 +922,7 @@
   padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid var(--color-border);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
 }
 
 .os-icon-logo {
@@ -1099,17 +1144,25 @@
   justify-content: center;
   color: var(--color-text-main);
   box-shadow: 2px 2px 0px var(--color-border);
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease;
+}
+
+.btn-power i, .btn-power svg {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .btn-power:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0px var(--color-border);
+  transform: translate(-3px, -3px) scale(1.05);
+  box-shadow: 5px 5px 0px var(--color-border);
+}
+
+.btn-power:hover:not(:disabled) i, .btn-power:hover:not(:disabled) svg {
+  transform: scale(1.1) rotate(15deg);
 }
 
 .btn-power:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px var(--color-border);
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px var(--color-border);
 }
 
 .btn-power:disabled {
