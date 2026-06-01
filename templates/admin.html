@@ -416,27 +416,27 @@
                   <label>OS Installation Template</label>
                   <input type="hidden" id="deployOS" value="ubuntu/22.04" required>
                   <div class="os-card-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 8px;">
-                    <div class="os-card active" data-os="ubuntu/22.04">
+                    <div class="os-card active" data-os="ubuntu/22.04" onclick="window.selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #E95420;">U</div>
                       <strong style="font-size: 13px; display: block;">Ubuntu</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">22.04 LTS</span>
                     </div>
-                    <div class="os-card" data-os="debian/11">
+                    <div class="os-card" data-os="debian/11" onclick="window.selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #D70A53;">D</div>
                       <strong style="font-size: 13px; display: block;">Debian</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">11 Bullseye</span>
                     </div>
-                    <div class="os-card" data-os="alpine/3.18">
+                    <div class="os-card" data-os="alpine/3.18" onclick="window.selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #0D597F;">A</div>
                       <strong style="font-size: 13px; display: block;">Alpine</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">3.18 Light</span>
                     </div>
-                    <div class="os-card" data-os="centos/9-stream">
+                    <div class="os-card" data-os="centos/9-stream" onclick="window.selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #F0C30F;">C</div>
                       <strong style="font-size: 13px; display: block;">CentOS</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">9 Stream</span>
                     </div>
-                    <div class="os-card" data-os="windows/10">
+                    <div class="os-card" data-os="windows/10" onclick="window.selectOSCard(this)">
                       <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px; color: #0078D4;">W</div>
                       <strong style="font-size: 13px; display: block;">Windows</strong>
                       <span style="font-size: 10px; color: var(--color-text-muted);">10 Pro</span>
@@ -1302,6 +1302,6 @@
   
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/admin.js') }}?v=1.0.2"></script>
 </body>
 </html>
