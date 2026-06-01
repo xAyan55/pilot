@@ -13,8 +13,8 @@ echo "=========================================================="
 echo "[*] Updating apt package lists..."
 sudo apt update -y
 
-echo "[*] Installing system dependencies (Python, Git, LXC bridging)..."
-sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap
+echo "[*] Installing system dependencies (Python, Git, LXC bridging, SSH, Curl)..."
+sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
 
 echo "[*] Installing LXD snap..."
 sudo snap install lxd
