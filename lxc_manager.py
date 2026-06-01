@@ -53,6 +53,45 @@ class LXCManager:
             return 'Pending'
 
     @classmethod
+    def _resolve_windows_image(cls):
+        """Auto-detects any local image matching Windows in the aliases list."""
+        if IS_MOCK_LXC:
+            return "windows/10"
+        try:
+            out = cls._run(['lxc', 'image', 'list', '--format=json'])
+            if out:
+                images = json.loads(out)
+                # 1. Exact matches in aliases list
+                for img in images:
+                    aliases = img.get('aliases', [])
+                    for alias in aliases:
+                        name = alias.get('name', '').lower()
+                        if name in ['windows/10', 'win10', 'windows-10', 'windows10']:
+                            return alias.get('name')
+                
+                # 2. Broad checks on aliases containing windows/win10
+                for img in images:
+                    aliases = img.get('aliases', [])
+                    for alias in aliases:
+                        name = alias.get('name', '').lower()
+                        if 'windows' in name or 'win10' in name:
+                            return alias.get('name')
+                            
+                # 3. Property check (os=windows)
+                for img in images:
+                    properties = img.get('properties', {})
+                    os_prop = str(properties.get('os', '')).lower()
+                    if 'windows' in os_prop or 'win' in os_prop:
+                        aliases = img.get('aliases', [])
+                        if aliases:
+                            return aliases[0].get('name')
+                        return img.get('fingerprint')
+        except Exception as e:
+            print(f"[WARNING] Failed to query local image list for Windows: {e}")
+        
+        return "windows/10"
+
+    @classmethod
     def deploy_container(cls, name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback=None):
         """Launches a real LXC container and configures resource limits."""
         if IS_MOCK_LXC:
@@ -75,8 +114,8 @@ class LXCManager:
         if os_image.startswith('ubuntu/'):
             image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
         elif 'windows' in os_image.lower():
-            # Windows images are custom/local, do not prepend 'images:' remote prefix
-            image_source = os_image
+            # Auto-detect local custom Windows VM image alias/fingerprint
+            image_source = cls._resolve_windows_image()
         else:
             image_source = f"images:{os_image}"
 
