@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/root/lxc
-ExecStart=/root/lxc/venv/bin/python app.py
+WorkingDirectory=/var/www/lxc
+ExecStart=/var/www/lxc/venv/bin/python app.py
 Restart=always
 RestartSec=5
-Environment=PATH=/root/lxc/venv/bin:/usr/bin:/bin
+Environment=PATH=/var/www/lxc/venv/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 
 [Install]

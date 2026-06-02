@@ -1208,7 +1208,7 @@ def admin_vps_deploy_stream():
         except WindowsImageNotFoundError as e:
             yield f"data: [ERROR] Windows image not available: {str(e)}\n\n"
             yield "data: [ERROR] To deploy Windows VPS, you must first import a Windows disk image into LXD.\n\n"
-            yield "data: [ERROR] Run on your server: bash /root/lxc/setup_windows_image.sh\n\n"
+            yield "data: [ERROR] Run on your server: bash /var/www/lxc/setup_windows_image.sh\n\n"
         except Exception as e:
             yield f"data: [ERROR] Deployment failed: {str(e)}\n\n"
             try:

@@ -3,7 +3,7 @@
 set -e
 
 # Define variables
-INSTALL_DIR="/root/lxc"
+INSTALL_DIR="/var/www/lxc"
 REPO_URL="https://github.com/xAyan55/lxc.git"
 
 echo "=========================================================="
@@ -47,12 +47,14 @@ if [ "$USER" != "root" ]; then
 fi
 
 echo "[*] Cloning repository to $INSTALL_DIR..."
+sudo mkdir -p /var/www
 if [ -d "$INSTALL_DIR" ]; then
     echo "[!] Directory $INSTALL_DIR already exists. Pulling latest..."
+    sudo chown -R "$USER":"$USER" "$INSTALL_DIR" 2>/dev/null || sudo chown -R root:root "$INSTALL_DIR"
     cd "$INSTALL_DIR"
     git pull origin main
 else
-    git clone "$REPO_URL" "$INSTALL_DIR"
+    sudo git clone "$REPO_URL" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 fi
 

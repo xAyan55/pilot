@@ -105,7 +105,7 @@ class LXCManager:
         raise WindowsImageNotFoundError(
             "No Windows VM image found in LXD. Windows images are not available on standard LXD remotes. "
             "You must import a Windows image manually before deploying Windows VPS instances. "
-            "Run: bash /root/lxc/setup_windows_image.sh  (or see install.sh for instructions)"
+            "Run: bash /var/www/lxc/setup_windows_image.sh  (or see install.sh for instructions)"
         )
 
     @classmethod
