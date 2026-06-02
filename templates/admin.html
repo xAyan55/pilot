@@ -26,7 +26,7 @@
 
     .theme-preset-card {
       position: relative;
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       padding: 12px;
       border-radius: var(--radius-md);
       cursor: pointer;
@@ -34,44 +34,39 @@
       flex-direction: column;
       gap: 8px;
       transition: var(--transition-smooth);
-      background: rgba(255, 255, 255, 0.02);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      background: var(--color-white);
+      box-shadow: 2.5px 2.5px 0px var(--color-border);
     }
 
     .theme-preset-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-      border-color: rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.04);
+      transform: translate(-1px, -1px);
+      box-shadow: 3.5px 3.5px 0px var(--color-border);
     }
 
     .theme-preset-card.active {
-      border-color: var(--color-accent);
-      background: rgba(255, 255, 255, 0.05);
-      box-shadow: 0 0 15px rgba(171, 231, 178, 0.2);
+      border-color: var(--color-border);
+      background: var(--color-white);
+      box-shadow: 4px 4px 0px var(--color-accent);
     }
 
     /* Custom OS cards selector */
     .os-card {
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       border-radius: var(--radius-md);
       padding: 12px;
       cursor: pointer;
       text-align: center;
-      background: rgba(255, 255, 255, 0.02);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      background: var(--color-white);
+      box-shadow: 2px 2px 0px var(--color-border);
       transition: var(--transition-smooth);
     }
     .os-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-      border-color: rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.04);
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0px var(--color-border);
     }
     .os-card.active {
-      background-color: rgba(171, 231, 178, 0.08);
-      border-color: var(--color-accent);
-      box-shadow: 0 0 15px rgba(171, 231, 178, 0.2);
+      background-color: var(--color-primary);
+      box-shadow: 4px 4px 0px var(--color-accent);
     }
 
     /* Provisioning Stepper Styles */
@@ -79,11 +74,11 @@
       display: flex;
       justify-content: space-between;
       margin-bottom: 24px;
-      background: rgba(22, 28, 45, 0.4);
-      border: 1px solid var(--color-border);
+      background: var(--color-primary);
+      border: 2px solid var(--color-border);
       padding: 16px;
       border-radius: var(--radius-md);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      box-shadow: 2.5px 2.5px 0px var(--color-border);
     }
     .step-item {
       display: flex;
@@ -99,7 +94,7 @@
       left: calc(50% + 15px);
       right: calc(-50% + 15px);
       height: 2px;
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: var(--color-border-light);
       z-index: 1;
     }
     .step-item.completed:not(:last-child)::after {
@@ -108,46 +103,43 @@
     .step-icon-badge {
       width: 32px;
       height: 32px;
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--color-white);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: bold;
       font-size: 13px;
-      color: var(--color-text-main);
       z-index: 2;
       transition: var(--transition-smooth);
     }
     .step-item.pending .step-icon-badge {
       color: var(--color-text-muted);
-      border-color: rgba(255, 255, 255, 0.1);
+      border-color: var(--color-border-light);
     }
     .step-item.active .step-icon-badge {
       background-color: var(--color-accent);
-      color: var(--color-primary-text);
-      box-shadow: 0 0 15px rgba(171, 231, 178, 0.35);
+      color: var(--color-text-main);
+      box-shadow: 0 0 0 4px var(--color-secondary);
       animation: stepPulse 1.5s infinite;
     }
     .step-item.completed .step-icon-badge {
       background-color: var(--color-success);
-      color: #fff;
-      border-color: var(--color-success);
+      color: var(--color-white);
+      border-color: var(--color-border);
     }
     .step-label {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       margin-top: 8px;
       text-align: center;
-      color: var(--color-text-muted);
     }
     .step-item.pending .step-label {
       color: var(--color-text-muted);
     }
     .step-item.active .step-label {
       color: var(--color-text-main);
-      font-weight: 700;
     }
     .step-item.completed .step-label {
       color: var(--color-text-main);
@@ -161,14 +153,14 @@
 
     /* Terminal Mockup Styles */
     .terminal-mockup {
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       border-radius: var(--radius-md);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      box-shadow: 4px 4px 0px var(--color-border);
       overflow: hidden;
     }
     .terminal-header {
-      background-color: rgba(22, 28, 45, 0.85);
-      border-bottom: 1px solid var(--color-border);
+      background-color: #e2e8f0;
+      border-bottom: 2px solid var(--color-border);
       display: flex;
       align-items: center;
       padding: 10px 14px;
