@@ -159,6 +159,9 @@ def make_node_request(node, endpoint, method='POST', data=None):
     import urllib.parse
     import json
     
+    if not node['fqdn'] or node['fqdn'] == 'dynamic':
+        return {"message": "Node has no FQDN set (not registered yet)"}, 502
+    
     scheme = "https" if node['port'] in (443, 8443) else "http"
     url = f"{scheme}://{node['fqdn']}:{node['port']}{endpoint}"
     headers = {
@@ -532,8 +535,10 @@ def client_vps_action(vps_id):
                 return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
         else:
             LXCManager.execute_action(vps_row['container_name'], action)
-            if action in ['start', 'restart']:
-                threading.Thread(target=LXCManager.ensure_pinggy_tunnel_setup, args=(vps_row['container_name'],)).start()
+            if action in ['start', 'restart', 'resume']:
+                setup_local_port_forward(vps_row['container_name'], vps_id)
+            elif action in ['stop', 'suspend']:
+                remove_local_port_forward(vps_row['container_name'])
 
         new_status = 'running' if action in ['start', 'restart', 'resume'] else ('stopped' if action == 'stop' else 'suspended')
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
@@ -1190,10 +1195,14 @@ def admin_vps_deploy_stream():
             settings = {row['key']: row['value'] for row in cursor.fetchall()}
             site_name_val = settings.get('site_name', 'MintyHost LXC')
 
-            # Execute post-deployment environment setup (packages and Pinggy SSH tunnel)
-            yield "data: [INFO] Initiating background installation of standard packages and tunnel client...\n\n"
+            # Set up port forwarding for local node containers
+            if node_id == 1:
+                setup_local_port_forward(container_name, vps_id)
 
-            # Spawn background thread to execute setup (packages & Pinggy tunnel) and send Discord notification
+            # Execute post-deployment environment setup (packages and port forwarding)
+            yield "data: [INFO] Initiating background installation of standard packages...\n\n"
+
+            # Spawn background thread to execute setup and send Discord notification
             threading.Thread(
                 target=discord_notify.run_post_deploy_and_notify,
                 args=(container_name, vps_id, root_pw, site_name_val, node_id, node if node_id != 1 else None, discord_user_id, panel_url)
@@ -1252,6 +1261,10 @@ def admin_vps_suspend(vps_id):
                 return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
         else:
             LXCManager.execute_action(vps['container_name'], action)
+            if not suspend:
+                setup_local_port_forward(vps['container_name'], vps_id)
+            else:
+                remove_local_port_forward(vps['container_name'])
 
         new_status = 'suspended' if suspend else 'running'
         cursor.execute("UPDATE vps SET status = ? WHERE id = ?", (new_status, vps_id))
@@ -1291,8 +1304,9 @@ def admin_delete_vps(vps_id):
                 conn.close()
                 return jsonify({"message": f"Remote node error: {res.get('message', '')}"}), code
         else:
+            remove_local_port_forward(vps['container_name'])
             LXCManager.destroy_container(vps['container_name'])
-            
+
         cursor.execute("DELETE FROM vps WHERE id = ?", (vps_id,))
         conn.commit()
 
@@ -2433,9 +2447,25 @@ panel_url: "{panel_url}"
 
     install_cmd = f"curl -sSL {request.host_url}node.sh | NODE_PORT={node['port']} NODE_API_KEY=\"{node['api_key']}\" NODE_ID={node['id']} NODE_NAME=\"{node['name']}\" PANEL_URL=\"{panel_url}\" bash"
 
+    ws_cmd = f"""# ── Cloudflare Tunnel Node Setup ─────────────────────────
+# This command registers this machine as a remote node.
+# The panel communicates via WebSocket through Cloudflare.
+#
+# Requirements:
+#   1. Panel must be accessible via Cloudflare Tunnel at: {panel_url}
+#   2. Cloudflare Tunnel config on panel host:
+#        service: https
+#        url: localhost:443
+#        no-tls-verify: true
+#
+# Run on the node:
+{install_cmd}
+# ────────────────────────────────────────────────────────────"""
+
     return jsonify({
         "config_yaml": config_yaml,
-        "install_cmd": install_cmd
+        "install_cmd": install_cmd,
+        "cloudflare_instructions": ws_cmd
     })
 
 @app.route('/api/nodes/register_tunnel', methods=['POST'])
@@ -2610,14 +2640,182 @@ def admin_list_all_keys():
     return jsonify(keys)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Cloudflare Tunnel Port Forwarding for Local Node Containers
+# ─────────────────────────────────────────────────────────────────────────────
+
+LOCAL_PORT_LOCK = threading.Lock()
+LOCAL_PORT_RANGE = range(22000, 22999)
+_local_port_allocations = {}
+
+def _local_get_container_ip(name):
+    from lxc_manager import LXCManager
+    return LXCManager.get_container_ip(name)
+
+def setup_local_port_forward(name, vps_id=None):
+    from lxc_manager import IS_MOCK_LXC
+    if IS_MOCK_LXC:
+        return None
+    ip = _local_get_container_ip(name)
+    if not ip or ip in ('N/A', 'Pending'):
+        return None
+    with LOCAL_PORT_LOCK:
+        if name in _local_port_allocations:
+            port = _local_port_allocations[name]
+        else:
+            used = set(_local_port_allocations.values())
+            for p in LOCAL_PORT_RANGE:
+                if p not in used:
+                    port = p
+                    _local_port_allocations[name] = port
+                    break
+            else:
+                port = 40000 + (vps_id or 0)
+                _local_port_allocations[name] = port
+    try:
+        import subprocess
+        subprocess.run(
+            ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:22'],
+            capture_output=True, timeout=5, check=False
+        )
+        subprocess.run(
+            ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:22'],
+            capture_output=True, timeout=5, check=False
+        )
+        subprocess.run(
+            ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', '22', '-j', 'ACCEPT'],
+            capture_output=True, timeout=5, check=False
+        )
+        print(f"[PORT] Local forward set: :{port} -> {ip}:22 ({name})")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE vps SET tunnel_host = ?, tunnel_port = ? WHERE id = ?",
+                       ('0.0.0.0', port, vps_id))
+        conn.commit()
+        conn.close()
+        return port
+    except Exception as e:
+        print(f"[!] Failed local port forward for {name}: {e}")
+        return None
+
+def remove_local_port_forward(name):
+    with LOCAL_PORT_LOCK:
+        port = _local_port_allocations.pop(name, None)
+    if port:
+        try:
+            import subprocess
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-D', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', ':22'],
+                capture_output=True, timeout=5, check=False
+            )
+        except Exception:
+            pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Node Daemon WebSocket Namespace (Cloudflare Tunnel connectivity)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NodeSocketNamespace(socketio.Namespace):
+    def __init__(self, namespace):
+        super().__init__(namespace)
+        self.connected_nodes = {}
+
+    def on_connect(self):
+        print(f"[WS/Node] New connection attempt")
+
+    def on_node_auth(self, data):
+        node_id = data.get('node_id')
+        api_key = data.get('api_key')
+        if not node_id or not api_key:
+            self.emit('node_authenticated', {'status': 'error', 'message': 'Missing credentials'})
+            return
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
+        node = cursor.fetchone()
+        if node and node['api_key'] == api_key:
+            self.connected_nodes[node_id] = {
+                'sid': request.sid,
+                'node': dict(node),
+                'public_ip': data.get('public_ip'),
+                'name': data.get('name'),
+                'daemon_port': data.get('daemon_port', 5001),
+                'version': data.get('version', '1.0'),
+                'connected_at': time.time(),
+                'last_heartbeat': time.time()
+            }
+            public_ip = data.get('public_ip')
+            if public_ip:
+                cursor.execute(
+                    "UPDATE nodes SET fqdn = ?, status = 'online', port = ? WHERE id = ?",
+                    (public_ip, data.get('daemon_port', 5001), node_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE nodes SET status = 'online' WHERE id = ?",
+                    (node_id,)
+                )
+            conn.commit()
+            conn.close()
+            self.emit('node_authenticated', {'status': 'success', 'node_id': node_id})
+            print(f"[WS/Node] Node {node_id} ({node['name']}) authenticated via WebSocket")
+        else:
+            conn.close()
+            self.emit('node_authenticated', {'status': 'error', 'message': 'Invalid API key'})
+
+    def on_node_heartbeat(self, data):
+        node_id = data.get('node_id')
+        if node_id in self.connected_nodes:
+            self.connected_nodes[node_id]['last_heartbeat'] = time.time()
+
+    def on_container_stats(self, data):
+        node_id = data.get('node_id')
+        cname = data.get('container_name')
+        stats = data.get('stats')
+        if node_id in self.connected_nodes:
+            self.connected_nodes[node_id].setdefault('container_stats', {})[cname] = {
+                'stats': stats,
+                'time': time.time()
+            }
+
+    def on_node_task_result(self, data):
+        task_id = data.get('task_id')
+        result = data.get('result')
+        print(f"[WS/Node] Task {task_id} result: {result.get('message', 'ok')}")
+
+    def on_disconnect(self):
+        disconnected = []
+        for node_id, info in list(self.connected_nodes.items()):
+            if info.get('sid') == request.sid:
+                disconnected.append(node_id)
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE nodes SET status = 'offline' WHERE id = ?", (node_id,))
+                conn.commit()
+                conn.close()
+                del self.connected_nodes[node_id]
+                print(f"[WS/Node] Node {node_id} ({info.get('name')}) disconnected")
+        if not disconnected:
+            print(f"[WS/Node] Unknown client disconnected")
+
+
+# Register the node namespace
+socketio.on_namespace(NodeSocketNamespace('/ws/node'))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Application Entry Point
+# ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == '__main__':
     import os
     if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         try:
-            from pinggy_monitor import start_monitor
+            from tunnel_monitor import start_monitor
             start_monitor()
         except Exception as e:
-            print(f"[WARNING] Failed to start Pinggy background monitor: {e}")
-            
+            print(f"[WARNING] Failed to start tunnel monitor: {e}")
+
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 

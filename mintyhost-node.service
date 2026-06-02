@@ -1,0 +1,16 @@
+[Unit]
+Description=MintyHost LXC Node Daemon (Cloudflare Native)
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/www/lxc
+ExecStart=/var/www/lxc/venv/bin/python daemon.py
+Restart=always
+RestartSec=5
+Environment=PATH=/var/www/lxc/venv/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=LC_ALL=C
+
+[Install]
+WantedBy=multi-user.target

@@ -182,7 +182,7 @@ def _internal_make_node_request(node, endpoint, method='POST', data=None):
         return {"message": str(e)}, 500
 
 def run_post_deploy_and_notify(container_name, vps_id, root_pw, site_name_val, node_id, node, discord_user_id, panel_url):
-    """Background worker function executing post-deploy packages setup, Pinggy SSH tunnel launch, and credentials DM delivery."""
+    """Background worker function executing post-deploy packages setup, port forward allocation, and credentials DM delivery."""
     try:
         # 1. Run post-deployment configuration on target hypervisor node
         if node_id != 1:
@@ -200,12 +200,12 @@ def run_post_deploy_and_notify(container_name, vps_id, root_pw, site_name_val, n
                 site_name=site_name_val
             )
             
-        # 2. If Discord DM is requested, poll host for IP and dynamic Pinggy tunnel URL
+        # 2. If Discord DM is requested, poll host for IP and tunnel URL
         if discord_user_id:
             ip_address = 'Pending'
             tunnel_url = None
             
-            # Poll for up to 30 seconds (15 cycles * 2s) to wait for Pinggy initialization
+            # Poll for up to 30 seconds (15 cycles * 2s) to wait for tunnel/post-deploy to finish
             for _ in range(15):
                 time.sleep(2)
                 if node_id != 1:

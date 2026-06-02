@@ -308,8 +308,6 @@ def vps_action(vps_id):
                 return jsonify(res), code
         else:
             LXCManager.execute_action(vps['container_name'], action)
-            if action in ('start', 'restart'):
-                threading.Thread(target=LXCManager.ensure_pinggy_tunnel_setup, args=(vps['container_name'],)).start()
         new_status = 'running' if action in ('start', 'restart') else 'stopped'
         conn = get_db_connection()
         cursor = conn.cursor()

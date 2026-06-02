@@ -1,19 +1,21 @@
 #!/bin/bash
-# MintyHost LXC Node Daemon - Ubuntu 1-Click Installation Script
+# MintyHost LXC Node Daemon - Cloudflare Native Installation Script
+# Node connects to the panel via WebSocket through Cloudflare Tunnel.
 set -e
 
-INSTALL_DIR="/root/lxc-node"
+INSTALL_DIR="/var/www/lxc"
 REPO_URL="https://github.com/xAyan55/lxc.git"
 
 echo "=========================================================="
 echo " Starting MintyHost LXC Node Daemon Installation"
+echo " (Cloudflare Native Mode)"
 echo "=========================================================="
 
 echo "[*] Updating apt package lists..."
 sudo apt update -y
 
-echo "[*] Installing system dependencies (Python, Git, LXC bridging, SSH client)..."
-sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
+echo "[*] Installing system dependencies..."
+sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl iptables
 
 echo "[*] Installing LXD snap..."
 sudo snap install lxd
@@ -25,22 +27,34 @@ if ! sudo lxd init --auto; then
     sudo lxd init --auto
 fi
 
+sudo /snap/bin/lxc profile device add default eth0 nic network=lxdbr0 name=eth0 || true
+
+echo "[*] Configuring firewall forwarding rules..."
+sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT || true
+sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT || true
+sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE || true
+if command -v ufw >/dev/null; then
+    sudo ufw route allow in on lxdbr0 || true
+    sudo ufw route allow out on lxdbr0 || true
+fi
+
 echo "[*] Setting active community images remote URL..."
 sudo /snap/bin/lxc remote set-url images https://images.lxd.canonical.com/ || true
 
-# If running as non-root user, ensure they belong to the lxd group
 if [ "$USER" != "root" ]; then
     echo "[*] Adding user $USER to the 'lxd' group..."
     sudo usermod -aG lxd $USER
 fi
 
 echo "[*] Cloning repository to $INSTALL_DIR..."
+sudo mkdir -p /var/www
 if [ -d "$INSTALL_DIR" ]; then
     echo "[!] Directory $INSTALL_DIR already exists. Pulling latest..."
+    sudo chown -R "$USER":"$USER" "$INSTALL_DIR" 2>/dev/null || true
     cd "$INSTALL_DIR"
     git pull origin main
 else
-    git clone "$REPO_URL" "$INSTALL_DIR"
+    sudo git clone "$REPO_URL" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 fi
 
@@ -51,9 +65,9 @@ source venv/bin/activate
 echo "[*] Installing Python packages..."
 pip install --upgrade pip
 pip install -r requirements.txt
+deactivate
 
 # Read config from environment variables passed during curl execution
-# If running interactively, prompt the user for missing details
 if [ -z "$NODE_ID" ] || [ "$NODE_ID" = "0" ]; then
     read -p "Enter Node ID (e.g. 2): " NODE_ID < /dev/tty
 fi
@@ -63,13 +77,12 @@ if [ -z "$NODE_API_KEY" ] || [ "$NODE_API_KEY" = "default-node-key" ]; then
 fi
 
 if [ -z "$PANEL_URL" ]; then
-    read -p "Enter Panel URL (e.g., http://panel-ip:5000): " PANEL_URL < /dev/tty
+    read -p "Enter Panel URL (e.g., https://panel.yourdomain.com): " PANEL_URL < /dev/tty
 fi
 
 NODE_PORT=${NODE_PORT:-5001}
 NODE_NAME=${NODE_NAME:-"Remote Node"}
 
-# Clean panel_url trailing slash
 PANEL_URL=$(echo "$PANEL_URL" | sed 's/\/$//')
 
 echo "[*] Writing configuration file config.yml..."
@@ -82,9 +95,9 @@ panel_url: "$PANEL_URL"
 EOF
 
 echo "[*] Creating systemd service file..."
-sudo cat <<EOF > /etc/systemd/system/mintyhost-node.service
+sudo bash -c "cat > /etc/systemd/system/mintyhost-node.service" <<SERVICEEOF
 [Unit]
-Description=MintyHost LXC Node Daemon
+Description=MintyHost LXC Node Daemon (Cloudflare Native)
 After=network.target
 
 [Service]
@@ -95,10 +108,11 @@ Restart=always
 RestartSec=5
 Environment=PATH=$INSTALL_DIR/venv/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
+Environment=LC_ALL=C
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SERVICEEOF
 
 echo "[*] Starting systemd service..."
 sudo systemctl daemon-reload
@@ -107,7 +121,16 @@ sudo systemctl restart mintyhost-node.service
 
 echo "=========================================================="
 echo " Node Installation Complete!"
-echo " The daemon is now running under systemd (port $NODE_PORT)."
-echo " Check status with: systemctl status mintyhost-node.service"
+echo ""
+echo " The daemon will now connect to: $PANEL_URL"
+echo " via WebSocket through Cloudflare Tunnel."
+echo ""
+echo " Container SSH Access:"
+echo "   Each container gets a forwarded port on this node's IP"
+echo "   (range 22000-22999). Connect via:"
+echo "   ssh root@<NODE_PUBLIC_IP> -p <FORWARDED_PORT>"
+echo ""
+echo " Check status: systemctl status mintyhost-node.service"
+echo " View logs:    journalctl -u mintyhost-node.service -f"
 echo "=========================================================="
 sudo systemctl status mintyhost-node.service

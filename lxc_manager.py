@@ -181,86 +181,17 @@ class LXCManager:
         cls.deploy_container(name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback)
 
     @classmethod
-    def ensure_pinggy_tunnel_setup(cls, name):
-        """Ensures that the Pinggy SSH tunnel script and systemd service are configured and running in the container."""
-        if IS_MOCK_LXC:
-            return True
-
-        import base64
-
-        # 1. Write the bash wrapper script that starts the ssh tunnel and parses host/port
-        pinggy_script_content = """#!/bin/bash
-rm -f /var/run/pinggy_host /var/run/pinggy_port /var/run/pinggy.log
-
-while true; do
-    echo "[PINGGY] Starting SSH tunnel..." >> /var/run/pinggy.log
-    
-    # Start SSH tunnel to Pinggy (no TTY, bypass prompts)
-    ssh -T -p 443 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -R0:127.0.0.1:22 tcp@free.pinggy.io > /var/run/pinggy.log 2>&1 &
-    SSH_PID=$!
-    
-    # Monitor log to extract public hostname and port
-    for i in {1..60}; do
-        if ! kill -0 $SSH_PID 2>/dev/null; then
-            break
-        fi
-        if grep -o "tcp://[a-zA-Z0-9.-]*:[0-9]\\+" /var/run/pinggy.log > /dev/null; then
-            ADDR=$(grep -o "tcp://[a-zA-Z0-9.-]*:[0-9]\\+" /var/run/pinggy.log | head -n 1)
-            ADDR_STR=${ADDR#tcp://}
-            HOST=${ADDR_STR%:*}
-            PORT=${ADDR_STR##*:}
-            echo "$HOST" > /var/run/pinggy_host
-            echo "$PORT" > /var/run/pinggy_port
-            echo "[PINGGY] Tunnel established on $HOST:$PORT" >> /var/run/pinggy.log
-            break
-        fi
-        sleep 0.5
-    done
-    
-    # Wait for SSH process to exit
-    wait $SSH_PID
-    
-    # Cleanup files and wait before restarting
-    rm -f /var/run/pinggy_host /var/run/pinggy_port
-    echo "[PINGGY] Tunnel closed. Restarting in 5s..." >> /var/run/pinggy.log
-    sleep 5
-done
-"""
-        encoded_script = base64.b64encode(pinggy_script_content.encode('utf-8')).decode('utf-8')
-        
-        # 2. Write the systemd service file
-        pinggy_service_content = """[Unit]
-Description=Pinggy SSH Tunnel
-After=network.target
-
-[Service]
-ExecStart=/bin/bash /usr/local/bin/pinggy-tunnel.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target"""
-        encoded_service = base64.b64encode(pinggy_service_content.encode('utf-8')).decode('utf-8')
-
-        try:
-            # Clean up old bore and ssh-relay services if running
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl stop bore || true; systemctl disable bore || true; systemctl stop ssh-tunnel || true; systemctl disable ssh-tunnel || true"], check=False)
-            # Create script inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_script} | base64 -d > /usr/local/bin/pinggy-tunnel.sh && chmod +x /usr/local/bin/pinggy-tunnel.sh"])
-            # Create service inside container
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f"echo {encoded_service} | base64 -d > /etc/systemd/system/pinggy.service"])
-            # Reload daemon and enable/start service
-            cls._run(['lxc', 'exec', name, '--', 'bash', '-c', "systemctl daemon-reload && systemctl enable pinggy && (systemctl restart pinggy || systemctl start pinggy)"])
-        except Exception as e:
-            print(f"[WARNING] Failed to ensure Pinggy setup on container {name}: {e}")
-            return False
+    def ensure_ssh_port_forward(cls, name, vps_id=None):
+        """No-op: port forwarding is managed by the daemon via iptables.
+        This method exists only for backward compatibility."""
         return True
 
     @classmethod
     def post_deploy_setup(cls, name, vps_id, root_password, site_name=None, log_callback=None,
                           ssh_relay_enabled=None, ssh_relay_host=None, ssh_relay_port=None,
                           ssh_relay_user=None, ssh_relay_password=None, tunnel_port=None):
-        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access, and configures the tunnel (SSH or Bore)."""
+        """Pre-installs curl, sudo, git, wget, htop, openssh-server, configures SSH root access.
+        Port forwarding is managed by the daemon via iptables — no Pinggy/Bore/SSH-relay needed."""
         is_windows = False
         if vps_id:
             try:
@@ -289,12 +220,9 @@ WantedBy=multi-user.target"""
         motd_content = f"""
 =====================================================================
  Welcome to {site_name}!
- 
- If this feels laggy, use the built-in terminal.
+ Access your server via SSH on the forwarded port shown in the panel.
 =====================================================================
 """
-
-        is_relay = (ssh_relay_enabled == '1' or ssh_relay_enabled is True or ssh_relay_enabled == 'true')
 
         steps = [
             ('Updating container package repositories...',
@@ -324,31 +252,16 @@ WantedBy=multi-user.target"""
              )]),
         ]
 
-        if is_relay:
-            steps.append(
-                ('Installing sshpass utility for SSH Relay...',
-                 ['lxc', 'exec', name, '--', 'apt-get', 'install', '-y', 'sshpass'])
-            )
-        else:
-            steps.append(
-                ('Downloading and installing Bore TCP tunneling client...',
-                 ['lxc', 'exec', name, '--', 'bash', '-c', "curl -Ls https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin"])
-            )
-
         for desc, cmd in steps:
             if log_callback:
                 log_callback(f'[INFO] {desc}')
             try:
                 cls._run(cmd)
             except Exception as e:
-                # Log warning but do not crash the deployment flow if post-install fails
                 print(f'[WARNING] post_deploy_setup step failed: {desc}. Error: {e}')
                 if log_callback:
                     log_callback(f'[WARNING] {desc} failed: {str(e)}')
 
-        if log_callback:
-            log_callback('[INFO] Setting up Pinggy SSH Tunnel Relay service...')
-        cls.ensure_pinggy_tunnel_setup(name)
         return True
 
     @classmethod
@@ -529,16 +442,21 @@ WantedBy=multi-user.target"""
 
         ip_addr = cls.get_container_ip(name)
 
-        # Get dynamic Pinggy tunnel host and port if it exists
+        # Port forwarding is managed by the daemon via iptables.
+        # tunnel_host and tunnel_port will be populated from the daemon's _allocated_ports
+        # or from the vps row in the database.
         tunnel_host = None
         tunnel_port = None
-        if not IS_MOCK_LXC and status == 'running':
+        if not IS_MOCK_LXC:
+            import json as _json
             try:
-                host_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/pinggy_host'], check=False).strip()
-                port_out = cls._run(['lxc', 'exec', name, '--', 'cat', '/var/run/pinggy_port'], check=False).strip()
-                if host_out and port_out.isdigit():
-                    tunnel_host = host_out
-                    tunnel_port = int(port_out)
+                daemon_port_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json')
+                if os.path.exists(daemon_port_path):
+                    with open(daemon_port_path) as _f:
+                        _forwards = _json.load(_f)
+                    if name in _forwards:
+                        tunnel_port = _forwards[name]
+                        tunnel_host = '0.0.0.0'
             except Exception:
                 pass
 
