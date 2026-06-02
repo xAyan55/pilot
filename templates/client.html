@@ -510,7 +510,7 @@
               <div class="db-block-header">
                 <h3>Reinstall OS (Full Format)</h3>
               </div>
-              <div style="background-color: #fff9f0; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: var(--radius-sm); font-size: 13px; color: #78350f; display: flex; gap: 10px; align-items: start;">
+              <div style="background-color: rgba(245, 158, 11, 0.08); border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: var(--radius-sm); font-size: 13px; color: #fef3c7; display: flex; gap: 10px; align-items: start;">
                 <i data-lucide="alert-triangle" style="width: 20px; height: 20px; flex-shrink: 0;"></i>
                 <div>
                   <strong>WARNING:</strong> Reinstalling deletes the container root device permanently. Make sure to back up or download crucial configurations before triggering.
@@ -589,7 +589,7 @@
                   <div class="form-group" style="text-align: center; margin-bottom: 24px;">
                     <label style="display: block; margin-bottom: 12px; font-weight: 700;">Profile Picture</label>
                     <div style="display: inline-flex; position: relative; margin: 0 auto;">
-                      <div class="profile-pfp-container" style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--color-border); overflow: hidden; background-color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: #0f172a; box-shadow: 4px 4px 0px var(--color-border);">
+                      <div class="profile-pfp-container" style="width: 100px; height: 100px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.15); overflow: hidden; background-color: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: var(--color-accent); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);">
                         {% if session.get('pfp') %}
                           <img id="profilePfpImage" src="{{ session.get('pfp') }}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">
                         {% else %}
@@ -597,7 +597,7 @@
                         {% endif %}
                       </div>
                       <input type="file" id="profilePfpInput" accept="image/*" style="display: none;" onchange="previewProfilePfp(this)">
-                      <button type="button" class="btn btn-outline btn-small" style="position: absolute; bottom: 0; right: -10px; padding: 4px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px var(--color-border);" onclick="document.getElementById('profilePfpInput').click()">
+                      <button type="button" class="btn btn-outline btn-small" style="position: absolute; bottom: 0; right: -10px; padding: 0; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" onclick="document.getElementById('profilePfpInput').click()">
                         <i data-lucide="camera" style="width: 14px; height: 14px;"></i>
                       </button>
                     </div>

@@ -1426,10 +1426,10 @@ async function loadAdminUsers() {
           <button class="btn btn-outline action-btn-small" onclick="openUserEditModal(${user.id})" style="margin-right: 6px;" title="Edit Account">
             <i data-lucide="edit" style="width: 13px; height: 13px;"></i> Edit
           </button>
-          <button class="btn btn-outline action-btn-small" onclick="suspendUserVPS(${user.id})" style="margin-right: 6px; background-color: #fff9f0; border-color: #f59e0b; color: #78350f;" title="Suspend All instances">
+          <button class="btn btn-outline action-btn-small" onclick="suspendUserVPS(${user.id})" style="margin-right: 6px; background-color: rgba(245, 158, 11, 0.12); border-color: #d97706; color: #fef3c7;" title="Suspend All instances">
             <i data-lucide="shield-alert" style="width: 13px; height: 13px;"></i> Suspend All
           </button>
-          <button class="btn btn-outline action-btn-small" onclick="deleteUser(${user.id}, '${user.username}')" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;" title="Delete User">
+          <button class="btn btn-outline action-btn-small" onclick="deleteUser(${user.id}, '${user.username}')" style="background-color: rgba(239, 68, 68, 0.12); border-color: #ef4444; color: #fee2e2;" title="Delete User">
             <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i> Delete
           </button>
         </td>

@@ -816,10 +816,35 @@ function initResourceChart() {
   const canvas = document.getElementById('resourceChart');
   if (!canvas) return;
 
-  const colorCool = getComputedStyle(document.documentElement).getPropertyValue('--color-cool').trim() || '#93BFC7';
-  const colorAccent = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#ABE7B2';
+  const style = getComputedStyle(document.documentElement);
+  const colorCool = style.getPropertyValue('--color-cool').trim() || '#93BFC7';
+  const colorAccent = style.getPropertyValue('--color-accent').trim() || '#ABE7B2';
+  const fontBody = style.getPropertyValue('--font-body').trim() || 'Inter';
 
-  resourceChart = new Chart(canvas.getContext('2d'), {
+  // Helper for alpha hex parsing
+  const hexToRgbStr = (hex, alpha) => {
+    let cleanHex = hex.replace('#', '').trim();
+    if (cleanHex.length === 3) {
+      cleanHex = cleanHex[0] + cleanHex[0] + cleanHex[1] + cleanHex[1] + cleanHex[2] + cleanHex[2];
+    }
+    const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+    const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+    const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const ctx = canvas.getContext('2d');
+  
+  // Custom Area Gradients
+  const cpuGrad = ctx.createLinearGradient(0, 0, 0, 200);
+  cpuGrad.addColorStop(0, hexToRgbStr(colorCool, 0.25));
+  cpuGrad.addColorStop(1, hexToRgbStr(colorCool, 0));
+
+  const ramGrad = ctx.createLinearGradient(0, 0, 0, 200);
+  ramGrad.addColorStop(0, hexToRgbStr(colorAccent, 0.25));
+  ramGrad.addColorStop(1, hexToRgbStr(colorAccent, 0));
+
+  resourceChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: ['10m ago', '9m ago', '8m ago', '7m ago', '6m ago', '5m ago', '4m ago', '3m ago', '2m ago', 'Just now'],
@@ -828,21 +853,29 @@ function initResourceChart() {
           label: 'CPU Usage (%)',
           data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           borderColor: colorCool,
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          tension: 0.3,
+          backgroundColor: cpuGrad,
+          borderWidth: 2.5,
+          tension: 0.35,
+          fill: true,
           pointBackgroundColor: colorCool,
-          pointRadius: 3
+          pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+          pointBorderWidth: 1,
+          pointRadius: 3.5,
+          pointHoverRadius: 5
         },
         {
           label: 'Memory Allocation (%)',
           data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           borderColor: colorAccent,
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          tension: 0.3,
+          backgroundColor: ramGrad,
+          borderWidth: 2.5,
+          tension: 0.35,
+          fill: true,
           pointBackgroundColor: colorAccent,
-          pointRadius: 3
+          pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+          pointBorderWidth: 1,
+          pointRadius: 3.5,
+          pointHoverRadius: 5
         }
       ]
     },
@@ -850,11 +883,31 @@ function initResourceChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 } } }
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#94a3b8',
+            font: { family: fontBody, size: 11, weight: '500' }
+          }
+        }
       },
       scales: {
-        y: { beginAtZero: true, max: 100, grid: { color: '#f0f4f1' }, ticks: { font: { family: 'Inter' } } },
-        x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } }
+        y: {
+          beginAtZero: true,
+          max: 100,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: fontBody, size: 10 }
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: fontBody, size: 10 }
+          }
+        }
       }
     }
   });
