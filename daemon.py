@@ -50,6 +50,58 @@ PORT_FORWARD_LOCK = threading.Lock()
 PORT_FORWARD_RANGE = range(22000, 22999)
 _allocated_ports = {}
 
+
+def _port_forwards_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json')
+
+
+def _load_port_forwards_from_disk():
+    path = _port_forwards_path()
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            for k, v in data.items():
+                try:
+                    _allocated_ports[k] = int(v)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[!] Failed to load port_forwards.json: {e}")
+
+
+def _reapply_port_forwards_from_disk():
+    """After load, re-create iptables DNAT rules from the persisted map."""
+    with PORT_FORWARD_LOCK:
+        for key, port in list(_allocated_ports.items()):
+            try:
+                name = key.split('__rdp', 1)[0] if key.endswith('__rdp') else key
+                container_ip = get_container_ip(name)
+                if not container_ip:
+                    continue
+                if key.endswith('__rdp'):
+                    dest_port = 3389
+                else:
+                    dest_port = 22
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp',
+                     '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{container_ip}:{dest_port}'],
+                    capture_output=True, timeout=5, check=False
+                )
+                subprocess.run(
+                    ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', container_ip,
+                     '--dport', str(dest_port), '-j', 'ACCEPT'],
+                    capture_output=True, timeout=5, check=False
+                )
+                print(f"[+] Re-applied port forward :{port} -> {container_ip}:{dest_port} ({name})")
+            except Exception as e:
+                print(f"[!] Failed to re-apply port forward for {key}: {e}")
+
+
+_load_port_forwards_from_disk()
+
 def require_api_key(f):
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
@@ -366,10 +418,15 @@ def setup_port_forward(name, vps_id):
                 port = 40000 + vps_id
                 _allocated_ports[name] = port
     try:
-        subprocess.run(
-            ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{container_ip}:22'],
+        check = subprocess.run(
+            ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{container_ip}:22'],
             capture_output=True, timeout=5, check=False
         )
+        if check.returncode != 0:
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{container_ip}:22'],
+                capture_output=True, timeout=5, check=False
+            )
         subprocess.run(
             ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', container_ip, '--dport', '22', '-j', 'ACCEPT'],
             capture_output=True, timeout=5, check=False
@@ -379,10 +436,15 @@ def setup_port_forward(name, vps_id):
             rdp_key = f"{name}__rdp"
             rdp_port = port + 1000
             _allocated_ports[rdp_key] = rdp_port
-            subprocess.run(
-                ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{container_ip}:3389'],
+            rdp_check = subprocess.run(
+                ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{container_ip}:3389'],
                 capture_output=True, timeout=5, check=False
             )
+            if rdp_check.returncode != 0:
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{container_ip}:3389'],
+                    capture_output=True, timeout=5, check=False
+                )
             subprocess.run(
                 ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', container_ip, '--dport', '3389', '-j', 'ACCEPT'],
                 capture_output=True, timeout=5, check=False
@@ -397,8 +459,8 @@ def setup_port_forward(name, vps_id):
 
 def _write_port_forwards_to_disk():
     try:
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json'), 'w') as f:
-            json.dump({k: v for k, v in _allocated_ports.items() if not k.endswith('__rdp')}, f)
+        with open(_port_forwards_path(), 'w') as f:
+            json.dump(_allocated_ports, f)
     except Exception:
         pass
 
@@ -548,5 +610,9 @@ if __name__ == '__main__':
     api_key = config.get('api_key')
     if panel_url and node_id and api_key and node_id != 1:
         connect_panel_websocket(panel_url, node_id, api_key)
+    try:
+        _reapply_port_forwards_from_disk()
+    except Exception as e:
+        print(f"[!] Could not re-apply port forwards on startup: {e}")
     print(f"[*] Starting MintyHost Node Daemon v2.0 (Cloudflare Native) on port {port}...")
     app.run(host='0.0.0.0', port=port)

@@ -2651,8 +2651,9 @@ def admin_windows_build_image():
         env['WINDOWS_ALIAS'] = alias
         env['WINDOWS_DEFAULT_PASSWORD'] = default_password
         env['WINDOWS_LOG_FILE'] = '/var/log/mintyhost-win-build.log'
+        env['WINDOWS_STATUS_FILE'] = WINDOWS_BUILD_LOG
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'setup_windows_image.sh')
-        cmd = ['sudo', '--preserve-env=WINDOWS_ALIAS,WINDOWS_DEFAULT_PASSWORD,WINDOWS_LOG_FILE',
+        cmd = ['sudo', '--preserve-env=WINDOWS_ALIAS,WINDOWS_DEFAULT_PASSWORD,WINDOWS_LOG_FILE,WINDOWS_STATUS_FILE',
                'bash', script]
         if iso_path:
             cmd.append(iso_path)
@@ -2808,6 +2809,65 @@ LOCAL_PORT_LOCK = threading.Lock()
 LOCAL_PORT_RANGE = range(22000, 22999)
 _local_port_allocations = {}
 
+
+def _local_port_forwards_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'local_port_forwards.json')
+
+
+def _load_local_port_forwards():
+    path = _local_port_forwards_path()
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            for k, v in data.items():
+                try:
+                    _local_port_allocations[k] = int(v)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[!] Failed to load local_port_forwards.json: {e}")
+
+
+def _save_local_port_forwards():
+    try:
+        with open(_local_port_forwards_path(), 'w') as f:
+            json.dump(_local_port_allocations, f)
+    except Exception:
+        pass
+
+
+def _reapply_local_port_forwards():
+    for key, port in list(_local_port_allocations.items()):
+        try:
+            name = key.split('__rdp', 1)[0] if key.endswith('__rdp') else key
+            ip = _local_get_container_ip(name)
+            if not ip:
+                continue
+            dest = 3389 if key.endswith('__rdp') else 22
+            check = subprocess.run(
+                ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{dest}'],
+                capture_output=True, timeout=5, check=False
+            )
+            if check.returncode != 0:
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{dest}'],
+                    capture_output=True, timeout=5, check=False
+                )
+            subprocess.run(
+                ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', str(dest), '-j', 'ACCEPT'],
+                capture_output=True, timeout=5, check=False
+            )
+            print(f"[PORT] Re-applied local forward :{port} -> {ip}:{dest} ({name})")
+        except Exception as e:
+            print(f"[!] Failed to re-apply local port forward for {key}: {e}")
+
+
+_load_local_port_forwards()
+
+
 def _local_get_container_ip(name):
     from lxc_manager import LXCManager
     return LXCManager.get_container_ip(name)
@@ -2852,14 +2912,15 @@ def setup_local_port_forward(name, vps_id=None):
     import subprocess
     try:
         for cport in ports:
-            subprocess.run(
+            check = subprocess.run(
                 ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{cport}'],
                 capture_output=True, timeout=5, check=False
             )
-            subprocess.run(
-                ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{cport}'],
-                capture_output=True, timeout=5, check=False
-            )
+            if check.returncode != 0:
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{cport}'],
+                    capture_output=True, timeout=5, check=False
+                )
             subprocess.run(
                 ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', str(cport), '-j', 'ACCEPT'],
                 capture_output=True, timeout=5, check=False
@@ -2872,17 +2933,19 @@ def setup_local_port_forward(name, vps_id=None):
         conn.commit()
         conn.close()
         if is_win:
-            rdp_offset = port - LOCAL_PORT_RANGE.start
-            rdp_port = LOCAL_PORT_RANGE.start + rdp_offset + 1000
-            if rdp_port not in LOCAL_PORT_RANGE:
-                rdp_port = port + 1000
+            rdp_port = port + 1000
             rdp_key = f"{name}__rdp"
             _local_port_allocations[rdp_key] = rdp_port
             try:
-                subprocess.run(
-                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{ip}:3389'],
+                rdp_check = subprocess.run(
+                    ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{ip}:3389'],
                     capture_output=True, timeout=5, check=False
                 )
+                if rdp_check.returncode != 0:
+                    subprocess.run(
+                        ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{ip}:3389'],
+                        capture_output=True, timeout=5, check=False
+                    )
                 subprocess.run(
                     ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', '3389', '-j', 'ACCEPT'],
                     capture_output=True, timeout=5, check=False
@@ -2890,6 +2953,7 @@ def setup_local_port_forward(name, vps_id=None):
                 print(f"[PORT] Local RDP forward set: :{rdp_port} -> {ip}:3389 ({name})")
             except Exception as e:
                 print(f"[!] Failed local RDP forward for {name}: {e}")
+        _save_local_port_forwards()
         return port
     except Exception as e:
         print(f"[!] Failed local port forward for {name}: {e}")
@@ -2898,6 +2962,7 @@ def setup_local_port_forward(name, vps_id=None):
 def remove_local_port_forward(name):
     with LOCAL_PORT_LOCK:
         port = _local_port_allocations.pop(name, None)
+        rdp_port = _local_port_allocations.pop(f"{name}__rdp", None)
     if port:
         try:
             import subprocess
@@ -2907,6 +2972,16 @@ def remove_local_port_forward(name):
             )
         except Exception:
             pass
+    if rdp_port:
+        try:
+            import subprocess
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-D', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', ':3389'],
+                capture_output=True, timeout=5, check=False
+            )
+        except Exception:
+            pass
+    _save_local_port_forwards()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3013,6 +3088,10 @@ if __name__ == '__main__':
             start_monitor()
         except Exception as e:
             print(f"[WARNING] Failed to start tunnel monitor: {e}")
+        try:
+            _reapply_local_port_forwards()
+        except Exception as e:
+            print(f"[WARNING] Failed to re-apply local port forwards: {e}")
 
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 

@@ -425,7 +425,7 @@ class LXCManager:
 
         cmd = [LXC_BIN, 'image', 'import', file_path, '--alias', alias]
         if description:
-            cmd += ['description', description]
+            cmd.append(f'description={description}')
         result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=1800)
         if result.returncode != 0:
             raise Exception(f"lxc image import failed: {result.stderr.strip() or result.stdout.strip()}")

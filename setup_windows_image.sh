@@ -26,17 +26,57 @@ ALIAS_NAME="${WINDOWS_ALIAS:-windows/10}"
 DEFAULT_PASSWORD="${WINDOWS_DEFAULT_PASSWORD:-MintyHost!2026}"
 LXC="/snap/bin/lxc"
 LOG_FILE="${WINDOWS_LOG_FILE:-/var/log/mintyhost-win-build.log}"
+STATUS_FILE="${WINDOWS_STATUS_FILE:-/var/www/lxc/windows_build_status.json}"
 
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 exec > >(tee -a "$LOG_FILE") 2>&1
 
+write_status() {
+    local running="$1" finished="$2" ok="$3" msg="$4"
+    if command -v python3 &>/dev/null; then
+        local safe_msg="${msg//\\/\\\\}"
+        safe_msg="${safe_msg//\"/\\\"}"
+        local safe_path="${STATUS_FILE//\\/\\\\}"
+        safe_path="${safe_path//\"/\\\"}"
+        STATUS_PATH="$safe_path" STATUS_MSG="$safe_msg" \
+        STATUS_RUN="$running" STATUS_FIN="$finished" STATUS_OK="$ok" \
+        python3 -c "
+import json, os, time, sys
+sp = os.environ['STATUS_PATH']
+msg = os.environ['STATUS_MSG']
+state = {
+    'running': os.environ['STATUS_RUN'] == 'True',
+    'finished': os.environ['STATUS_FIN'] == 'True',
+    'ok': os.environ['STATUS_OK'] == 'True',
+    'last_update': time.time(),
+}
+try:
+    if os.path.exists(sp):
+        with open(sp, 'r') as f:
+            old = json.load(f)
+        for k in ('progress', 'started'):
+            if k in old:
+                state[k] = old[k]
+except Exception:
+    pass
+state.setdefault('progress', []).append({'ts': time.time(), 'msg': msg})
+try:
+    os.makedirs(os.path.dirname(sp), exist_ok=True)
+    with open(sp, 'w') as f:
+        json.dump(state, f, indent=2)
+except Exception:
+    pass
+" 2>/dev/null || true
+    fi
+}
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
-log()  { echo -e "${GREEN}[✓]${NC} $1"; }
-warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-fail() { echo -e "${RED}[✗]${NC} $1"; exit 1; }
-info() { echo -e "${CYAN}[→]${NC} $1"; }
-progress() { echo "${CYAN}[$(date +%H:%M:%S)]${NC} $1" | tee -a "$LOG_FILE" >/dev/null; }
+log()  { echo -e "${GREEN}[✓]${NC} $1"; write_status True False False "$1"; }
+warn() { echo -e "${YELLOW}[!]${NC} $1"; write_status True False False "WARN: $1"; }
+fail() { echo -e "${RED}[✗]${NC} $1"; write_status False True False "FAIL: $1"; exit 1; }
+info() { echo -e "${CYAN}[→]${NC} $1"; write_status True False False "$1"; }
+progress() { echo "${CYAN}[$(date +%H:%M:%S)]${NC} $1" | tee -a "$LOG_FILE" >/dev/null; write_status True False False "$1"; }
 
 echo ""
 echo -e "${BOLD}============================================================${NC}"
@@ -533,3 +573,4 @@ echo "  Note: Windows VMs need at least 2 vCPU, 4GB RAM, 40GB disk."
 echo "  The MintyHost panel automatically enforces these minimums."
 echo ""
 log "Full build log: $LOG_FILE"
+write_status False True True "Build completed successfully — alias '$ALIAS_NAME' published."
