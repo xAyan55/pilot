@@ -252,7 +252,7 @@ function updateHostStatsChart(history) {
     const cpuData = history.map(h => h.cpu);
     const ramData = history.map(h => h.ram);
 
-    if (window.hostStatsChart) {
+    if (window.hostStatsChart && window.hostStatsChart instanceof Chart) {
       window.hostStatsChart.data.labels = labels;
       window.hostStatsChart.data.datasets[0].data = cpuData;
       window.hostStatsChart.data.datasets[1].data = ramData;
