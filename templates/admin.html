@@ -627,7 +627,7 @@
 
                 <div class="form-group">
                   <label for="brandAuthImageUrl">Authentication Page Image URL</label>
-                  <input type="text" id="brandAuthImageUrl" class="form-input" value="{{ settings.get('auth_image_url', '/public/images/auth-img.jpg') }}" placeholder="/public/images/auth-img.jpg" required>
+                  <input type="text" id="brandAuthImageUrl" class="form-input" value="{{ settings.get('auth_image_url') or '/static/images/auth-img.jpg' }}" placeholder="/static/images/auth-img.jpg" required>
                 </div>
 
                 <!-- Custom Logo & Favicon Upload -->

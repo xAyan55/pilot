@@ -145,7 +145,7 @@
 
   <div class="auth-right-pane">
     <div class="auth-image-container">
-      <img src="{{ settings.get('auth_image_url', '/public/images/auth-img.jpg') }}" alt="Authentication Graphic"
+      <img src="{{ settings.get('auth_image_url') or '/static/images/auth-img.jpg' }}" alt="Authentication Graphic"
         class="auth-image">
     </div>
   </div>

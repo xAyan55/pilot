@@ -244,10 +244,10 @@ def inject_settings():
         'color_secondary': '#CBF3BB',
         'color_accent': '#ABE7B2',
         'color_cool': '#93BFC7',
-        'auth_image_url': '/public/images/auth-img.jpg'
+        'auth_image_url': '/static/images/auth-img.jpg'
     }
     for k, v in defaults.items():
-        if k not in settings:
+        if k not in settings or not settings[k]:
             settings[k] = v
             
     # Calculate contrast colors for dynamic text readability on theme backgrounds
