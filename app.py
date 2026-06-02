@@ -243,7 +243,8 @@ def inject_settings():
         'color_primary': '#ECF4E8',
         'color_secondary': '#CBF3BB',
         'color_accent': '#ABE7B2',
-        'color_cool': '#93BFC7'
+        'color_cool': '#93BFC7',
+        'auth_image_url': '/public/images/auth-img.jpg'
     }
     for k, v in defaults.items():
         if k not in settings:
@@ -273,6 +274,11 @@ def is_admin():
     return session.get('role') == 'admin'
 
 # ----------------- PAGE ROUTING -----------------
+
+@app.route('/public/<path:filename>')
+def serve_public(filename):
+    from flask import send_from_directory
+    return send_from_directory('public', filename)
 
 @app.route('/')
 def index():
@@ -1537,6 +1543,7 @@ def admin_settings_branding():
     color_secondary = data.get('color_secondary', '').strip()
     color_accent = data.get('color_accent', '').strip()
     color_cool = data.get('color_cool', '').strip()
+    auth_image_url = data.get('auth_image_url', '').strip()
 
     if not site_name:
         return jsonify({"message": "Website name cannot be empty."}), 400
@@ -1549,7 +1556,8 @@ def admin_settings_branding():
             'color_primary': color_primary,
             'color_secondary': color_secondary,
             'color_accent': color_accent,
-            'color_cool': color_cool
+            'color_cool': color_cool,
+            'auth_image_url': auth_image_url
         }
         for key, val in updates.items():
             cursor.execute(

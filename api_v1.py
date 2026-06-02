@@ -81,7 +81,7 @@ def public_settings():
     cursor.execute("SELECT key, value FROM settings")
     rows = cursor.fetchall()
     conn.close()
-    safe_keys = {'site_name', 'color_primary', 'color_secondary', 'color_accent', 'color_cool', 'logo_url', 'favicon_url'}
+    safe_keys = {'site_name', 'color_primary', 'color_secondary', 'color_accent', 'color_cool', 'logo_url', 'favicon_url', 'auth_image_url'}
     settings = {r['key']: r['value'] for r in rows if r['key'] in safe_keys}
     return jsonify(settings)
 
@@ -1175,7 +1175,8 @@ def admin_update_settings():
     data = request.get_json() or {}
     allowed = {
         'site_name', 'color_primary', 'color_secondary', 'color_accent', 'color_cool',
-        'about_intro', 'about_mission', 'about_infra', 'about_why_trust', 'tos_content'
+        'about_intro', 'about_mission', 'about_infra', 'about_why_trust', 'tos_content',
+        'auth_image_url'
     }
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:

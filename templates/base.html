@@ -32,6 +32,7 @@
 <body>
 
   <!-- Navigation Bar -->
+  {% if request.path != '/auth' %}
   <nav class="navbar">
     <div class="container">
       <a href="/" class="logo">
@@ -62,6 +63,7 @@
       </button>
     </div>
   </nav>
+  {% endif %}
 
   <!-- Main Content Block -->
   <main>
@@ -69,6 +71,7 @@
   </main>
 
   <!-- Footer Section -->
+  {% if request.path != '/auth' %}
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
@@ -98,6 +101,7 @@
       </div>
     </div>
   </footer>
+  {% endif %}
 
   <!-- Toast Notification Wrapper -->
   <div class="toast-container"></div>

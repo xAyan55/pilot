@@ -3,31 +3,55 @@
 {% block title %}Client Authentication{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <div class="auth-wrapper">
+<div class="auth-split-screen">
+  <div class="auth-left-pane">
+    <div class="auth-top-nav">
+      <a href="https://discord.gg" target="_blank" class="auth-nav-link">
+        <i data-lucide="discord" style="width: 16px; height: 16px;"></i> Discord
+      </a>
+      <a href="/client" class="auth-nav-link">
+        <i data-lucide="help-circle" style="width: 16px; height: 16px;"></i> Support center
+      </a>
+    </div>
+    
+    <div class="auth-main-content">
+      <div class="auth-brand-wrapper text-center" style="margin-bottom: 24px;">
+        <a href="/" class="logo" style="justify-content: center; display: inline-flex;">
+          {% if settings.get('logo_url') %}
+            <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
+          {% else %}
+            <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
+          {% endif %}
+          <span>{{ settings.get('site_name', 'MintyHost') }}</span>
+        </a>
+      </div>
+      
       <div class="auth-card">
-        <!-- Auth switching tabs -->
+        <h2 class="auth-heading text-center" id="auth-heading-text" style="margin-bottom: 24px; font-size: 24px; font-weight: 800;">Login to Continue</h2>
+        
         <div class="auth-tabs">
           <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</div>
           <div class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Create Account</div>
         </div>
-
+        
         <!-- Login Form Panel -->
         <div class="auth-form-panel active" id="panel-login">
           <form action="/login" method="POST" id="loginForm">
-            <!-- Hidden redirect holder -->
             <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
             
             <div class="form-group">
-              <label for="loginEmail">Email Address</label>
-              <input type="email" name="email" id="loginEmail" class="form-input" placeholder="name@example.com" required>
+              <label for="loginEmail">Your ID</label>
+              <div class="input-wrapper">
+                <i data-lucide="user" class="input-icon-left"></i>
+                <input type="email" name="email" id="loginEmail" class="form-input has-icon-left" placeholder="Your ID" required>
+              </div>
             </div>
             
             <div class="form-group">
               <label for="loginPassword">Password</label>
               <div class="input-wrapper">
-                <input type="password" name="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
+                <i data-lucide="key" class="input-icon-left"></i>
+                <input type="password" name="password" id="loginPassword" class="form-input has-icon-left" placeholder="Password" required>
                 <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
                   <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
                 </button>
@@ -42,7 +66,7 @@
             </div>
             
             <button type="submit" class="btn btn-primary auth-submit-btn">
-              Sign In <i data-lucide="log-in"></i>
+              Login <i data-lucide="log-in"></i>
             </button>
           </form>
           
@@ -50,27 +74,33 @@
             <p>Admin account seeded? Use the default credentials mentioned in the documentation.</p>
           </div>
         </div>
-
+        
         <!-- Signup Form Panel -->
         <div class="auth-form-panel" id="panel-signup">
           <form action="/signup" method="POST" id="signupForm">
-            <!-- Hidden redirect holder -->
             <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
             
             <div class="form-group">
               <label for="signupUsername">Username</label>
-              <input type="text" name="username" id="signupUsername" class="form-input" placeholder="username" required pattern="[a-zA-Z0-9]+">
+              <div class="input-wrapper">
+                <i data-lucide="user" class="input-icon-left"></i>
+                <input type="text" name="username" id="signupUsername" class="form-input has-icon-left" placeholder="username" required pattern="[a-zA-Z0-9]+">
+              </div>
             </div>
 
             <div class="form-group">
               <label for="signupEmail">Email Address</label>
-              <input type="email" name="email" id="signupEmail" class="form-input" placeholder="name@example.com" required>
+              <div class="input-wrapper">
+                <i data-lucide="mail" class="input-icon-left"></i>
+                <input type="email" name="email" id="signupEmail" class="form-input has-icon-left" placeholder="name@example.com" required>
+              </div>
             </div>
             
             <div class="form-group">
               <label for="signupPassword">Password</label>
               <div class="input-wrapper">
-                <input type="password" name="password" id="signupPassword" class="form-input" placeholder="••••••••" required>
+                <i data-lucide="key" class="input-icon-left"></i>
+                <input type="password" name="password" id="signupPassword" class="form-input has-icon-left" placeholder="••••••••" required>
                 <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
                   <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
                 </button>
@@ -80,7 +110,8 @@
             <div class="form-group">
               <label for="signupConfirmPassword">Confirm Password</label>
               <div class="input-wrapper">
-                <input type="password" name="confirm_password" id="signupConfirmPassword" class="form-input" placeholder="••••••••" required>
+                <i data-lucide="key" class="input-icon-left"></i>
+                <input type="password" name="confirm_password" id="signupConfirmPassword" class="form-input has-icon-left" placeholder="••••••••" required>
                 <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
                   <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
                 </button>
@@ -94,8 +125,23 @@
         </div>
       </div>
     </div>
+    
+    <div class="auth-footer text-center">
+      <p style="font-size: 12px; color: var(--color-text-muted); font-weight: 600; margin: 0;">
+        Pterodactyl&reg; &copy; 2015 - 2026
+      </p>
+      <p style="font-size: 12px; color: var(--color-text-muted); font-weight: 600; margin: 4px 0 0 0;">
+        Designed by KataBump
+      </p>
+    </div>
   </div>
-</section>
+  
+  <div class="auth-right-pane">
+    <div class="auth-image-container">
+      <img src="{{ settings.get('auth_image_url', '/public/images/auth-img.jpg') }}" alt="Authentication Graphic" class="auth-image">
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -105,17 +151,20 @@
     const tabSignup = document.getElementById('tab-signup');
     const panelLogin = document.getElementById('panel-login');
     const panelSignup = document.getElementById('panel-signup');
+    const headingText = document.getElementById('auth-heading-text');
     
     if (type === 'login') {
       tabLogin.classList.add('active');
       tabSignup.classList.remove('active');
       panelLogin.classList.add('active');
       panelSignup.classList.remove('active');
+      if (headingText) headingText.innerText = "Login to Continue";
     } else {
       tabSignup.classList.add('active');
       tabLogin.classList.remove('active');
       panelSignup.classList.add('active');
       panelLogin.classList.remove('active');
+      if (headingText) headingText.innerText = "Create Account";
     }
   }
 

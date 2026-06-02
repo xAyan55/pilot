@@ -958,6 +958,7 @@ async function saveBranding(event) {
   const colorSecondary = document.getElementById('brandColorSecondaryText').value.trim();
   const colorAccent = document.getElementById('brandColorAccentText').value.trim();
   const colorCool = document.getElementById('brandColorCoolText').value.trim();
+  const authImageUrl = document.getElementById('brandAuthImageUrl').value.trim();
 
   try {
     const response = await fetch('/api/admin/settings/branding', {
@@ -968,7 +969,8 @@ async function saveBranding(event) {
         color_primary: colorPrimary,
         color_secondary: colorSecondary,
         color_accent: colorAccent,
-        color_cool: colorCool
+        color_cool: colorCool,
+        auth_image_url: authImageUrl
       })
     });
     const result = await window.handleFetchResponse(response);
