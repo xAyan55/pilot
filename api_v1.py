@@ -587,6 +587,147 @@ def delete_firewall_rule(vps_id, rule_id):
     conn.close()
     _log(g.api_user_id, f"API: Deleted firewall rule {rule_id} from VPS {vps['container_name']}")
     return jsonify({"status": "success", "message": "Firewall rule deleted."})
+# ─── FILE MANAGER ──────────────────────────────────────────────────────────────
+
+@bp.route('/vps/<int:vps_id>/files', methods=['GET'])
+@require_api_key()
+def list_vps_files(vps_id):
+    vps = _own_vps(vps_id, g.api_user_id, g.api_user_role)
+    if not vps:
+        return jsonify({"error": "not_found", "message": "VPS not found or access denied."}), 404
+    
+    path = request.args.get('path', '/')
+    try:
+        if vps['node_id'] != 1:
+            node = _get_node(vps['node_id'])
+            # Note: For GET requests, _make_node_request uses POST internally in this app's design for data passing if we use data=
+            # But we can just use GET and append to URL if needed. Let's stick to the POST method for proxied requests to be safe
+            # Actually, _make_node_request allows specifying method, but if we send data with GET, it might be ignored.
+            # We'll just pass data as JSON body via POST to a specialized node endpoint if needed, or just append query args.
+            import urllib.parse
+            q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+            res, code = _make_node_request(node, f"/api/vps/files?{q}", method='GET')
+            return jsonify(res), code
+        
+        # On local node
+        name = request.args.get('name') or vps['container_name']
+        items = LXCManager.list_files(name, path)
+        return jsonify({"status": "success", "path": path, "items": items})
+    except Exception as e:
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
+@bp.route('/vps/<int:vps_id>/files/content', methods=['GET'])
+@require_api_key()
+def read_vps_file(vps_id):
+    vps = _own_vps(vps_id, g.api_user_id, g.api_user_role)
+    if not vps:
+        return jsonify({"error": "not_found", "message": "VPS not found or access denied."}), 404
+    
+    path = request.args.get('path')
+    if not path:
+        return jsonify({"error": "validation", "message": "path is required"}), 400
+
+    try:
+        if vps['node_id'] != 1:
+            node = _get_node(vps['node_id'])
+            import urllib.parse
+            q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+            res, code = _make_node_request(node, f"/api/vps/files/content?{q}", method='GET')
+            return jsonify(res), code
+            
+        name = request.args.get('name') or vps['container_name']
+        content = LXCManager.read_file(name, path)
+        return jsonify({"status": "success", "path": path, "content": content})
+    except Exception as e:
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
+@bp.route('/vps/<int:vps_id>/files/content', methods=['POST'])
+@require_api_key()
+def write_vps_file(vps_id):
+    vps = _own_vps(vps_id, g.api_user_id, g.api_user_role)
+    if not vps:
+        return jsonify({"error": "not_found", "message": "VPS not found or access denied."}), 404
+        
+    data = request.get_json() or {}
+    path = data.get('path')
+    content = data.get('content', '')
+    if not path:
+        return jsonify({"error": "validation", "message": "path is required"}), 400
+
+    try:
+        if vps['node_id'] != 1:
+            node = _get_node(vps['node_id'])
+            data['name'] = vps['container_name']
+            res, code = _make_node_request(node, f"/api/vps/files/content", method='POST', data=data)
+            return jsonify(res), code
+
+        name = data.get('name') or vps['container_name']
+        LXCManager.write_file(name, path, content)
+        _log(g.api_user_id, f"API: Wrote file {path} on VPS {name}")
+        return jsonify({"status": "success", "message": "File saved successfully."})
+    except Exception as e:
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
+@bp.route('/vps/<int:vps_id>/files/directory', methods=['POST'])
+@require_api_key()
+def create_vps_directory(vps_id):
+    vps = _own_vps(vps_id, g.api_user_id, g.api_user_role)
+    if not vps:
+        return jsonify({"error": "not_found", "message": "VPS not found or access denied."}), 404
+        
+    data = request.get_json() or {}
+    path = data.get('path')
+    if not path:
+        return jsonify({"error": "validation", "message": "path is required"}), 400
+
+    try:
+        if vps['node_id'] != 1:
+            node = _get_node(vps['node_id'])
+            data['name'] = vps['container_name']
+            res, code = _make_node_request(node, f"/api/vps/files/directory", method='POST', data=data)
+            return jsonify(res), code
+
+        name = data.get('name') or vps['container_name']
+        LXCManager.create_directory(name, path)
+        _log(g.api_user_id, f"API: Created directory {path} on VPS {name}")
+        return jsonify({"status": "success", "message": "Directory created."})
+    except Exception as e:
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
+
+@bp.route('/vps/<int:vps_id>/files', methods=['DELETE'])
+@require_api_key()
+def delete_vps_file(vps_id):
+    vps = _own_vps(vps_id, g.api_user_id, g.api_user_role)
+    if not vps:
+        return jsonify({"error": "not_found", "message": "VPS not found or access denied."}), 404
+        
+    path = request.args.get('path')
+    if not path:
+        # Also check body for DELETE data if not in args
+        data = request.get_json(silent=True) or {}
+        path = data.get('path')
+    if not path:
+        return jsonify({"error": "validation", "message": "path is required"}), 400
+
+    try:
+        if vps['node_id'] != 1:
+            node = _get_node(vps['node_id'])
+            import urllib.parse
+            q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+            res, code = _make_node_request(node, f"/api/vps/files?{q}", method='DELETE')
+            return jsonify(res), code
+
+        name = request.args.get('name') or vps['container_name']
+        LXCManager.delete_file(name, path)
+        _log(g.api_user_id, f"API: Deleted {path} on VPS {name}")
+        return jsonify({"status": "success", "message": "Deleted successfully."})
+    except Exception as e:
+        return jsonify({"error": "server_error", "message": str(e)}), 500
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

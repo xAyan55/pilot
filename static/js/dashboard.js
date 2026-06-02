@@ -51,6 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
           loadUserApiKeys();
         }
 
+        // Auto-load File Manager
+        if (targetId === 'panel-files') {
+          fileManagerLoadPath(currentFmPath || '/');
+        }
+
         // Mobile close sidebar
         const sidebar = document.querySelector('.db-sidebar');
         if (sidebar && sidebar.classList.contains('active')) {
@@ -489,7 +494,7 @@ window.selectAndManageVPS = function(vpsId) {
   document.getElementById('menu-mgmt-header').style.display = 'block';
   
   const detailedMenuIds = [
-    'menu-overview', 'menu-console', 'menu-snapshots', 
+    'menu-overview', 'menu-console', 'menu-files', 'menu-snapshots', 
     'menu-backups', 'menu-firewall', 'menu-rebuild', 'menu-settings'
   ];
   detailedMenuIds.forEach(id => {
@@ -565,7 +570,7 @@ window.switchToInstances = function() {
   document.getElementById('menu-mgmt-header').style.display = 'none';
   
   const detailedMenuIds = [
-    'menu-overview', 'menu-console', 'menu-snapshots', 
+    'menu-overview', 'menu-console', 'menu-files', 'menu-snapshots', 
     'menu-backups', 'menu-firewall', 'menu-rebuild', 'menu-settings'
   ];
   detailedMenuIds.forEach(id => {
@@ -1484,4 +1489,210 @@ function escapeHtml(str) {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+}
+
+// ==========================================
+// FILE MANAGER ACTIONS
+// ==========================================
+
+let currentFmPath = '/';
+
+window.fileManagerLoadPath = async function(path) {
+  if (!currentVpsId) return;
+  if (!path) path = '/';
+  if (!path.startsWith('/')) path = '/' + path;
+  currentFmPath = path;
+  
+  document.getElementById('fm-current-path').value = path;
+  const tbody = document.getElementById('fm-table-body');
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--color-text-muted);"><i data-lucide="loader-2" class="spin" style="margin-bottom: 12px; width: 32px; height: 32px;"></i><br>Loading files...</td></tr>`;
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files?path=${encodeURIComponent(path)}`);
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.message || "Failed to load directory.");
+    }
+    const data = await res.json();
+    const items = data.items || [];
+    
+    // Sort directories first, then files, then alphabetically
+    items.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.type === 'directory' ? -1 : 1;
+    });
+
+    tbody.innerHTML = '';
+    
+    // Add ".." up directory if not at root
+    if (path !== '/') {
+      let upPath = path.substring(0, path.lastIndexOf('/'));
+      if (upPath === '') upPath = '/';
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 12px 16px; text-align: center; color: var(--color-text-muted);"><i data-lucide="corner-left-up"></i></td>
+        <td style="padding: 12px 16px; cursor: pointer; font-weight: 500;" onclick="fileManagerLoadPath('${escapeHtml(upPath)}')">..</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted);">--</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted);">--</td>
+        <td style="padding: 12px 16px; text-align: right;"></td>
+      `;
+      tbody.appendChild(tr);
+    }
+    
+    if (items.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="5" style="text-align: center; padding: 24px; color: var(--color-text-muted);">Directory is empty.</td>`;
+      tbody.appendChild(tr);
+    }
+
+    items.forEach(item => {
+      const isDir = item.type === 'directory';
+      const icon = isDir ? 'folder' : 'file';
+      const sizeStr = isDir ? '--' : formatBytes(item.size);
+      const modStr = item.modified ? new Date(item.modified * 1000).toLocaleString() : '--';
+      const fullPath = path === '/' ? `/${item.name}` : `${path}/${item.name}`;
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 12px 16px; text-align: center; color: ${isDir ? 'var(--color-cool)' : 'var(--color-text-muted)'};"><i data-lucide="${icon}"></i></td>
+        <td style="padding: 12px 16px; cursor: ${isDir ? 'pointer' : 'default'}; font-weight: ${isDir ? '600' : '400'}; color: var(--color-text-main);" ${isDir ? `onclick="fileManagerLoadPath('${escapeHtml(fullPath)}')" ` : ''}>${escapeHtml(item.name)}</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted); font-size: 13px;">${sizeStr}</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted); font-size: 13px;">${modStr}</td>
+        <td style="padding: 12px 16px; text-align: right;">
+          <div style="display: flex; gap: 4px; justify-content: flex-end;">
+            ${!isDir ? `<button class="btn btn-outline btn-small" onclick="fileManagerOpenFile('${escapeHtml(fullPath)}')" style="padding: 4px 8px;" title="Edit File"><i data-lucide="edit-3" style="width: 14px; height: 14px;"></i></button>` : ''}
+            <button class="btn btn-outline btn-small" onclick="fileManagerDelete('${escapeHtml(fullPath)}', ${isDir})" style="padding: 4px 8px; color: var(--color-danger); border-color: #fca5a5;" title="Delete"><i data-lucide="trash-2" style="width: 14px; height: 14px;"></i></button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    
+    if (window.lucide) lucide.createIcons();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--color-danger);"><i data-lucide="alert-circle" style="margin-bottom: 8px;"></i><br>${escapeHtml(err.message)}</td></tr>`;
+    if (window.lucide) lucide.createIcons();
+    showToast(err.message, 'error');
+  }
+};
+
+window.fileManagerRefresh = function() {
+  fileManagerLoadPath(currentFmPath);
+};
+
+window.fileManagerNewFolder = async function() {
+  const name = prompt("Enter new folder name:");
+  if (!name) return;
+  const fullPath = currentFmPath === '/' ? `/${name}` : `${currentFmPath}/${name}`;
+  
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files/directory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: fullPath })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create directory.");
+    showToast("Directory created.", "success");
+    fileManagerRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.fileManagerNewFile = async function() {
+  const name = prompt("Enter new file name:");
+  if (!name) return;
+  const fullPath = currentFmPath === '/' ? `/${name}` : `${currentFmPath}/${name}`;
+  
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: fullPath, content: "" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create file.");
+    showToast("File created.", "success");
+    fileManagerRefresh();
+    // Automatically open it for editing
+    fileManagerOpenFile(fullPath);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+let currentEditingFilePath = null;
+
+window.fileManagerOpenFile = async function(path) {
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files/content?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to read file.");
+    
+    currentEditingFilePath = path;
+    document.getElementById('fm-editor-filename').textContent = path;
+    document.getElementById('fm-editor-textarea').value = data.content;
+    
+    document.getElementById('fm-browser').style.display = 'none';
+    document.getElementById('fm-editor').style.display = 'flex';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.fileManagerCloseEditor = function() {
+  currentEditingFilePath = null;
+  document.getElementById('fm-editor').style.display = 'none';
+  document.getElementById('fm-browser').style.display = 'block';
+};
+
+window.fileManagerSaveFile = async function() {
+  if (!currentEditingFilePath) return;
+  const content = document.getElementById('fm-editor-textarea').value;
+  
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentEditingFilePath, content: content })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to save file.");
+    showToast("File saved successfully.", "success");
+    fileManagerCloseEditor();
+    fileManagerRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.fileManagerDelete = async function(path, isDir) {
+  const typeStr = isDir ? 'directory' : 'file';
+  if (!confirm(`Are you sure you want to permanently delete this ${typeStr}?\n${path}`)) return;
+  
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to delete.");
+    showToast(`${typeStr} deleted.`, "success");
+    fileManagerRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+function formatBytes(bytes, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }

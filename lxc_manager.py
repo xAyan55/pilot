@@ -687,3 +687,132 @@ class LXCManager:
         cls._run(['lxc', 'snapshot', 'delete', container_name, snap_name])
         return True
 
+    # ─── FILE MANAGEMENT ─────────────────────────────────────────────────────────
+
+    @classmethod
+    def list_files(cls, name, path):
+        """Lists files and directories at the given path inside the container."""
+        if IS_MOCK_LXC:
+            # Return dummy data for mock mode
+            return [
+                {"name": "test.txt", "type": "file", "size": 1024, "modified": time.time()},
+                {"name": "folder", "type": "directory", "size": 4096, "modified": time.time()}
+            ]
+        
+        is_win = cls._is_windows_container(name)
+        if is_win:
+            # Windows file listing
+            ps_script = (
+                f"$ErrorActionPreference = 'Stop'; "
+                f"Get-ChildItem -Path '{path}' | "
+                f"Select-Object Name, "
+                f"@{{Name='Type';Expression={{if ($_.PSIsContainer) {{'directory'}} else {{'file'}} }}}}, "
+                f"Length, "
+                f"@{{Name='Modified';Expression={{[int][double]::Parse((Get-Date $_.LastWriteTime -UFormat %s))}} }} | "
+                f"ConvertTo-Json -Compress"
+            )
+            try:
+                out = cls._run(['lxc', 'exec', name, '--', 'powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script])
+                if out.strip():
+                    items = json.loads(out)
+                    if isinstance(items, dict):
+                        items = [items]
+                    res = []
+                    for item in items:
+                        res.append({
+                            "name": item.get("Name"),
+                            "type": item.get("Type"),
+                            "size": item.get("Length") or 0,
+                            "modified": item.get("Modified")
+                        })
+                    return res
+                return []
+            except Exception as e:
+                raise Exception(f"Failed to list directory: {e}")
+        else:
+            # Linux file listing
+            # Using find to get a parseable list: type|size|mtime|name
+            # Maxdepth 1 ensures we only get the immediate children
+            cmd = ['lxc', 'exec', name, '--', 'find', path, '-mindepth', '1', '-maxdepth', '1', '-printf', '%y|%s|%T@|%f\\n']
+            try:
+                out = cls._run(cmd)
+                items = []
+                for line in out.splitlines():
+                    if not line.strip(): continue
+                    parts = line.split('|', 3)
+                    if len(parts) == 4:
+                        ftype, fsize, fmtime, fname = parts
+                        type_str = 'directory' if ftype == 'd' else 'file'
+                        items.append({
+                            "name": fname,
+                            "type": type_str,
+                            "size": int(fsize) if fsize.isdigit() else 0,
+                            "modified": float(fmtime) if fmtime.replace('.', '', 1).isdigit() else 0
+                        })
+                return items
+            except subprocess.CalledProcessError as e:
+                # find command might fail if path doesn't exist
+                raise Exception(f"Directory not found or access denied.")
+            except Exception as e:
+                raise Exception(f"Failed to list directory: {e}")
+
+    @classmethod
+    def read_file(cls, name, path):
+        """Reads a file from the container."""
+        if IS_MOCK_LXC:
+            return "Mock file content for " + path
+        try:
+            # lxc file pull <container>/path -
+            cmd = ['lxc', 'file', 'pull', f"{name}/{path}", '-']
+            if IS_MOCK_LXC:
+                return "Mock content"
+            if cmd[0] == 'lxc':
+                cmd = [LXC_BIN] + cmd[1:]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to read file: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+
+    @classmethod
+    def write_file(cls, name, path, content):
+        """Writes content to a file in the container."""
+        if IS_MOCK_LXC:
+            return True
+        try:
+            cmd = [LXC_BIN, 'file', 'push', '-', f"{name}/{path}"]
+            # We need to pass content via stdin
+            subprocess.run(cmd, input=content, text=True, capture_output=True, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to write file: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+
+    @classmethod
+    def delete_file(cls, name, path):
+        """Deletes a file or directory in the container."""
+        if IS_MOCK_LXC:
+            return True
+        try:
+            # lxc file delete supports both files and directories
+            cmd = [LXC_BIN, 'file', 'delete', f"{name}/{path}"]
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to delete: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+
+    @classmethod
+    def create_directory(cls, name, path):
+        """Creates a directory in the container."""
+        if IS_MOCK_LXC:
+            return True
+        is_win = cls._is_windows_container(name)
+        try:
+            if is_win:
+                ps_script = f"New-Item -ItemType Directory -Force -Path '{path}'"
+                cls._run(['lxc', 'exec', name, '--', 'powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script])
+            else:
+                cls._run(['lxc', 'exec', name, '--', 'mkdir', '-p', path])
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to create directory: {e}")
+
+
