@@ -58,61 +58,80 @@ class LXCManager:
             return 'Pending'
 
     @classmethod
-    def _resolve_windows_image(cls):
-        """Auto-detects any local image matching Windows in the aliases list.
-        
+    def _resolve_windows_image(cls, os_image='windows/10'):
+        """Auto-detects any local image matching the requested Windows variant.
+
+        Supports the following os_image values:
+            windows/10, win10, win11, windows/11, windows/server/2022,
+            windows/server/2019, windows/8, win8
+
         Unlike Linux distros (Ubuntu, Debian, Alpine, etc.), Windows images are NOT
         available on any standard LXD remote image server. The administrator must
         manually import a Windows ISO/disk image into LXD before Windows VPS can
         be deployed. This method searches for such a locally-imported image.
-        
+
         Raises WindowsImageNotFoundError if no local Windows image is found.
         """
         if IS_MOCK_LXC:
-            return "windows/10"
+            return os_image if os_image else "windows/10"
+
+        alias_hints = {
+            'windows/10':   ['windows/10', 'win10', 'windows-10', 'windows10'],
+            'win10':        ['windows/10', 'win10', 'windows-10', 'windows10'],
+            'windows/11':   ['windows/11', 'win11', 'windows-11', 'windows11'],
+            'win11':        ['windows/11', 'win11', 'windows-11', 'windows11'],
+            'windows/server/2022': ['windows/server/2022', 'win2022', 'server2022'],
+            'win2022':      ['windows/server/2022', 'win2022', 'server2022'],
+            'windows/server/2019': ['windows/server/2019', 'win2019', 'server2019'],
+            'win2019':      ['windows/server/2019', 'win2019', 'server2019'],
+            'windows/8':    ['windows/8', 'win8', 'windows-8', 'windows8'],
+        }
+        preferred = alias_hints.get(os_image.lower(), None)
         try:
             out = cls._run(['lxc', 'image', 'list', '--format=json'])
-            if out:
+            if not out:
+                pass
+            else:
                 images = json.loads(out)
-                # 1. Exact matches in aliases list
+                # 1. Preferred exact alias match
+                if preferred:
+                    for img in images:
+                        for alias in img.get('aliases', []):
+                            if alias.get('name', '').lower() in preferred:
+                                return alias.get('name')
+                # 2. Generic prefix match (any windows image)
                 for img in images:
-                    aliases = img.get('aliases', [])
-                    for alias in aliases:
+                    for alias in img.get('aliases', []):
                         name = alias.get('name', '').lower()
-                        if name in ['windows/10', 'win10', 'windows-10', 'windows10']:
+                        if name.startswith('windows/') or name.startswith('win'):
                             return alias.get('name')
-                
-                # 2. Broad checks on aliases containing windows/win10
-                for img in images:
-                    aliases = img.get('aliases', [])
-                    for alias in aliases:
-                        name = alias.get('name', '').lower()
-                        if 'windows' in name or 'win10' in name:
-                            return alias.get('name')
-                            
                 # 3. Property check (os=windows)
                 for img in images:
-                    properties = img.get('properties', {})
-                    os_prop = str(properties.get('os', '')).lower()
-                    if 'windows' in os_prop or 'win' in os_prop:
+                    props = img.get('properties', {})
+                    if 'windows' in str(props.get('os', '')).lower():
                         aliases = img.get('aliases', [])
                         if aliases:
                             return aliases[0].get('name')
                         return img.get('fingerprint')
         except Exception as e:
             print(f"[WARNING] Failed to query local image list for Windows: {e}")
-        
+
         raise WindowsImageNotFoundError(
-            "No Windows VM image found in LXD. Windows images are not available on standard LXD remotes. "
+            f"No Windows VM image matching '{os_image}' found in LXD. "
+            "Windows images are not available on standard LXD remotes. "
             "You must import a Windows image manually before deploying Windows VPS instances. "
-            "Run: bash /var/www/lxc/setup_windows_image.sh  (or see install.sh for instructions)"
+            "Options:\n"
+            "  • Run: bash /var/www/lxc/setup_windows_image.sh\n"
+            "  • Upload a .vhd/.vhdx/.qcow2/.img/.iso via the admin panel: Admin → Windows → Upload Image\n"
+            "  • Import a pre-built cloud image: lxc image import <file> --alias <name>"
         )
 
     @classmethod
     def deploy_container(cls, name, os_image, cpu_cores, ram_mb, disk_gb, root_password, log_callback=None):
         """Launches a real LXC container/VM and configures resource limits."""
+        is_windows = 'windows' in os_image.lower() or 'win' == os_image.lower()[:3]
+
         if IS_MOCK_LXC:
-            is_windows = 'windows' in os_image.lower()
             steps = [
                 ('Downloading and launching container image...', 0.5),
                 ('Setting CPU core limit...', 0.2),
@@ -122,7 +141,7 @@ class LXCManager:
             if not is_windows:
                 steps.append(('Setting root password...', 0.3))
             else:
-                steps.append(('Initializing Windows VM (password must be set via RDP/console)...', 0.3))
+                steps.append(('Initializing Windows VM...', 0.3))
             for desc, delay in steps:
                 if log_callback:
                     log_callback(f'[INFO] {desc}')
@@ -131,24 +150,29 @@ class LXCManager:
                 log_callback('[SUCCESS] Container deployed successfully!')
             return True
 
-        # Resolve the image source
+        if is_windows:
+            cpu_cores = max(int(cpu_cores), 2)
+            ram_mb = max(int(ram_mb), 2048)
+            disk_gb = max(int(disk_gb), 32)
+            if log_callback:
+                log_callback(f'[INFO] Windows VM minimums applied: {cpu_cores} vCPU, {ram_mb}MB RAM, {disk_gb}GB disk')
+
         if os_image.startswith('ubuntu/'):
             image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
-        elif 'windows' in os_image.lower():
-            # Windows images must be pre-imported locally by the admin.
-            # _resolve_windows_image() will raise WindowsImageNotFoundError if missing.
+        elif is_windows:
             if log_callback:
                 log_callback('[INFO] Searching for locally-imported Windows VM image...')
-            image_source = cls._resolve_windows_image()
+            image_source = cls._resolve_windows_image(os_image)
             if log_callback:
                 log_callback(f'[INFO] Found Windows image: {image_source}')
         else:
             image_source = f"images:{os_image}"
 
-        is_windows = 'windows' in os_image.lower()
         launch_cmd = ['lxc', 'launch', image_source, name]
         if is_windows:
             launch_cmd.append('--vm')
+            if log_callback:
+                log_callback('[INFO] Booting Windows VM (first boot may take 60-120s)...')
 
         steps = [
             ('Downloading and launching container image...', launch_cmd),
@@ -170,6 +194,13 @@ class LXCManager:
                 if log_callback:
                     log_callback(f'[ERROR] {desc} Failed: {error_msg}')
                 raise Exception(f'Deployment step failed: {desc}. Details: {error_msg}')
+
+        if is_windows:
+            try:
+                cls.set_windows_password(name, root_password, log_callback)
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'[WARNING] Could not pre-set Windows password (will be the build default): {e}')
 
         if log_callback:
             log_callback('[SUCCESS] Container deployed successfully!')
@@ -208,7 +239,8 @@ class LXCManager:
 
         if is_windows:
             if log_callback:
-                log_callback('[INFO] Windows VM post-deployment configuration complete (automated package installation skipped for Windows OS).')
+                log_callback('[INFO] Configuring Windows VM (Administrator password, RDP, OpenSSH firewall)...')
+            cls.set_windows_password(name, root_password, log_callback)
             return True
 
         if IS_MOCK_LXC:
@@ -295,11 +327,137 @@ class LXCManager:
 
     @classmethod
     def change_password(cls, name, new_password):
-        """Sets root password inside the container."""
+        """Sets root password inside the container. Uses PowerShell on Windows VMs."""
         if IS_MOCK_LXC:
             return True
+        if cls._is_windows_container(name):
+            return cls.set_windows_password(name, new_password)
         cls._run(['lxc', 'exec', name, '--', 'bash', '-c', f'echo root:{new_password} | chpasswd'])
         return True
+
+    @classmethod
+    def _is_windows_container(cls, name):
+        """Detects whether a given container/VM is a Windows instance."""
+        if IS_MOCK_LXC:
+            return False
+        try:
+            out = cls._run(['lxc', 'list', name, '--format=csv', '-c', 't'])
+            first_line = (out.splitlines() or [''])[0].strip().lower()
+            return 'virtual-machine' in first_line
+        except Exception:
+            try:
+                out = cls._run(['lxc', 'config', 'get', name, 'image.os'])
+                return 'windows' in out.lower() or 'win' in out.lower()
+            except Exception:
+                return False
+
+    @classmethod
+    def set_windows_password(cls, name, new_password, log_callback=None):
+        """Sets the Administrator password on a Windows VM using net user.
+
+        Falls back to a Set-LocalUser PowerShell call. Re-enables Administrator
+        and opens the OpenSSH/RDP firewall rules in the process.
+        """
+        if IS_MOCK_LXC:
+            return True
+
+        safe_pw = new_password.replace("'", "''").replace('"', '\\"')
+        ps_script = (
+            "$ErrorActionPreference = 'Stop'; "
+            "try { "
+            f"  $pw = ConvertTo-SecureString '{safe_pw}' -AsPlainText -Force; "
+            "  Set-LocalUser -Name 'Administrator' -Password $pw -ErrorAction Stop; "
+            "} catch { "
+            f"  net user Administrator '{safe_pw}'; "
+            "}; "
+            "try { Set-LocalUser -Name 'Administrator' -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}; "
+            "try { Get-NetFirewallRule -DisplayName 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue | Enable-NetFirewallRule } catch {}; "
+            "try { New-NetFirewallRule -DisplayName 'OpenSSH-Server-In-TCP' -Direction Inbound -LocalPort 22 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue } catch {}; "
+            "try { Set-Service -Name sshd -StartupType 'Automatic' -ErrorAction SilentlyContinue; Start-Service -Name sshd -ErrorAction SilentlyContinue } catch {}; "
+            "try { Set-NetFirewallRule -DisplayGroup 'Remote Desktop' -Enabled True -ErrorAction SilentlyContinue } catch {}; "
+            "try { New-NetFirewallRule -DisplayName 'Allow RDP 3389' -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue } catch {}; "
+            "try { Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server' -Name 'fDenyTSConnections' -Value 0 -ErrorAction SilentlyContinue } catch {}; "
+            "Write-Host 'WINDOWS_PASSWORD_OK'"
+        )
+        max_attempts = 18
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if log_callback:
+                    log_callback(f'[INFO] Configuring Windows VM (attempt {attempt}/{max_attempts})...')
+                out = cls._run(
+                    ['lxc', 'exec', name, '--', 'powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script],
+                    check=False
+                )
+                if 'WINDOWS_PASSWORD_OK' in out:
+                    if log_callback:
+                        log_callback('[INFO] Windows password set and firewall rules configured.')
+                    return True
+            except Exception as e:
+                if log_callback:
+                    log_callback(f'[INFO] Windows not ready yet ({e})')
+            time.sleep(10)
+        if log_callback:
+            log_callback('[WARNING] Could not set Windows password automatically. Use the panel to retry, or RDP and run: net user Administrator <newpw>')
+        return False
+
+    @classmethod
+    def import_windows_disk_image(cls, file_path, alias='windows/10', description=None,
+                                  os_property='windows', progress_callback=None):
+        """Imports a .vhd/.vhdx/.qcow2/.img/.iso file as a LXD image.
+
+        Detects file format and uses the appropriate `lxc image import` command.
+        For .iso, runs the unattended Windows installer build flow internally.
+
+        Returns the imported alias name on success.
+        """
+        if IS_MOCK_LXC:
+            return alias
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Image file not found: {file_path}")
+
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ('.vhd', '.vhdx', '.qcow2', '.img', '.raw', '.iso'):
+            raise ValueError(f"Unsupported Windows image format: {ext}. Use .vhd, .vhdx, .qcow2, .img, .raw, or .iso")
+
+        if progress_callback:
+            progress_callback(f'Importing {os.path.basename(file_path)} as LXD image...')
+
+        cmd = [LXC_BIN, 'image', 'import', file_path, '--alias', alias]
+        if description:
+            cmd += ['description', description]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=1800)
+        if result.returncode != 0:
+            raise Exception(f"lxc image import failed: {result.stderr.strip() or result.stdout.strip()}")
+
+        subprocess.run(
+            [LXC_BIN, 'image', 'set-property', alias, 'os', os_property],
+            capture_output=True, text=True, check=False
+        )
+        if progress_callback:
+            progress_callback(f'Image imported and tagged with alias "{alias}".')
+        return alias
+
+    @classmethod
+    def list_windows_images(cls):
+        """Returns a list of available Windows image aliases."""
+        if IS_MOCK_LXC:
+            return ['windows/10', 'win10']
+        out = []
+        try:
+            result = subprocess.run(
+                [LXC_BIN, 'image', 'list', '--format=json'],
+                capture_output=True, text=True, check=True, timeout=10
+            )
+            for img in json.loads(result.stdout):
+                for alias in img.get('aliases', []):
+                    name = alias.get('name', '').lower()
+                    if name.startswith('windows') or name.startswith('win'):
+                        out.append(alias.get('name'))
+                        break
+        except Exception as e:
+            print(f"[!] list_windows_images error: {e}")
+        return out
 
     @classmethod
     def get_container_stats(cls, name, plan_cpu=1, plan_ram=512, plan_disk=10, db_status='running', vps_id=None):
@@ -423,22 +581,36 @@ class LXCManager:
             # Update cache
             cls._cpu_cache[name] = (now, cpu_seconds)
 
-        # Disk usage via df inside container
+        # Disk usage via df inside container (Linux) or Get-PSDrive (Windows)
         used_disk = 0.0
+        is_win = cls._is_windows_container(name)
         if status == 'running':
-            try:
-                df_out = subprocess.run(
-                    [LXC_BIN, 'exec', name, '--', 'df', '-BM', '/'],
-                    capture_output=True, text=True, timeout=5
-                )
-                if df_out.returncode == 0:
-                    lines = df_out.stdout.strip().splitlines()
-                    if len(lines) > 1:
-                        parts = lines[1].split()
-                        used_str = parts[2] if len(parts) > 2 else '0'
-                        used_disk = round(int(re.sub(r'[^0-9]', '', used_str)) / 1024, 1)
-            except Exception:
-                pass
+            if is_win:
+                try:
+                    ps_out = cls._run(
+                        ['lxc', 'exec', name, '--', 'powershell', '-NoProfile', '-NonInteractive',
+                         '-Command', "(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -ne $null } | Measure-Object -Property Used -Sum).Sum / 1GB"],
+                        check=False
+                    )
+                    val = re.sub(r'[^0-9.]', '', ps_out.strip().splitlines()[-1] if ps_out.strip() else '0')
+                    if val:
+                        used_disk = round(float(val), 1)
+                except Exception:
+                    pass
+            else:
+                try:
+                    df_out = subprocess.run(
+                        [LXC_BIN, 'exec', name, '--', 'df', '-BM', '/'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if df_out.returncode == 0:
+                        lines = df_out.stdout.strip().splitlines()
+                        if len(lines) > 1:
+                            parts = lines[1].split()
+                            used_str = parts[2] if len(parts) > 2 else '0'
+                            used_disk = round(int(re.sub(r'[^0-9]', '', used_str)) / 1024, 1)
+                except Exception:
+                    pass
 
         ip_addr = cls.get_container_ip(name)
 

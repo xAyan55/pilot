@@ -2086,3 +2086,143 @@ async function saveDiscordIntegration(event) {
 window.saveDiscordIntegration = saveDiscordIntegration;
 
 
+// ════════════════════════════════════════════════════════════════
+// Windows Image Manager
+// ════════════════════════════════════════════════════════════════
+
+let _winBuildPollTimer = null;
+
+async function loadWindowsImages() {
+  const list = document.getElementById('windows-images-list');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/admin/windows/images');
+    const data = await window.handleFetchResponse(res);
+    if (!data.images || data.images.length === 0) {
+      list.innerHTML = '<span style="color: var(--color-text-muted);">No Windows images installed yet. Build one below or upload a pre-made image.</span>';
+      return;
+    }
+    list.innerHTML = data.images.map(alias =>
+      `<span style="background-color: #0078D4; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">${alias}</span>`
+    ).join(' ');
+  } catch (err) {
+    list.innerHTML = `<span style="color: var(--color-danger);">Failed to load: ${err.message}</span>`;
+  }
+}
+window.loadWindowsImages = loadWindowsImages;
+
+async function startWindowsBuild() {
+  const alias = document.getElementById('winBuildAlias').value.trim() || 'windows/10';
+  const isoPath = document.getElementById('winBuildIso').value.trim();
+  const password = document.getElementById('winBuildPassword').value || 'MintyHost!2026';
+  const btn = document.getElementById('winBuildBtn');
+  const status = document.getElementById('winBuildStatus');
+  btn.disabled = true;
+  status.textContent = 'Starting build…';
+  try {
+    const res = await fetch('/api/admin/windows/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias, iso_path: isoPath, default_password: password })
+    });
+    const result = await window.handleFetchResponse(res);
+    status.textContent = result.message || 'Build started.';
+    pollWindowsBuild();
+  } catch (err) {
+    status.textContent = `Failed: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+window.startWindowsBuild = startWindowsBuild;
+
+async function pollWindowsBuild() {
+  if (_winBuildPollTimer) clearInterval(_winBuildPollTimer);
+  _winBuildPollTimer = setInterval(async () => {
+    try {
+      const [statusRes, logRes] = await Promise.all([
+        fetch('/api/admin/windows/build-status'),
+        fetch('/api/admin/windows/build-log')
+      ]);
+      const statusData = await statusRes.json();
+      const logData = await logRes.json();
+      const status = document.getElementById('winBuildStatus');
+      const logEl = document.getElementById('winBuildLog');
+      if (logEl && logData.tail) {
+        logEl.textContent = logData.content || '';
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      if (statusData.finished) {
+        clearInterval(_winBuildPollTimer);
+        _winBuildPollTimer = null;
+        status.textContent = statusData.ok
+          ? '✅ Build finished successfully. Image ready to deploy.'
+          : '❌ Build failed. See log below for details.';
+        if (statusData.ok) {
+          loadWindowsImages();
+          showToast('Windows image built successfully!', 'success');
+        } else {
+          showToast('Windows image build failed.', 'error');
+        }
+      } else if (statusData.running) {
+        const lastMsg = (statusData.progress && statusData.progress.length > 0)
+          ? statusData.progress[statusData.progress.length - 1].msg
+          : 'Build running…';
+        status.textContent = '🔨 ' + lastMsg;
+      }
+    } catch (err) {
+      // ignore transient errors
+    }
+  }, 4000);
+}
+window.pollWindowsBuild = pollWindowsBuild;
+
+async function uploadWindowsImage() {
+  const fileInput = document.getElementById('winUploadFile');
+  const aliasInput = document.getElementById('winUploadAlias');
+  const status = document.getElementById('winUploadStatus');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    status.textContent = 'Please choose a file first.';
+    return;
+  }
+  const file = fileInput.files[0];
+  const alias = aliasInput.value.trim() || 'windows/10';
+  status.textContent = `Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)…`;
+  try {
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('alias', alias);
+    fd.append('os', 'windows');
+    const res = await fetch('/api/admin/windows/upload', { method: 'POST', body: fd });
+    const result = await window.handleFetchResponse(res);
+    status.textContent = `✅ ${result.message}`;
+    showToast('Windows image imported!', 'success');
+    loadWindowsImages();
+    fileInput.value = '';
+  } catch (err) {
+    status.textContent = `Failed: ${err.message}`;
+  }
+}
+window.uploadWindowsImage = uploadWindowsImage;
+
+// Hook into panel switching
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-target="panel-windows"]').forEach(el => {
+    el.addEventListener('click', () => {
+      loadWindowsImages();
+      fetch('/api/admin/windows/build-log').then(r => r.json()).then(d => {
+        if (d && d.tail) {
+          document.getElementById('winBuildLog').textContent = d.content || '';
+        }
+      });
+      fetch('/api/admin/windows/build-status').then(r => r.json()).then(d => {
+        if (d.running) pollWindowsBuild();
+        if (d.finished) {
+          const s = document.getElementById('winBuildStatus');
+          if (s) s.textContent = d.ok ? '✅ Build finished successfully.' : '❌ Build failed.';
+        }
+      });
+    });
+  });
+});
+

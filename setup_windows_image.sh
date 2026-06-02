@@ -3,12 +3,17 @@
 # MintyHost — One-Click Windows 10 LXD Image Builder
 # ============================================================================
 # Fully automated: downloads Windows 10 via UUP dump (Microsoft Update CDN),
-# installs it unattended in an LXD VM, and publishes it as a reusable image.
+# installs it unattended in an LXD VM, configures RDP/SSH/OpenSSH firewall,
+# and publishes it as a reusable image.
 #
-# Usage:  bash setup_windows_image.sh
-#    or:  bash setup_windows_image.sh /path/to/existing/Win10.iso
+# Usage:
+#   bash setup_windows_image.sh                            # auto-download via UUP
+#   bash setup_windows_image.sh /path/to/Win10.iso         # use existing ISO
+#   sudo bash setup_windows_image.sh 2>&1 | tee /var/log/mintyhost-win-build.log
+#
+# Build log is also streamed live to: /var/log/mintyhost-win-build.log
 # ============================================================================
-set -euo pipefail
+set -uo pipefail
 
 WORK_DIR="/tmp/mintyhost-win10"
 WIN_ISO="$WORK_DIR/Win10.iso"
@@ -17,8 +22,13 @@ VIRTIO_ISO="$WORK_DIR/virtio-win.iso"
 UNATTEND_DIR="$WORK_DIR/unattend"
 UNATTEND_ISO="$WORK_DIR/unattend.iso"
 VM_NAME="win10-builder"
-ALIAS_NAME="windows/10"
+ALIAS_NAME="${WINDOWS_ALIAS:-windows/10}"
+DEFAULT_PASSWORD="${WINDOWS_DEFAULT_PASSWORD:-MintyHost!2026}"
 LXC="/snap/bin/lxc"
+LOG_FILE="${WINDOWS_LOG_FILE:-/var/log/mintyhost-win-build.log}"
+
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+exec > >(tee -a "$LOG_FILE") 2>&1
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -26,33 +36,36 @@ log()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 fail() { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 info() { echo -e "${CYAN}[→]${NC} $1"; }
+progress() { echo "${CYAN}[$(date +%H:%M:%S)]${NC} $1" | tee -a "$LOG_FILE" >/dev/null; }
 
 echo ""
 echo -e "${BOLD}============================================================${NC}"
 echo -e "${BOLD}  MintyHost — One-Click Windows 10 Image Builder${NC}"
 echo -e "${BOLD}============================================================${NC}"
 echo ""
+log "Build log: $LOG_FILE"
 
 [ "$(id -u)" -ne 0 ] && fail "Run as root: sudo bash $0"
 command -v $LXC &>/dev/null || fail "LXD not found. Install: sudo snap install lxd && sudo lxd init --auto"
 
 # ── Install all dependencies ──
 info "Installing required tools..."
-apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq aria2 wimtools cabextract chntpw genisoimage wget curl jq git >/dev/null 2>&1 || {
-    warn "Some packages may not have installed via apt. Trying individual installs..."
-    for pkg in aria2 wimtools cabextract chntpw genisoimage wget curl jq git; do
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq >/dev/null 2>&1 || warn "apt update failed (continuing)"
+for pkg in aria2 wimtools cabextract chntpw genisoimage wget curl jq git pwgen; do
+    if ! command -v "${pkg%% *}" &>/dev/null; then
         apt-get install -y -qq "$pkg" >/dev/null 2>&1 || warn "Could not install: $pkg"
-    done
-}
+    fi
+done
 log "Dependencies ready."
 
 # ── Check / clean existing image & builder VM ──
-if $LXC image list --format=json 2>/dev/null | grep -q "\"$ALIAS_NAME\""; then
-    warn "Image '$ALIAS_NAME' already exists — will overwrite after new build."
+if $LXC image list --format=json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if any('\"$ALIAS_NAME\"' in str(i) for i in d) else 1)" 2>/dev/null; then
+    warn "Image '$ALIAS_NAME' already exists — will overwrite after successful build."
 fi
 $LXC delete "$VM_NAME" --force 2>/dev/null || true
 mkdir -p "$WORK_DIR" "$UNATTEND_DIR"
+rm -f "$UNATTEND_ISO"
 
 # ══════════════════════════════════════════════════════════════
 # STEP 1: Get Windows 10 ISO
@@ -64,29 +77,36 @@ elif [ -f "$WIN_ISO" ]; then
     log "Found previously downloaded ISO at $WIN_ISO"
 else
     info "Downloading Windows 10 from Microsoft Update servers via UUP dump..."
-    echo ""
 
-    # ── Query UUP dump API for latest Windows 10 22H2 build ──
-    info "Querying UUP dump for latest Windows 10 22H2 build..."
     API_RESPONSE=$(curl -sS --max-time 30 "https://api.uupdump.net/listid.php?search=19045&sortByDate=1" 2>/dev/null) || true
 
     BUILD_UUID=""
     BUILD_TITLE=""
     if [ -n "$API_RESPONSE" ]; then
-        BUILD_UUID=$(echo "$API_RESPONSE" | jq -r '
-            [.response.builds | to_entries[] |
-             select(.value.title | test("Windows 10"; "i")) |
-             select(.value.title | test("amd64|x64"; "i"))
-            ][0].key // empty' 2>/dev/null) || true
-
-        if [ -z "$BUILD_UUID" ]; then
-            BUILD_UUID=$(echo "$API_RESPONSE" | jq -r '
-                [.response.builds | to_entries[]
-                ][0].key // empty' 2>/dev/null) || true
-        fi
+        BUILD_UUID=$(echo "$API_RESPONSE" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    builds = d.get('response', {}).get('builds', {})
+    for k, v in builds.items():
+        title = (v.get('title') or '').lower()
+        if 'windows 10' in title and ('amd64' in title or 'x64' in title):
+            print(k); break
+    else:
+        print(list(builds.keys())[0] if builds else '')
+except Exception:
+    print('')
+" 2>/dev/null) || true
 
         if [ -n "$BUILD_UUID" ]; then
-            BUILD_TITLE=$(echo "$API_RESPONSE" | jq -r ".response.builds[\"$BUILD_UUID\"].title // \"Unknown\"" 2>/dev/null) || true
+            BUILD_TITLE=$(echo "$API_RESPONSE" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('response', {}).get('builds', {}).get('$BUILD_UUID', {}).get('title', 'Unknown'))
+except Exception:
+    print('Unknown')
+" 2>/dev/null) || true
         fi
     fi
 
@@ -97,12 +117,10 @@ else
     log "Found: $BUILD_TITLE"
     log "Build ID: $BUILD_UUID"
 
-    # ── Get download URLs from UUP dump ──
     info "Fetching file list from Microsoft CDN..."
     FILES_JSON=$(curl -sS --max-time 30 "https://api.uupdump.net/get.php?id=${BUILD_UUID}&lang=en-us&edition=professional" 2>/dev/null) || true
 
-    # Check for errors
-    API_ERROR=$(echo "$FILES_JSON" | jq -r '.response.error // empty' 2>/dev/null) || true
+    API_ERROR=$(echo "$FILES_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('response',{}).get('error',''))" 2>/dev/null) || true
     if [ -n "$API_ERROR" ]; then
         warn "UUP dump API error: $API_ERROR"
         info "Trying without edition filter..."
@@ -113,14 +131,24 @@ else
         fail "Could not get download URLs from UUP dump."
     fi
 
-    # ── Build aria2 download list ──
     UUP_DIR="$WORK_DIR/uup-files"
     mkdir -p "$UUP_DIR"
 
-    echo "$FILES_JSON" | jq -r '
-        .response.files | to_entries[] |
-        .value.url + "\n  out=" + .key + "\n  checksum=sha-1=" + .value.sha1
-    ' > "$WORK_DIR/uup-urls.txt" 2>/dev/null || true
+    echo "$FILES_JSON" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    for k, v in d.get('response', {}).get('files', {}).items():
+        url = v.get('url', '').strip()
+        if url:
+            print(url)
+            print(f'  out={k}')
+            sha = (v.get('sha1') or '').strip()
+            if sha:
+                print(f'  checksum=sha-1={sha}')
+except Exception as e:
+    sys.exit(1)
+" > "$WORK_DIR/uup-urls.txt" 2>/dev/null || true
 
     NUM_FILES=$(grep -c "^http" "$WORK_DIR/uup-urls.txt" 2>/dev/null || echo "0")
 
@@ -130,7 +158,6 @@ else
 
     log "Downloading $NUM_FILES files from Microsoft CDN..."
     info "This is ~4-5 GB and may take 10-30 minutes..."
-    echo ""
 
     aria2c --input-file="$WORK_DIR/uup-urls.txt" \
         --dir="$UUP_DIR" \
@@ -145,17 +172,14 @@ else
         fail "Download failed. Check your internet connection and try again."
     }
 
-    echo ""
     log "All UUP files downloaded!"
 
-    # ── Clone UUP dump converter and build ISO ──
     info "Building Windows 10 ISO from downloaded files (this takes 5-15 min)..."
     CONVERTER_DIR="$WORK_DIR/converter"
 
     if [ ! -d "$CONVERTER_DIR/.git" ]; then
         rm -rf "$CONVERTER_DIR"
         git clone --depth=1 https://git.uupdump.net/uupdump/converter.git "$CONVERTER_DIR" 2>/dev/null || {
-            # Fallback mirror
             warn "Primary converter repo unavailable, trying GitHub mirror..."
             git clone --depth=1 https://github.com/AveYo/MediaCreationTool.bat.git "$CONVERTER_DIR" 2>/dev/null || {
                 fail "Could not download UUP converter. Try downloading a Windows ISO manually."
@@ -166,14 +190,12 @@ else
     cd "$CONVERTER_DIR"
     chmod +x convert.sh 2>/dev/null || true
 
-    # Run the converter
     if [ -f "convert.sh" ]; then
         bash convert.sh wim "$UUP_DIR" 0 1 2>&1 | tail -20
     else
         fail "Converter script not found in $CONVERTER_DIR"
     fi
 
-    # Find the generated ISO
     GENERATED_ISO=$(find "$CONVERTER_DIR" -maxdepth 1 -name "*.iso" -type f 2>/dev/null | head -1)
     if [ -z "$GENERATED_ISO" ]; then
         GENERATED_ISO=$(find "$WORK_DIR" -name "*.iso" -newer "$WORK_DIR/uup-urls.txt" -type f 2>/dev/null | grep -iv virtio | head -1)
@@ -188,7 +210,6 @@ else
     cd /tmp
 fi
 
-# Verify ISO exists and is reasonable size (> 2GB)
 if [ ! -f "$WIN_ISO" ]; then
     fail "Windows ISO not found at $WIN_ISO"
 fi
@@ -198,15 +219,25 @@ if [ "$ISO_SIZE" -lt 2000000000 ]; then
 fi
 
 # ══════════════════════════════════════════════════════════════
-# STEP 2: Download VirtIO drivers
+# STEP 2: Download VirtIO drivers (with mirror fallback)
 # ══════════════════════════════════════════════════════════════
-if [ -f "$VIRTIO_ISO" ]; then
+if [ -f "$VIRTIO_ISO" ] && [ "$(stat -c%s "$VIRTIO_ISO" 2>/dev/null || echo 0)" -gt 100000000 ]; then
     log "VirtIO drivers already downloaded."
 else
     info "Downloading VirtIO drivers (~500 MB)..."
-    wget -q --show-progress -O "$VIRTIO_ISO" "$VIRTIO_URL" || fail "VirtIO download failed!"
-    echo ""
-    log "VirtIO drivers downloaded!"
+    if ! wget -q -O "$VIRTIO_ISO.tmp" "$VIRTIO_URL"; then
+        warn "Primary VirtIO URL failed, trying GitHub mirror..."
+        rm -f "$VIRTIO_ISO.tmp"
+        wget -q -O "$VIRTIO_ISO.tmp" "https://github.com/virtio-win/virtio-win-pkg-scripts/raw/master/virtio-win.iso" \
+            || fail "VirtIO download failed from all mirrors!"
+    fi
+    if [ -f "$VIRTIO_ISO.tmp" ] && [ "$(stat -c%s "$VIRTIO_ISO.tmp" 2>/dev/null || echo 0)" -gt 100000000 ]; then
+        mv "$VIRTIO_ISO.tmp" "$VIRTIO_ISO"
+        log "VirtIO drivers downloaded!"
+    else
+        rm -f "$VIRTIO_ISO.tmp"
+        fail "VirtIO download produced a file that's too small (< 100MB). Aborting."
+    fi
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -214,7 +245,10 @@ fi
 # ══════════════════════════════════════════════════════════════
 info "Creating unattended installation config..."
 
-cat > "$UNATTEND_DIR/autounattend.xml" << 'XMLEOF'
+# XML-escape the password for safe insertion into autounattend.xml
+ESCAPED_PW=$(printf '%s' "$DEFAULT_PASSWORD" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g")
+
+cat > "$UNATTEND_DIR/autounattend.xml" << XMLEOF
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
 
@@ -271,7 +305,7 @@ cat > "$UNATTEND_DIR/autounattend.xml" << 'XMLEOF'
             </ImageInstall>
             <UserData>
                 <AcceptEula>true</AcceptEula>
-                <FullName>Admin</FullName>
+                <FullName>MintyHost</FullName>
                 <Organization>MintyHost</Organization>
             </UserData>
         </component>
@@ -327,22 +361,22 @@ cat > "$UNATTEND_DIR/autounattend.xml" << 'XMLEOF'
             </OOBE>
             <UserAccounts>
                 <AdministratorPassword>
-                    <Value>admin123</Value>
+                    <Value>${ESCAPED_PW}</Value>
                     <PlainText>true</PlainText>
                 </AdministratorPassword>
                 <LocalAccounts>
                     <LocalAccount wcm:action="add">
-                        <Password><Value>admin123</Value><PlainText>true</PlainText></Password>
-                        <DisplayName>Admin</DisplayName>
-                        <Name>Admin</Name>
+                        <Password><Value>${ESCAPED_PW}</Value><PlainText>true</PlainText></Password>
+                        <DisplayName>Administrator</DisplayName>
+                        <Name>Administrator</Name>
                         <Group>Administrators</Group>
                     </LocalAccount>
                 </LocalAccounts>
             </UserAccounts>
             <AutoLogon>
                 <Enabled>true</Enabled>
-                <Username>Admin</Username>
-                <Password><Value>admin123</Value><PlainText>true</PlainText></Password>
+                <Username>Administrator</Username>
+                <Password><Value>${ESCAPED_PW}</Value><PlainText>true</PlainText></Password>
                 <LogonCount>1</LogonCount>
             </AutoLogon>
             <FirstLogonCommands>
@@ -358,17 +392,32 @@ cat > "$UNATTEND_DIR/autounattend.xml" << 'XMLEOF'
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
                     <Order>3</Order>
-                    <CommandLine>powershell -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Set-Service sshd -StartupType Automatic; Start-Service sshd" </CommandLine>
+                    <CommandLine>powershell -NoProfile -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Set-Service sshd -StartupType Automatic; Start-Service sshd; New-NetFirewallRule -DisplayName 'OpenSSH-Server-In-TCP' -Direction Inbound -LocalPort 22 -Protocol TCP -Action Allow"</CommandLine>
                     <RequiresUserInput>false</RequiresUserInput>
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
                     <Order>4</Order>
-                    <CommandLine>cmd /c reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f</CommandLine>
+                    <CommandLine>powershell -NoProfile -Command "Set-NetFirewallRule -DisplayGroup 'Remote Desktop' -Enabled True"</CommandLine>
                     <RequiresUserInput>false</RequiresUserInput>
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
                     <Order>5</Order>
-                    <CommandLine>shutdown /s /t 10 /c "MintyHost: Windows image setup complete."</CommandLine>
+                    <CommandLine>cmd /c reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f</CommandLine>
+                    <RequiresUserInput>false</RequiresUserInput>
+                </SynchronousCommand>
+                <SynchronousCommand wcm:action="add">
+                    <Order>6</Order>
+                    <CommandLine>cmd /c reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fSingleSessionPerUser /t REG_DWORD /d 0 /f</CommandLine>
+                    <RequiresUserInput>false</RequiresUserInput>
+                </SynchronousCommand>
+                <SynchronousCommand wcm:action="add">
+                    <Order>7</Order>
+                    <CommandLine>powershell -NoProfile -Command "Set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update' -Name AUOptions -Value 4"</CommandLine>
+                    <RequiresUserInput>false</RequiresUserInput>
+                </SynchronousCommand>
+                <SynchronousCommand wcm:action="add">
+                    <Order>8</Order>
+                    <CommandLine>shutdown /s /t 15 /c "MintyHost: Windows image setup complete."</CommandLine>
                     <RequiresUserInput>false</RequiresUserInput>
                 </SynchronousCommand>
             </FirstLogonCommands>
@@ -377,7 +426,8 @@ cat > "$UNATTEND_DIR/autounattend.xml" << 'XMLEOF'
 </unattend>
 XMLEOF
 
-log "Unattended config created."
+log "Unattended config created (default password: ${DEFAULT_PASSWORD})."
+log "You can override via: WINDOWS_DEFAULT_PASSWORD='MyPw' sudo -E bash $0 /path/to/Win10.iso"
 
 info "Building unattend ISO..."
 genisoimage -quiet -o "$UNATTEND_ISO" -J -r "$UNATTEND_DIR/" 2>/dev/null
@@ -453,13 +503,14 @@ $LXC config device remove "$VM_NAME" win-iso 2>/dev/null || true
 $LXC config device remove "$VM_NAME" virtio-iso 2>/dev/null || true
 $LXC config device remove "$VM_NAME" unattend-iso 2>/dev/null || true
 
-# Delete old image if exists
 $LXC image delete "$ALIAS_NAME" 2>/dev/null || true
 
 info "Publishing image as '$ALIAS_NAME' (may take 5-10 min)..."
-$LXC publish "$VM_NAME" --alias "$ALIAS_NAME" description="Windows 10 Pro VM (MintyHost)" || {
+$LXC publish "$VM_NAME" --alias "$ALIAS_NAME" \
+    description="Windows 10 Pro VM (MintyHost) — default user 'Administrator', password set during deploy" || {
     fail "Failed to publish. VM '$VM_NAME' still available for manual publish."
 }
+$LXC image set-property "$ALIAS_NAME" os windows 2>/dev/null || true
 
 log "Image published!"
 
@@ -471,9 +522,14 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}  ✅ SUCCESS! Windows 10 image is ready!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "  Deploy Windows VPS from the MintyHost panel now!"
-echo "  Image alias: $ALIAS_NAME"
-echo "  Verify: $LXC image list | grep windows"
+echo "  Image alias:        $ALIAS_NAME"
+echo "  Default user:       Administrator"
+echo "  Default password:   ${DEFAULT_PASSWORD}"
+echo "  (Password is reset to the user's chosen password on each deploy via PowerShell.)"
+echo ""
+echo "  Verify:             $LXC image list | grep windows"
 echo ""
 echo "  Note: Windows VMs need at least 2 vCPU, 4GB RAM, 40GB disk."
+echo "  The MintyHost panel automatically enforces these minimums."
 echo ""
+log "Full build log: $LOG_FILE"

@@ -207,6 +207,9 @@
           <a href="#" data-target="panel-nodes"><i data-lucide="network"></i> Nodes</a>
         </li>
         <li class="db-menu-item">
+          <a href="#" data-target="panel-windows"><i data-lucide="monitor-smartphone"></i> Windows</a>
+        </li>
+        <li class="db-menu-item">
           <a href="#" data-target="panel-logs"><i data-lucide="file-text"></i> Audit Logs</a>
         </li>
         <li class="db-menu-item">
@@ -1020,6 +1023,70 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+
+        <div class="db-tab-panel" id="panel-windows">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">Windows Image Manager</h3>
+              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Build, upload, and manage Windows VM images for client deployment.</p>
+            </div>
+          </div>
+
+          <div class="db-block" style="margin-bottom: 24px;">
+            <h4 style="margin-bottom: 12px;">Available Windows Images</h4>
+            <div id="windows-images-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <span style="color: var(--color-text-muted);">Loading...</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="db-block">
+              <h4 style="margin-bottom: 12px;">Build Image from ISO / UUP</h4>
+              <p style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 12px;">
+                Streams a Windows 10 ISO build (or uses an existing ISO) and creates a LXD image alias.
+                Build time: 20-40 min. Log streams below.
+              </p>
+              <div class="form-group">
+                <label>Image Alias (e.g. <code>windows/10</code>)</label>
+                <input type="text" id="winBuildAlias" class="form-input" value="windows/10">
+              </div>
+              <div class="form-group">
+                <label>Existing ISO Path (optional — leave empty to download via UUP)</label>
+                <input type="text" id="winBuildIso" class="form-input" placeholder="/root/Win10.iso">
+              </div>
+              <div class="form-group">
+                <label>Default Admin Password (used in the unattended XML)</label>
+                <input type="text" id="winBuildPassword" class="form-input" value="MintyHost!2026">
+              </div>
+              <button class="btn btn-primary" id="winBuildBtn" onclick="startWindowsBuild()"><i data-lucide="hammer"></i> Start Image Build</button>
+              <div id="winBuildStatus" style="margin-top: 16px; font-size: 13px; color: var(--color-text-muted);"></div>
+            </div>
+
+            <div class="db-block">
+              <h4 style="margin-bottom: 12px;">Upload Pre-built Image</h4>
+              <p style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 12px;">
+                Upload a <code>.vhd</code>, <code>.vhdx</code>, <code>.qcow2</code>, <code>.img</code>, or <code>.iso</code> file directly.
+                It will be imported as a LXD image.
+              </p>
+              <div class="form-group">
+                <label>Image Alias</label>
+                <input type="text" id="winUploadAlias" class="form-input" value="windows/10" placeholder="windows/10 or windows/11 etc.">
+              </div>
+              <div class="form-group">
+                <label>Disk Image File</label>
+                <input type="file" id="winUploadFile" class="form-input" accept=".vhd,.vhdx,.qcow2,.img,.raw,.iso">
+              </div>
+              <button class="btn btn-primary" onclick="uploadWindowsImage()"><i data-lucide="upload"></i> Upload &amp; Import</button>
+              <div id="winUploadStatus" style="margin-top: 16px; font-size: 13px; color: var(--color-text-muted);"></div>
+            </div>
+          </div>
+
+          <div class="db-block">
+            <h4 style="margin-bottom: 12px;">Build Log (tail)</h4>
+            <pre id="winBuildLog" style="max-height: 360px; overflow-y: auto; background: #0f172a; color: #cbd5e1; padding: 14px; border-radius: 8px; font-size: 11px; font-family: monospace; white-space: pre-wrap;"></pre>
           </div>
         </div>
 

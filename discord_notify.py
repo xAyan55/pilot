@@ -141,25 +141,44 @@ def send_vps_creation_dm(discord_user_id, vps_id, root_password, ip_address, tun
     conn.close()
     if not vps:
         return False
-        
+
+    is_windows = 'windows' in (vps['os'] or '').lower()
+    login_user = 'Administrator' if is_windows else 'root'
+
     ssh_info = f"Host: `{ip_address}`\nPort: `22`"
     if tunnel_url:
         ssh_info = f"Relay command: `{tunnel_url}`"
-        
+
+    fields = [
+        {"name": "Panel Link", "value": f"🔗 [Go to Control Panel]({panel_url})", "inline": False},
+        {"name": "Server ID", "value": f"`{vps['id']}`", "inline": True},
+        {"name": "Container Name", "value": f"`{vps['container_name']}`", "inline": True},
+        {"name": "OS Distribution", "value": f"`{vps['os']}`", "inline": True},
+        {"name": "Hardware Profile", "value": f"⚡ `{vps['cpu']} Cores / {vps['ram']}MB RAM / {vps['disk']}GB SSD`", "inline": False},
+        {"name": "Login User", "value": f"`{login_user}`", "inline": True},
+        {"name": "Root Password", "value": f"`{root_password}`", "inline": True},
+    ]
+
+    if is_windows:
+        rdp_port = 3389
+        fields.append({
+            "name": "🖥️ RDP Connection (Windows)",
+            "value": f"Host: `{ip_address}`\nPort: `{rdp_port}`\nUser: `{login_user}`\nPassword: `{root_password}`",
+            "inline": False,
+        })
+        fields.append({
+            "name": "🔐 SSH Connection (OpenSSH)",
+            "value": f"Host: `{ip_address}`\nPort: `22`\nUser: `{login_user}`\nPassword: `{root_password}`",
+            "inline": False,
+        })
+    else:
+        fields.append({"name": "SSH Connection", "value": ssh_info, "inline": False})
+
     embed = {
         "title": "🖥️ New VPS Instance Deployed",
         "description": "Your new virtual private server container is now online and ready to use.",
         "color": 6512639,
-        "fields": [
-            {"name": "Panel Link", "value": f"🔗 [Go to Control Panel]({panel_url})", "inline": False},
-            {"name": "Server ID", "value": f"`{vps['id']}`", "inline": True},
-            {"name": "Container Name", "value": f"`{vps['container_name']}`", "inline": True},
-            {"name": "OS Distribution", "value": f"`{vps['os']}`", "inline": True},
-            {"name": "Hardware Profile", "value": f"⚡ `{vps['cpu']} Cores / {vps['ram']}MB RAM / {vps['disk']}GB SSD`", "inline": False},
-            {"name": "Login User", "value": "`root`", "inline": True},
-            {"name": "Root Password", "value": f"`{root_password}`", "inline": True},
-            {"name": "SSH Connection", "value": ssh_info, "inline": False}
-        ],
+        "fields": fields,
         "footer": {
             "text": f"{site_name} Automated Provisioning"
         }

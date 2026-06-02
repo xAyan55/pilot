@@ -317,9 +317,32 @@ def remove_port_forward(name):
                 ['iptables', '-D', 'FORWARD', '-p', 'tcp', '--dport', '22', '-j', 'ACCEPT'],
                 capture_output=True, timeout=5, check=False
             )
-            print(f"[+] Removed port forward {port} -> {name}:22")
+            rdp_key = f"{name}__rdp"
+            rdp_port = _allocated_ports.pop(rdp_key, None)
+            if rdp_port:
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-D', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', ':3389'],
+                    capture_output=True, timeout=5, check=False
+                )
+            print(f"[+] Removed port forward {port} -> {name}:22 (and RDP {rdp_port})")
         except Exception as e:
             print(f"[!] Failed to remove port forward for {name}: {e}")
+
+
+def _is_windows_vm(name):
+    if IS_MOCK_LXC:
+        return False
+    try:
+        out = subprocess.run(
+            [LXCManager.LXC_BIN, 'config', 'get', name, 'image.os'],
+            capture_output=True, text=True, timeout=5
+        )
+        if out.returncode == 0 and 'windows' in out.stdout.lower():
+            return True
+    except Exception:
+        pass
+    return False
+
 
 def setup_port_forward(name, vps_id):
     if IS_MOCK_LXC:
@@ -328,6 +351,7 @@ def setup_port_forward(name, vps_id):
     if not container_ip:
         print(f"[!] Cannot set up port forward: no IP for {name}")
         return None
+    is_win = _is_windows_vm(name)
     with PORT_FORWARD_LOCK:
         if name in _allocated_ports:
             port = _allocated_ports[name]
@@ -351,10 +375,32 @@ def setup_port_forward(name, vps_id):
             capture_output=True, timeout=5, check=False
         )
         print(f"[+] Port forward set: :{port} -> {container_ip}:22 ({name})")
+        if is_win:
+            rdp_key = f"{name}__rdp"
+            rdp_port = port + 1000
+            _allocated_ports[rdp_key] = rdp_port
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{container_ip}:3389'],
+                capture_output=True, timeout=5, check=False
+            )
+            subprocess.run(
+                ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', container_ip, '--dport', '3389', '-j', 'ACCEPT'],
+                capture_output=True, timeout=5, check=False
+            )
+            print(f"[+] RDP port forward set: :{rdp_port} -> {container_ip}:3389 ({name})")
+            _write_port_forwards_to_disk()
         return port
     except Exception as e:
         print(f"[!] Failed to set port forward for {name} on {container_ip}:22: {e}")
         return None
+
+
+def _write_port_forwards_to_disk():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json'), 'w') as f:
+            json.dump({k: v for k, v in _allocated_ports.items() if not k.endswith('__rdp')}, f)
+    except Exception:
+        pass
 
 def get_public_ip():
     try:

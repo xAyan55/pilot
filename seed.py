@@ -85,7 +85,7 @@ def seed_database():
             ("Is the resource allocation dedicated or shared?", "All resource limits (RAM, CPU, and Disk space) specified in your plan are 100% dedicated to your container. We enforce a strict non-overselling policy."),
             ("How fast is container provisioning?", "Once a container is deployed by an administrator, it boots up and becomes accessible in less than 55 seconds."),
             ("Can I manage snapshots and backups?", "Yes, you can create on-demand snapshots, restore container states, and export full container tarball backups directly from your client control panel."),
-            ("What operating systems are supported?", "We currently support Ubuntu 22.04 LTS and Debian 11 images. You can reinstall or switch your OS at any time.")
+            ("What operating systems are supported?", "We support Ubuntu 22.04/24.04 LTS, Debian 11/12, CentOS 9 Stream, Alpine 3.18, and Windows 10/11 (admin must pre-build a Windows image via the admin panel or by running bash /var/www/lxc/setup_windows_image.sh on the LXD host). You can reinstall or switch your OS at any time from the dashboard.")
         ]
         for faq in default_faqs:
             cursor.execute("INSERT INTO faqs (question, answer) VALUES (?, ?)", faq)

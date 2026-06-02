@@ -656,7 +656,7 @@ def client_vps_reinstall(vps_id):
     os_selection = data.get('os')
     root_password = data.get('root_password', '').strip()
 
-    if os_selection not in ['ubuntu/22.04', 'debian/11', 'debian/12', 'ubuntu/24.04', 'centos/9-stream', 'alpine/3.18', 'windows/10']:
+    if os_selection not in ['ubuntu/22.04', 'debian/11', 'debian/12', 'ubuntu/24.04', 'centos/9-stream', 'alpine/3.18', 'windows/10', 'windows/11', 'windows/server/2022', 'windows/server/2019', 'win10', 'win11', 'win2022', 'win2019']:
         return jsonify({"message": "Invalid OS selection."}), 400
     if not root_password or len(root_password) < 6:
         return jsonify({"message": "Password must be at least 6 characters."}), 400
@@ -2545,6 +2545,166 @@ def download_node_sh():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# WINDOWS IMAGE MANAGEMENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+WINDOWS_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'windows_image_uploads')
+os.makedirs(WINDOWS_IMAGE_DIR, exist_ok=True)
+WINDOWS_BUILD_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'windows_build_status.json')
+WINDOWS_BUILD_STATES = {}
+
+
+def _load_build_status():
+    if os.path.exists(WINDOWS_BUILD_LOG):
+        try:
+            with open(WINDOWS_BUILD_LOG, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'running': False, 'progress': [], 'finished': False, 'ok': False}
+
+
+def _save_build_status(state):
+    try:
+        with open(WINDOWS_BUILD_LOG, 'w') as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+
+def _push_build_progress(msg, finished=False, ok=False):
+    state = _load_build_status()
+    state.setdefault('progress', []).append({
+        'ts': time.time(),
+        'msg': msg,
+    })
+    state['last_update'] = time.time()
+    if finished:
+        state['finished'] = True
+        state['ok'] = ok
+        state['running'] = False
+    _save_build_status(state)
+    print(f"[WIN-IMG] {msg}")
+
+
+@app.route('/api/admin/windows/images', methods=['GET'])
+def admin_windows_list_images():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    try:
+        aliases = LXCManager.list_windows_images()
+    except Exception as e:
+        return jsonify({"message": f"Failed to list images: {str(e)}"}), 500
+    return jsonify({'images': aliases})
+
+
+@app.route('/api/admin/windows/upload', methods=['POST'])
+def admin_windows_upload_image():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    if 'image' not in request.files:
+        return jsonify({"message": "No file uploaded. Use form field 'image'."}), 400
+    f = request.files['image']
+    alias = (request.form.get('alias') or '').strip() or 'windows/10'
+    description = (request.form.get('description') or '').strip() or None
+    os_property = (request.form.get('os') or 'windows').strip()
+
+    safe_alias = alias.replace('/', '_').replace('\\', '_')
+    save_path = os.path.join(WINDOWS_IMAGE_DIR, f"{safe_alias}_{f.filename}")
+    try:
+        f.save(save_path)
+    except Exception as e:
+        return jsonify({"message": f"Failed to save upload: {str(e)}"}), 500
+
+    try:
+        imported = LXCManager.import_windows_disk_image(save_path, alias=alias, description=description, os_property=os_property)
+        return jsonify({"status": "success", "message": f"Image imported as '{imported}'.", "alias": imported})
+    except Exception as e:
+        return jsonify({"message": f"Import failed: {str(e)}"}), 500
+    finally:
+        try:
+            if os.path.exists(save_path):
+                os.remove(save_path)
+        except Exception:
+            pass
+
+
+@app.route('/api/admin/windows/build', methods=['POST'])
+def admin_windows_build_image():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    data = request.get_json() or {}
+    iso_path = (data.get('iso_path') or '').strip()
+    alias = (data.get('alias') or 'windows/10').strip()
+    default_password = (data.get('default_password') or 'MintyHost!2026').strip()
+
+    state = _load_build_status()
+    if state.get('running'):
+        return jsonify({"message": "A Windows image build is already running."}), 409
+
+    state = {'running': True, 'finished': False, 'ok': False, 'progress': [], 'started': time.time()}
+    _save_build_status(state)
+    _push_build_progress(f"Build started for alias '{alias}' (default password configured).")
+
+    def _runner():
+        env = os.environ.copy()
+        env['WINDOWS_ALIAS'] = alias
+        env['WINDOWS_DEFAULT_PASSWORD'] = default_password
+        env['WINDOWS_LOG_FILE'] = '/var/log/mintyhost-win-build.log'
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'setup_windows_image.sh')
+        cmd = ['sudo', '--preserve-env=WINDOWS_ALIAS,WINDOWS_DEFAULT_PASSWORD,WINDOWS_LOG_FILE',
+               'bash', script]
+        if iso_path:
+            cmd.append(iso_path)
+        try:
+            _push_build_progress(f"Running: {' '.join(cmd)}")
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                bufsize=1
+            )
+            for line in iter(proc.stdout.readline, ''):
+                _push_build_progress(line.rstrip())
+            proc.wait()
+            ok = (proc.returncode == 0)
+            if ok:
+                _push_build_progress("Build completed successfully!", finished=True, ok=True)
+            else:
+                _push_build_progress(f"Build failed with exit code {proc.returncode}.", finished=True, ok=False)
+        except Exception as e:
+            _push_build_progress(f"Build runner error: {e}", finished=True, ok=False)
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return jsonify({"status": "success", "message": "Build started. Poll /api/admin/windows/build-status for progress."})
+
+
+@app.route('/api/admin/windows/build-status', methods=['GET'])
+def admin_windows_build_status():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    state = _load_build_status()
+    return jsonify(state)
+
+
+@app.route('/api/admin/windows/build-log', methods=['GET'])
+def admin_windows_build_log():
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    log_path = '/var/log/mintyhost-win-build.log'
+    if not os.path.exists(log_path):
+        return jsonify({"content": "Log file not yet created. Build may not have started.", "tail": False})
+    try:
+        with open(log_path, 'r', errors='replace') as f:
+            content = f.read()
+        return jsonify({"content": content[-20000:], "tail": True, "size": len(content)})
+    except Exception as e:
+        return jsonify({"content": f"Error reading log: {e}", "tail": False})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SESSION-BASED API KEY MANAGEMENT (used by the panel dashboard UI)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -2659,6 +2819,22 @@ def setup_local_port_forward(name, vps_id=None):
     ip = _local_get_container_ip(name)
     if not ip or ip in ('N/A', 'Pending'):
         return None
+    is_win = False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT os FROM vps WHERE id = ? OR container_name = ?", (vps_id, name))
+        row = cursor.fetchone()
+        if row and 'windows' in (row['os'] or '').lower():
+            is_win = True
+        conn.close()
+    except Exception:
+        pass
+
+    ports = [22]
+    if is_win:
+        ports.append(3389)
+
     with LOCAL_PORT_LOCK:
         if name in _local_port_allocations:
             port = _local_port_allocations[name]
@@ -2672,27 +2848,48 @@ def setup_local_port_forward(name, vps_id=None):
             else:
                 port = 40000 + (vps_id or 0)
                 _local_port_allocations[name] = port
+
+    import subprocess
     try:
-        import subprocess
-        subprocess.run(
-            ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:22'],
-            capture_output=True, timeout=5, check=False
-        )
-        subprocess.run(
-            ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:22'],
-            capture_output=True, timeout=5, check=False
-        )
-        subprocess.run(
-            ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', '22', '-j', 'ACCEPT'],
-            capture_output=True, timeout=5, check=False
-        )
-        print(f"[PORT] Local forward set: :{port} -> {ip}:22 ({name})")
+        for cport in ports:
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-C', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{cport}'],
+                capture_output=True, timeout=5, check=False
+            )
+            subprocess.run(
+                ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(port), '-j', 'DNAT', '--to-destination', f'{ip}:{cport}'],
+                capture_output=True, timeout=5, check=False
+            )
+            subprocess.run(
+                ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', str(cport), '-j', 'ACCEPT'],
+                capture_output=True, timeout=5, check=False
+            )
+        print(f"[PORT] Local forward set: :{port} -> {ip}:{{22{',3389' if is_win else ''}}} ({name})")
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("UPDATE vps SET tunnel_host = ?, tunnel_port = ? WHERE id = ?",
                        ('0.0.0.0', port, vps_id))
         conn.commit()
         conn.close()
+        if is_win:
+            rdp_offset = port - LOCAL_PORT_RANGE.start
+            rdp_port = LOCAL_PORT_RANGE.start + rdp_offset + 1000
+            if rdp_port not in LOCAL_PORT_RANGE:
+                rdp_port = port + 1000
+            rdp_key = f"{name}__rdp"
+            _local_port_allocations[rdp_key] = rdp_port
+            try:
+                subprocess.run(
+                    ['iptables', '-t', 'nat', '-A', 'PREROUTING', '-p', 'tcp', '--dport', str(rdp_port), '-j', 'DNAT', '--to-destination', f'{ip}:3389'],
+                    capture_output=True, timeout=5, check=False
+                )
+                subprocess.run(
+                    ['iptables', '-A', 'FORWARD', '-p', 'tcp', '-d', ip, '--dport', '3389', '-j', 'ACCEPT'],
+                    capture_output=True, timeout=5, check=False
+                )
+                print(f"[PORT] Local RDP forward set: :{rdp_port} -> {ip}:3389 ({name})")
+            except Exception as e:
+                print(f"[!] Failed local RDP forward for {name}: {e}")
         return port
     except Exception as e:
         print(f"[!] Failed local port forward for {name}: {e}")

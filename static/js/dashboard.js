@@ -199,8 +199,8 @@ function renderVPSGrid() {
           </div>
           
           <div class="vps-card-ip-section" style="margin-top: 8px;">
-            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">${vps.tunnel_host && vps.tunnel_port ? 'ssh root@' + vps.tunnel_host + ' -p ' + vps.tunnel_port : 'Connecting to Pinggy...'}</code>
-            <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy SSH Command">
+            <code class="vps-card-ip" id="card-tunnel-${vps.id}" style="font-size: 11px;">${vps.tunnel_host && vps.tunnel_port ? ((vps.os && vps.os.toLowerCase().indexOf('windows') !== -1) ? 'RDP ' + vps.tunnel_host + ':' + (Number(vps.tunnel_port) + 1000) : 'ssh root@' + vps.tunnel_host + ' -p ' + vps.tunnel_port) : 'Connecting...'}</code>
+            <button class="btn-copy-ip" onclick="copyCardTunnel(event, ${vps.id})" title="Copy Connection Command">
               <i data-lucide="copy"></i>
             </button>
           </div>
@@ -303,9 +303,12 @@ async function fetchSingleCardStats(vpsId) {
     const tunnelEl = document.getElementById(`card-tunnel-${vpsId}`);
     if (tunnelEl) {
       if (stats.tunnel_host && stats.tunnel_port) {
-        tunnelEl.textContent = `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
+        const isWin = (stats.os || '').toLowerCase().indexOf('windows') !== -1;
+        tunnelEl.textContent = isWin
+          ? `RDP ${stats.tunnel_host}:${Number(stats.tunnel_port) + 1000}`
+          : `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
       } else {
-        tunnelEl.textContent = 'Connecting to Pinggy...';
+        tunnelEl.textContent = 'Connecting...';
       }
     }
 
@@ -612,9 +615,12 @@ async function loadVPSDetails(vpsId) {
   const tunnelValEl = document.getElementById('tunnel-val');
   if (tunnelValEl) {
     if (currentVPS.tunnel_host && currentVPS.tunnel_port) {
-      tunnelValEl.textContent = `ssh root@${currentVPS.tunnel_host} -p ${currentVPS.tunnel_port}`;
+      const isWin = (currentVPS.os || '').toLowerCase().indexOf('windows') !== -1;
+      tunnelValEl.textContent = isWin
+        ? `RDP ${currentVPS.tunnel_host}:${Number(currentVPS.tunnel_port) + 1000}  •  ssh Administrator@${currentVPS.tunnel_host} -p ${currentVPS.tunnel_port}`
+        : `ssh root@${currentVPS.tunnel_host} -p ${currentVPS.tunnel_port}`;
     } else {
-      tunnelValEl.textContent = 'Connecting to Pinggy...';
+      tunnelValEl.textContent = 'Connecting...';
     }
   }
 
@@ -648,9 +654,12 @@ async function fetchLiveStats(vpsId) {
     const tunnelValEl = document.getElementById('tunnel-val');
     if (tunnelValEl) {
       if (stats.tunnel_host && stats.tunnel_port) {
-        tunnelValEl.textContent = `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
+        const isWin = (stats.os || '').toLowerCase().indexOf('windows') !== -1;
+        tunnelValEl.textContent = isWin
+          ? `RDP ${stats.tunnel_host}:${Number(stats.tunnel_port) + 1000}  •  ssh Administrator@${stats.tunnel_host} -p ${stats.tunnel_port}`
+          : `ssh root@${stats.tunnel_host} -p ${stats.tunnel_port}`;
       } else {
-        tunnelValEl.textContent = 'Connecting to Pinggy...';
+        tunnelValEl.textContent = 'Connecting...';
       }
     }
     
