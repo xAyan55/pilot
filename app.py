@@ -5,7 +5,7 @@ eventlet.debug.hub_prevent_multiple_readers(False)
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, Namespace, emit
 import json
 import time
 import os
@@ -2716,7 +2716,7 @@ def remove_local_port_forward(name):
 # Node Daemon WebSocket Namespace (Cloudflare Tunnel connectivity)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class NodeSocketNamespace(socketio.Namespace):
+class NodeSocketNamespace(Namespace):
     def __init__(self, namespace):
         super().__init__(namespace)
         self.connected_nodes = {}
