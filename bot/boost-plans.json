@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Booster Basic",
+    "required_boosts": 1,
+    "cpu": 2,
+    "ram": 2048,
+    "disk": 20
+  },
+  {
+    "name": "Booster Premium",
+    "required_boosts": 2,
+    "cpu": 4,
+    "ram": 4096,
+    "disk": 40
+  }
+]
