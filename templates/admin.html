@@ -494,9 +494,12 @@
 
                 <div class="form-group">
                   <label for="deployDiscordUser">Discord User to Notify (Optional)</label>
-                  <select id="deployDiscordUser" class="form-input">
-                    <option value="">No Discord notification</option>
-                  </select>
+                  <div style="position: relative;">
+                    <i data-lucide="bell" class="input-icon-left"></i>
+                    <select id="deployDiscordUser" class="form-input has-icon-left">
+                      <option value="">No Discord notification</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 24px;">
@@ -771,31 +774,46 @@
             </div>
 
             <div class="db-block" style="max-width: 600px; margin-top: 24px;">
-              <div class="db-block-header">
-                <h3>Discord Bot Notifications Integration</h3>
+              <div class="db-block-header" style="border-bottom: 2px solid var(--color-border); padding-bottom: 12px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <i data-lucide="message-square-dashed" style="width: 22px; height: 22px; color: var(--color-cool-text);"></i>
+                  <h3 style="margin: 0; font-size: 18px; font-weight: 800;">Discord Bot Notifications Integration</h3>
+                </div>
               </div>
-              <form id="discordIntegrationForm" onsubmit="saveDiscordIntegration(event)" style="margin-top: 16px;">
-                <div class="form-group">
-                  <label for="discordBotToken">Discord Bot Token</label>
-                  <input type="password" id="discordBotToken" class="form-input" value="{{ settings.get('discord_bot_token', '') }}" placeholder="Enter Bot Token">
-                  <small style="font-size: 11px; color: var(--color-text-muted);">Can also be configured as <code>DISCORD_BOT_TOKEN</code> in your environment or bot .env file.</small>
+              <form id="discordIntegrationForm" onsubmit="saveDiscordIntegration(event)">
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label for="discordBotToken" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Bot Token</label>
+                  <div style="position: relative;">
+                    <i data-lucide="key-round" class="input-icon-left"></i>
+                    <input type="password" id="discordBotToken" class="form-input has-icon-left" value="{{ settings.get('discord_bot_token', '') }}" placeholder="Enter Bot Token">
+                  </div>
+                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Can also be configured as <code>DISCORD_BOT_TOKEN</code> in your environment or bot .env file.</small>
                 </div>
-                <div class="form-group">
-                  <label for="discordGuildId">Discord Guild / Server ID</label>
-                  <input type="text" id="discordGuildId" class="form-input" value="{{ settings.get('discord_guild_id', '') }}" placeholder="Enter Server ID">
-                  <small style="font-size: 11px; color: var(--color-text-muted);">Can also be configured as <code>DISCORD_GUILD_ID</code> in your environment.</small>
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label for="discordGuildId" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Guild / Server ID</label>
+                  <div style="position: relative;">
+                    <i data-lucide="server" class="input-icon-left"></i>
+                    <input type="text" id="discordGuildId" class="form-input has-icon-left" value="{{ settings.get('discord_guild_id', '') }}" placeholder="Enter Server ID">
+                  </div>
+                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Can also be configured as <code>DISCORD_GUILD_ID</code> in your environment.</small>
                 </div>
-                <div class="form-group">
-                  <label for="discordWebhookUrl">Discord Audit Logs Webhook URL</label>
-                  <input type="url" id="discordWebhookUrl" class="form-input" value="{{ settings.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
-                  <small style="font-size: 11px; color: var(--color-text-muted);">Audit logs from the panel will be forwarded to this Discord webhook.</small>
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label for="discordWebhookUrl" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Audit Logs Webhook URL</label>
+                  <div style="position: relative;">
+                    <i data-lucide="link" class="input-icon-left"></i>
+                    <input type="url" id="discordWebhookUrl" class="form-input has-icon-left" value="{{ settings.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
+                  </div>
+                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Audit logs from the panel will be forwarded to this Discord webhook.</small>
                 </div>
-                <div class="form-group">
-                  <label for="discordNotifyUserId">Discord User ID to Notify/Ping (Optional)</label>
-                  <input type="text" id="discordNotifyUserId" class="form-input" value="{{ settings.get('discord_notify_user_id', '') }}" placeholder="Enter User ID manually or select...">
-                  <small style="font-size: 11px; color: var(--color-text-muted);">This administrator/user will receive DM alerts and pings on success or failure of any VPS container deployment.</small>
+                <div class="form-group" style="margin-bottom: 20px;">
+                  <label for="discordNotifyUserId" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord User ID to Notify/Ping (Optional)</label>
+                  <div style="position: relative;">
+                    <i data-lucide="bell" class="input-icon-left"></i>
+                    <input type="text" id="discordNotifyUserId" class="form-input has-icon-left" value="{{ settings.get('discord_notify_user_id', '') }}" placeholder="Enter User ID manually or select...">
+                  </div>
+                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">This administrator/user will receive DM alerts and pings on success or failure of any VPS container deployment.</small>
                 </div>
-                <button type="submit" class="btn btn-secondary" style="margin-top: 20px; width: 100%;">
+                <button type="submit" class="btn btn-secondary" style="margin-top: 10px; width: 100%; box-shadow: 2px 2px 0px var(--color-border); font-weight: 700;">
                   <i data-lucide="save"></i> Save Discord Integration
                 </button>
               </form>
@@ -1203,9 +1221,12 @@
           </div>
           <div class="form-group">
             <label for="createDiscordUser">Discord User to Notify (Optional)</label>
-            <select id="createDiscordUser" class="form-input">
-              <option value="">No Discord notification</option>
-            </select>
+            <div style="position: relative;">
+              <i data-lucide="bell" class="input-icon-left"></i>
+              <select id="createDiscordUser" class="form-input has-icon-left">
+                <option value="">No Discord notification</option>
+              </select>
+            </div>
           </div>
           <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
             <i data-lucide="user-plus"></i> Create User Account

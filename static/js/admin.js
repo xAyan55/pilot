@@ -2039,7 +2039,7 @@ function populateDiscordSelect(selectId) {
   if (select.tagName === 'INPUT') {
     const newSelect = document.createElement('select');
     newSelect.id = selectId;
-    newSelect.className = 'form-input';
+    newSelect.className = 'form-input has-icon-left';
     select.parentNode.replaceChild(newSelect, select);
     select = newSelect;
   }
@@ -2065,7 +2065,7 @@ function fallbackToManualInput(elementId) {
   const input = document.createElement('input');
   input.type = 'text';
   input.id = elementId;
-  input.className = 'form-input';
+  input.className = 'form-input has-icon-left';
   input.placeholder = 'Enter Discord User ID manually (Optional)';
   
   element.parentNode.replaceChild(input, element);
