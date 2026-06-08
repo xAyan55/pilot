@@ -2067,6 +2067,7 @@ async function saveDiscordIntegration(event) {
   event.preventDefault();
   const token = document.getElementById('discordBotToken').value.trim();
   const guildId = document.getElementById('discordGuildId').value.trim();
+  const webhookUrl = document.getElementById('discordWebhookUrl').value.trim();
   
   try {
     const response = await fetch('/api/admin/settings/discord', {
@@ -2074,7 +2075,8 @@ async function saveDiscordIntegration(event) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         discord_bot_token: token,
-        discord_guild_id: guildId
+        discord_guild_id: guildId,
+        discord_webhook_url: webhookUrl
       })
     });
     const result = await window.handleFetchResponse(response);

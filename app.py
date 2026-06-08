@@ -262,9 +262,77 @@ def inject_settings():
 def log_audit(user_id, action):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO logs (user_id, action) VALUES (?, ?)", (user_id, action))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("INSERT INTO logs (user_id, action) VALUES (?, ?)", (user_id, action))
+        conn.commit()
+
+        # Retrieve username
+        username = "System"
+        if user_id:
+            cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            if row:
+                username = row['username']
+
+        # Fetch discord_webhook_url
+        cursor.execute("SELECT value FROM settings WHERE key = 'discord_webhook_url'")
+        setting_row = cursor.fetchone()
+        webhook_url = setting_row['value'].strip() if setting_row and setting_row['value'] else None
+
+        if webhook_url:
+            import urllib.request
+            import json
+            import datetime
+            import threading
+
+            def send_to_webhook(url, user, act):
+                try:
+                    payload = {
+                        "embeds": [
+                            {
+                                "title": "🛡️ Panel Audit Log",
+                                "color": 3447003,  # Deep Blue
+                                "fields": [
+                                    {
+                                        "name": "User",
+                                        "value": f"`{user}`",
+                                        "inline": True
+                                    },
+                                    {
+                                        "name": "Action",
+                                        "value": act,
+                                        "inline": True
+                                    },
+                                    {
+                                        "name": "Timestamp",
+                                        "value": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "inline": False
+                                    }
+                                ],
+                                "footer": {
+                                    "text": "MintyHost LXC Control Panel Logs"
+                                }
+                            }
+                        ]
+                    }
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(payload).encode('utf-8'),
+                        headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        response.read()
+                except Exception as e:
+                    print(f"[WARNING] Failed to send log to Discord Webhook: {e}")
+
+            threading.Thread(
+                target=send_to_webhook,
+                args=(webhook_url, f"{username} (ID: {user_id})" if user_id else "System", action)
+            ).start()
+    except Exception as e:
+        print(f"[ERROR] log_audit failed: {e}")
+    finally:
+        conn.close()
 
 # Helper: Auth check
 def is_logged_in():
@@ -1672,13 +1740,15 @@ def admin_settings_discord():
     data = request.get_json() or {}
     bot_token = data.get('discord_bot_token', '').strip()
     guild_id = data.get('discord_guild_id', '').strip()
+    discord_webhook_url = data.get('discord_webhook_url', '').strip()
     
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         updates = {
             'discord_bot_token': bot_token,
-            'discord_guild_id': guild_id
+            'discord_guild_id': guild_id,
+            'discord_webhook_url': discord_webhook_url
         }
         for key, val in updates.items():
             cursor.execute(
