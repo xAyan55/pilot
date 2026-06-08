@@ -157,25 +157,84 @@ class LXCManager:
             if log_callback:
                 log_callback(f'[INFO] Windows VM minimums applied: {cpu_cores} vCPU, {ram_mb}MB RAM, {disk_gb}GB disk')
 
-        if os_image.startswith('ubuntu/'):
-            image_source = f"ubuntu:{os_image.split('/', 1)[1]}"
-        elif is_windows:
+        # Define image candidates
+        image_candidates = []
+        if is_windows:
             if log_callback:
                 log_callback('[INFO] Searching for locally-imported Windows VM image...')
-            image_source = cls._resolve_windows_image(os_image)
+            resolved_win = cls._resolve_windows_image(os_image)
+            image_candidates.append(resolved_win)
             if log_callback:
-                log_callback(f'[INFO] Found Windows image: {image_source}')
+                log_callback(f'[INFO] Found Windows image: {resolved_win}')
+        elif os_image.startswith('ubuntu/'):
+            version = os_image.split('/', 1)[1]
+            image_candidates.append(f"ubuntu:{version}")
+            image_candidates.append(f"images:ubuntu/{version}")
+            # Codenames mapping
+            codenames = {'22.04': 'jammy', '24.04': 'noble', '20.04': 'focal'}
+            if version in codenames:
+                image_candidates.append(f"ubuntu:{codenames[version]}")
+                image_candidates.append(f"images:ubuntu/{codenames[version]}")
         else:
-            image_source = f"images:{os_image}"
+            image_candidates.append(f"images:{os_image}")
+            if '/' in os_image:
+                distro, version = os_image.split('/', 1)
+                codenames = {
+                    'debian/11': 'debian/bullseye',
+                    'debian/12': 'debian/bookworm',
+                    'centos/9-stream': 'centos/9-stream',
+                    'alpine/3.18': 'alpine/3.18',
+                }
+                if os_image in codenames:
+                    image_candidates.append(f"images:{codenames[os_image]}")
 
-        launch_cmd = ['lxc', 'launch', image_source, name]
-        if is_windows:
-            launch_cmd.append('--vm')
+        # Try launching using candidate list
+        launched = False
+        last_error = ""
+        for idx, source in enumerate(image_candidates):
+            launch_cmd = ['lxc', 'launch', source, name]
+            if is_windows:
+                launch_cmd.append('--vm')
+            
             if log_callback:
-                log_callback('[INFO] Booting Windows VM (first boot may take 60-120s)...')
+                log_callback(f'[INFO] Launching using image source: {source} (Attempt {idx+1}/{len(image_candidates)})')
+            try:
+                cls._run(launch_cmd)
+                launched = True
+                if log_callback:
+                    log_callback(f'[SUCCESS] Successfully launched container using: {source}')
+                break
+            except subprocess.CalledProcessError as e:
+                last_error = e.stderr.strip() if e.stderr else str(e)
+                if log_callback:
+                    log_callback(f'[WARNING] Source {source} failed: {last_error}')
+
+        # Self-healing fallback: if launch failed, try to fix/update the remote URL in case images remote is blocked or misconfigured
+        if not launched and not is_windows:
+            if log_callback:
+                log_callback('[INFO] Attempting auto-fix: Updating remote URL of images server...')
+            try:
+                cls._run(['lxc', 'remote', 'set-url', 'images', 'https://images.lxd.canonical.com/'])
+                if log_callback:
+                    log_callback('[INFO] Remote URL updated. Retrying launch candidates...')
+                for source in image_candidates:
+                    launch_cmd = ['lxc', 'launch', source, name]
+                    try:
+                        cls._run(launch_cmd)
+                        launched = True
+                        if log_callback:
+                            log_callback(f'[SUCCESS] Launch succeeded after remote auto-fix using: {source}')
+                        break
+                    except subprocess.CalledProcessError as e2:
+                        last_error = e2.stderr.strip() if e2.stderr else str(e2)
+            except Exception as ex:
+                if log_callback:
+                    log_callback(f'[WARNING] Remote set-url auto-fix failed: {ex}')
+
+        if not launched:
+            raise Exception(f'Deployment step failed: Downloading and launching container image. Details: {last_error}')
 
         steps = [
-            ('Downloading and launching container image...', launch_cmd),
             ('Setting CPU core limit...', ['lxc', 'config', 'set', name, 'limits.cpu', str(cpu_cores)]),
             ('Setting RAM memory limit...', ['lxc', 'config', 'set', name, 'limits.memory', f'{ram_mb}MB']),
             ('Configuring root storage limit...', ['lxc', 'config', 'device', 'override', name, 'root', f'size={disk_gb}GB']),
