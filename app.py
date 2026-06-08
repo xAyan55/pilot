@@ -244,7 +244,8 @@ def inject_settings():
         'color_secondary': '#CBF3BB',
         'color_accent': '#ABE7B2',
         'color_cool': '#93BFC7',
-        'auth_image_url': '/static/images/auth-img.jpg'
+        'auth_image_url': '/static/images/auth-img.jpg',
+        'discord_notify_user_id': ''
     }
     for k, v in defaults.items():
         if k not in settings or not settings[k]:
@@ -1324,6 +1325,7 @@ def admin_vps_deploy_stream():
     panel_url = request.url_root.rstrip('/')
 
     def generate():
+        container_name = name
         yield "data: [INFO] Validating parameters and DB hooks...\n\n"
         time.sleep(0.3)
 
@@ -1334,6 +1336,7 @@ def admin_vps_deploy_stream():
 
         if not user:
             yield "data: [ERROR] Target user owner not found in database.\n\n"
+            discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Owner missing)", False, f"Target user owner ID {user_id} not found in database.")
             conn.close()
             return
 
@@ -1341,6 +1344,7 @@ def admin_vps_deploy_stream():
         cursor.execute("SELECT * FROM vps WHERE container_name = ?", (container_name,))
         if cursor.fetchone():
             yield "data: [ERROR] Container name duplicate. Please choose a different key.\n\n"
+            discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Duplicate name)", False, f"Container name duplicate: {container_name}")
             conn.close()
             return
 
@@ -1352,6 +1356,7 @@ def admin_vps_deploy_stream():
                 node = get_node_by_id(node_id)
                 if not node:
                     yield "data: [ERROR] Remote node target not found in database.\n\n"
+                    discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Node missing)", False, f"Remote node ID {node_id} not found in database.")
                     conn.close()
                     return
                 
@@ -1367,6 +1372,7 @@ def admin_vps_deploy_stream():
                 })
                 if code != 200:
                     yield f"data: [ERROR] Remote deploy failed: {res.get('message', '')}\n\n"
+                    discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Remote rejection)", False, f"Remote deploy failed on node {node['name']}: {res.get('message', '')}")
                     conn.close()
                     return
             else:
@@ -1421,12 +1427,15 @@ def admin_vps_deploy_stream():
             conn.close()
 
             yield "data: [SUCCESS] Container deployed and allocated to user.\n\n"
+            discord_notify.trigger_vps_deploy_status_alert(container_name, "Created Successfully", True, f"OS: {os_sel}, Hardware: {cpu} CPU Cores / {ram}MB RAM / {disk}GB SSD")
         except WindowsImageNotFoundError as e:
             yield f"data: [ERROR] Windows image not available: {str(e)}\n\n"
             yield "data: [ERROR] To deploy Windows VPS, you must first import a Windows disk image into LXD.\n\n"
             yield "data: [ERROR] Run on your server: bash /var/www/lxc/setup_windows_image.sh\n\n"
+            discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Windows Image Missing)", False, f"Windows disk image not available: {str(e)}")
         except Exception as e:
             yield f"data: [ERROR] Deployment failed: {str(e)}\n\n"
+            discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (LXC Exception)", False, f"Deployment failed with error: {str(e)}")
             try:
                 conn.close()
             except Exception:
@@ -1741,6 +1750,7 @@ def admin_settings_discord():
     bot_token = data.get('discord_bot_token', '').strip()
     guild_id = data.get('discord_guild_id', '').strip()
     discord_webhook_url = data.get('discord_webhook_url', '').strip()
+    discord_notify_user_id = data.get('discord_notify_user_id', '').strip()
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1748,7 +1758,8 @@ def admin_settings_discord():
         updates = {
             'discord_bot_token': bot_token,
             'discord_guild_id': guild_id,
-            'discord_webhook_url': discord_webhook_url
+            'discord_webhook_url': discord_webhook_url,
+            'discord_notify_user_id': discord_notify_user_id
         }
         for key, val in updates.items():
             cursor.execute(

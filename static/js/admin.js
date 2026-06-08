@@ -2009,15 +2009,18 @@ async function loadDiscordUsers() {
       discordUsers = data.users || [];
       populateDiscordSelect('createDiscordUser');
       populateDiscordSelect('deployDiscordUser');
+      populateDiscordSelect('discordNotifyUserId');
     } else {
       console.warn("Failed to fetch Discord users");
       fallbackToManualInput('createDiscordUser');
       fallbackToManualInput('deployDiscordUser');
+      fallbackToManualInput('discordNotifyUserId');
     }
   } catch (err) {
     console.error("Error loading Discord users", err);
     fallbackToManualInput('createDiscordUser');
     fallbackToManualInput('deployDiscordUser');
+    fallbackToManualInput('discordNotifyUserId');
   }
 }
 window.loadDiscordUsers = loadDiscordUsers;
@@ -2030,6 +2033,8 @@ function populateDiscordSelect(selectId) {
     fallbackToManualInput(selectId);
     return;
   }
+  
+  const currentVal = select.value;
   
   if (select.tagName === 'INPUT') {
     const newSelect = document.createElement('select');
@@ -2045,6 +2050,9 @@ function populateDiscordSelect(selectId) {
     const opt = document.createElement('option');
     opt.value = user.id;
     opt.textContent = `${user.display_name} (@${user.username})`;
+    if (user.id === currentVal) {
+      opt.selected = true;
+    }
     select.appendChild(opt);
   });
 }
@@ -2068,6 +2076,7 @@ async function saveDiscordIntegration(event) {
   const token = document.getElementById('discordBotToken').value.trim();
   const guildId = document.getElementById('discordGuildId').value.trim();
   const webhookUrl = document.getElementById('discordWebhookUrl').value.trim();
+  const notifyUserId = document.getElementById('discordNotifyUserId').value.trim();
   
   try {
     const response = await fetch('/api/admin/settings/discord', {
@@ -2076,7 +2085,8 @@ async function saveDiscordIntegration(event) {
       body: JSON.stringify({
         discord_bot_token: token,
         discord_guild_id: guildId,
-        discord_webhook_url: webhookUrl
+        discord_webhook_url: webhookUrl,
+        discord_notify_user_id: notifyUserId
       })
     });
     const result = await window.handleFetchResponse(response);

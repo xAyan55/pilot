@@ -926,14 +926,17 @@ def admin_deploy_vps():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = cursor.fetchone()
+    container_name = name
     if not user:
         conn.close()
+        discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Owner missing)", False, f"Target user owner ID {user_id} not found in database.")
         return jsonify({"error": "not_found", "message": "Target user not found."}), 404
 
     container_name = f"vps-{name}-{random.randint(100, 999)}"
     cursor.execute("SELECT * FROM vps WHERE container_name = ?", (container_name,))
     if cursor.fetchone():
         conn.close()
+        discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Duplicate name)", False, f"Container name duplicate: {container_name}")
         return jsonify({"error": "conflict", "message": "Container name already taken."}), 409
 
     try:
@@ -942,6 +945,7 @@ def admin_deploy_vps():
             node = _get_node(node_id)
             if not node:
                 conn.close()
+                discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Node missing)", False, f"Remote node ID {node_id} not found in database.")
                 return jsonify({"error": "not_found", "message": "Remote node not found."}), 404
             
             res, code = _make_node_request(node, "/api/vps/deploy", data={
@@ -954,6 +958,7 @@ def admin_deploy_vps():
             })
             if code != 200:
                 conn.close()
+                discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Remote rejection)", False, f"Remote deploy failed on node {node['name']}: {res.get('message', 'Remote deploy failed.')}")
                 return jsonify({"error": "node_error", "message": res.get('message', 'Remote deploy failed.')}), code
         else:
             LXCManager.deploy_container(
@@ -987,6 +992,7 @@ def admin_deploy_vps():
 
         _log(g.api_user_id, f"API Admin: Deployed container {container_name} assigned to user ID {user_id}")
         conn.close()
+        discord_notify.trigger_vps_deploy_status_alert(container_name, "Created Successfully", True, f"OS: {os_sel}, Hardware: {cpu} CPU Cores / {ram}MB RAM / {disk}GB SSD")
         return jsonify({
             "status": "success",
             "message": "VPS successfully deployed and allocated.",
@@ -1002,6 +1008,7 @@ def admin_deploy_vps():
         }), 201
     except Exception as e:
         conn.close()
+        discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (LXC Exception)", False, f"Deployment failed with error: {str(e)}")
         return jsonify({"error": "server_error", "message": str(e)}), 500
 
 

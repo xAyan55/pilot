@@ -256,3 +256,70 @@ def run_post_deploy_and_notify(container_name, vps_id, root_pw, site_name_val, n
             send_vps_creation_dm(discord_user_id, vps_id, root_pw, ip_address, tunnel_url, panel_url, site_name_val)
     except Exception as e:
         print(f"[ERROR] Unified post-deploy setup and notification failed for VPS ID {vps_id}: {e}")
+
+def send_vps_deploy_status_alert(discord_user_id, container_name, status_text, is_success, details_or_error):
+    """Sends a deployment status alert (success/failure) directly to the configured Discord user ID."""
+    token = get_discord_bot_token()
+    if not token or not discord_user_id:
+        return False
+
+    headers = {
+        "Authorization": f"Bot {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
+    }
+
+    # 1. Create DM channel
+    dm_url = "https://discord.com/api/v10/users/@me/channels"
+    dm_data = json.dumps({"recipient_id": str(discord_user_id)}).encode("utf-8")
+    req = urllib.request.Request(dm_url, data=dm_data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            channel = json.loads(resp.read().decode())
+            channel_id = channel.get("id")
+            if not channel_id:
+                return False
+
+            # 2. Build embed
+            title = "🟢 VPS Deployment Successful" if is_success else "🔴 VPS Deployment Failed"
+            color = 3066993 if is_success else 15158332 # Green or Red
+            
+            embed = {
+                "title": title,
+                "description": f"Status update for container: `{container_name}`",
+                "color": color,
+                "fields": [
+                    {"name": "Container Name", "value": f"`{container_name}`", "inline": True},
+                    {"name": "Status", "value": f"`{status_text}`", "inline": True},
+                    {"name": "Details / Error", "value": str(details_or_error), "inline": False}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                "footer": {
+                    "text": "MintyHost Automated Deployments"
+                }
+            }
+
+            # 3. Send message with embed and a ping in the content
+            msg_url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+            msg_data = json.dumps({
+                "content": f"⚡ <@ {discord_user_id}> - VPS deployment status update:",
+                "embeds": [embed]
+            }).replace("<@ ", "<@").encode("utf-8")
+
+            msg_req = urllib.request.Request(msg_url, data=msg_data, headers=headers, method="POST")
+            with urllib.request.urlopen(msg_req, timeout=5) as msg_resp:
+                return msg_resp.status in (200, 201)
+    except Exception as e:
+        print(f"[ERROR] Failed to send VPS deployment status alert to user {discord_user_id}: {e}")
+        return False
+
+def trigger_vps_deploy_status_alert(container_name, status_text, is_success, details_or_error):
+    """Fetches the configured discord_notify_user_id from settings and sends a deployment alert in a background thread."""
+    import threading
+    discord_user_id = get_config_setting('discord_notify_user_id')
+    if discord_user_id:
+        threading.Thread(
+            target=send_vps_deploy_status_alert,
+            args=(discord_user_id, container_name, status_text, is_success, details_or_error)
+        ).start()
+
