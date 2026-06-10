@@ -2247,18 +2247,18 @@ document.addEventListener('DOMContentLoaded', () => {
 // ADMIN FILE MANAGER CONTROLLER
 // ==========================================
 let adminFmActiveVpsId = null;
-let adminFmCurrentPath = '/';
+let adminFmCurrentPath = '/root';
 let adminFmEditingFilePath = null;
 
 window.adminOpenFileManager = function(vpsId, containerName) {
   adminFmActiveVpsId = vpsId;
-  adminFmCurrentPath = '/';
+  adminFmCurrentPath = '/root';
   adminFmEditingFilePath = null;
   document.getElementById('admin-fm-vps-name').textContent = containerName;
   document.getElementById('admin-fm-browser').style.display = 'block';
   document.getElementById('admin-fm-editor').style.display = 'none';
   document.getElementById('adminFileManagerModal').classList.add('active');
-  adminFmLoadPath('/');
+  adminFmLoadPath('/root');
 };
 
 window.adminFmClose = function() {
@@ -2268,7 +2268,7 @@ window.adminFmClose = function() {
 
 window.adminFmLoadPath = async function(path) {
   if (!adminFmActiveVpsId) return;
-  if (!path) path = '/';
+  if (!path) path = '/root';
   if (!path.startsWith('/')) path = '/' + path;
   adminFmCurrentPath = path;
 

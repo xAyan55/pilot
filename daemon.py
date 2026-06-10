@@ -606,7 +606,7 @@ def connect_panel_websocket(panel_url, node_id, api_key):
 @require_api_key
 def vps_files():
     name = request.args.get('name')
-    path = request.args.get('path', '/')
+    path = request.args.get('path', '/root')
     if not name:
         return jsonify({"message": "Missing container name"}), 400
     try:

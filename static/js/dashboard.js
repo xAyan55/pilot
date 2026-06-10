@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Auto-load File Manager
         if (targetId === 'panel-files') {
-          fileManagerLoadPath(currentFmPath || '/');
+          fileManagerLoadPath(currentFmPath || '/root');
         }
 
         // Mobile close sidebar
@@ -1495,11 +1495,11 @@ function escapeHtml(str) {
 // FILE MANAGER ACTIONS
 // ==========================================
 
-let currentFmPath = '/';
+let currentFmPath = '/root';
 
 window.fileManagerLoadPath = async function(path) {
   if (!currentVpsId) return;
-  if (!path) path = '/';
+  if (!path) path = '/root';
   if (!path.startsWith('/')) path = '/' + path;
   currentFmPath = path;
   

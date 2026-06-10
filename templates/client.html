@@ -338,11 +338,11 @@
               <div style="padding: 16px 24px; background-color: var(--color-primary); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
                 <!-- Breadcrumbs -->
                 <div style="flex: 1; display: flex; align-items: center; gap: 8px; background: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 4px 12px; overflow-x: auto;">
-                  <button class="btn btn-outline btn-small" onclick="fileManagerLoadPath('/')" style="padding: 4px; border: none; background: transparent;" title="Root">
+                  <button class="btn btn-outline btn-small" onclick="fileManagerLoadPath('/root')" style="padding: 4px; border: none; background: transparent;" title="Home">
                     <i data-lucide="home" style="width: 16px; height: 16px;"></i>
                   </button>
                   <span style="color: var(--color-text-muted);">/</span>
-                  <input type="text" id="fm-current-path" value="/" class="form-input" style="border: none; padding: 4px; box-shadow: none; font-family: monospace; font-size: 14px; flex: 1; min-width: 150px; background: transparent;" onkeypress="if(event.key === 'Enter') fileManagerLoadPath(this.value)">
+                  <input type="text" id="fm-current-path" value="/root" class="form-input" style="border: none; padding: 4px; box-shadow: none; font-family: monospace; font-size: 14px; flex: 1; min-width: 150px; background: transparent;" onkeypress="if(event.key === 'Enter') fileManagerLoadPath(this.value)">
                   <button class="btn btn-primary btn-small" onclick="fileManagerLoadPath(document.getElementById('fm-current-path').value)" style="padding: 4px 8px;">Go</button>
                 </div>
                 

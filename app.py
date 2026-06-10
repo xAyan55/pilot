@@ -1149,7 +1149,7 @@ def client_vps_files(vps_id):
     if not vps:
         return jsonify({"message": "VPS not found."}), 404
 
-    path = request.args.get('path', '/')
+    path = request.args.get('path', '/root')
 
     try:
         if request.method == 'GET':
@@ -1281,7 +1281,7 @@ def client_vps_files_upload(vps_id):
     if not vps:
         return jsonify({"message": "VPS not found."}), 404
 
-    path = request.form.get('path', '/')
+    path = request.form.get('path', '/root')
     if 'file' not in request.files:
         return jsonify({"message": "No file uploaded"}), 400
     file = request.files['file']
@@ -1367,7 +1367,7 @@ def admin_vps_files(vps_id):
     if not vps:
         return jsonify({"message": "VPS not found."}), 404
 
-    path = request.args.get('path', '/')
+    path = request.args.get('path', '/root')
 
     try:
         if request.method == 'GET':
@@ -1497,7 +1497,7 @@ def admin_vps_files_upload(vps_id):
     if not vps:
         return jsonify({"message": "VPS not found."}), 404
 
-    path = request.form.get('path', '/')
+    path = request.form.get('path', '/root')
     if 'file' not in request.files:
         return jsonify({"message": "No file uploaded"}), 400
     file = request.files['file']
