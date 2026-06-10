@@ -602,6 +602,99 @@ def connect_panel_websocket(panel_url, node_id, api_key):
                 print(f"[!] WebSocket error: {e}")
             time.sleep(10)
     threading.Thread(target=run_ws, daemon=True).start()
+@app.route('/api/vps/files', methods=['GET', 'DELETE'])
+@require_api_key
+def vps_files():
+    name = request.args.get('name')
+    path = request.args.get('path', '/')
+    if not name:
+        return jsonify({"message": "Missing container name"}), 400
+    try:
+        if request.method == 'GET':
+            items = LXCManager.list_files(name, path)
+            return jsonify({"status": "success", "path": path, "items": items})
+        elif request.method == 'DELETE':
+            LXCManager.delete_file(name, path)
+            return jsonify({"status": "success", "message": "Deleted successfully."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/vps/files/content', methods=['GET', 'POST'])
+@require_api_key
+def vps_files_content():
+    if request.method == 'GET':
+        name = request.args.get('name')
+        path = request.args.get('path')
+        if not name or not path:
+            return jsonify({"message": "name and path are required"}), 400
+        try:
+            content = LXCManager.read_file(name, path)
+            return jsonify({"status": "success", "path": path, "content": content})
+        except Exception as e:
+            return jsonify({"message": str(e)}), 500
+    elif request.method == 'POST':
+        data = request.get_json() or {}
+        name = data.get('name')
+        path = data.get('path')
+        content = data.get('content', '')
+        if not name or not path:
+            return jsonify({"message": "name and path are required"}), 400
+        try:
+            LXCManager.write_file(name, path, content)
+            return jsonify({"status": "success", "message": "File saved successfully."})
+        except Exception as e:
+            return jsonify({"message": str(e)}), 500
+
+@app.route('/api/vps/files/directory', methods=['POST'])
+@require_api_key
+def vps_files_directory():
+    data = request.get_json() or {}
+    name = data.get('name')
+    path = data.get('path')
+    if not name or not path:
+        return jsonify({"message": "name and path are required"}), 400
+    try:
+        LXCManager.create_directory(name, path)
+        return jsonify({"status": "success", "message": "Directory created."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/vps/files/upload', methods=['POST'])
+@require_api_key
+def vps_files_upload():
+    data = request.get_json() or {}
+    name = data.get('name')
+    path = data.get('path')
+    content_b64 = data.get('content_b64')
+    if not name or not path or content_b64 is None:
+        return jsonify({"message": "name, path, and content_b64 are required"}), 400
+    try:
+        import base64
+        file_bytes = base64.b64decode(content_b64)
+        LXCManager.write_file_bin(name, path, file_bytes)
+        return jsonify({"status": "success", "message": "File uploaded successfully."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/vps/files/download', methods=['GET'])
+@require_api_key
+def vps_files_download():
+    name = request.args.get('name')
+    path = request.args.get('path')
+    if not name or not path:
+        return jsonify({"message": "name and path are required"}), 400
+    try:
+        import base64
+        file_bytes = LXCManager.read_file_bin(name, path)
+        content_b64 = base64.b64encode(file_bytes).decode('utf-8')
+        filename = os.path.basename(path)
+        return jsonify({
+            "status": "success",
+            "filename": filename,
+            "content_b64": content_b64
+        })
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 if __name__ == '__main__':
     port = config.get('port', 5001)

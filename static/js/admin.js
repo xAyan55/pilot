@@ -543,6 +543,9 @@ async function loadContainers(silent = false) {
         </td>
         <td style="font-size: 12px; color: var(--color-text-muted);">${vps.created_at.split(' ')[0]}</td>
         <td class="text-right" style="white-space: nowrap;">
+          <button class="btn btn-outline action-btn-small" onclick="adminOpenFileManager(${vps.id}, '${vps.container_name}')" style="margin-right: 6px;">
+            <i data-lucide="folder" style="width: 13px; height: 13px; margin-right: 4px;"></i> Files
+          </button>
           <button class="btn btn-outline action-btn-small" onclick="toggleSuspend(${vps.id}, '${vps.status}')" id="suspend-btn-${vps.id}" style="margin-right: 6px;">
             <i data-lucide="shield-alert" style="width: 13px; height: 13px; margin-right: 4px;"></i> ${vps.status === 'suspended' ? 'Unsuspend' : 'Suspend'}
           </button>
@@ -2239,4 +2242,251 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+// ==========================================
+// ADMIN FILE MANAGER CONTROLLER
+// ==========================================
+let adminFmActiveVpsId = null;
+let adminFmCurrentPath = '/';
+let adminFmEditingFilePath = null;
+
+window.adminOpenFileManager = function(vpsId, containerName) {
+  adminFmActiveVpsId = vpsId;
+  adminFmCurrentPath = '/';
+  adminFmEditingFilePath = null;
+  document.getElementById('admin-fm-vps-name').textContent = containerName;
+  document.getElementById('admin-fm-browser').style.display = 'block';
+  document.getElementById('admin-fm-editor').style.display = 'none';
+  document.getElementById('adminFileManagerModal').classList.add('active');
+  adminFmLoadPath('/');
+};
+
+window.adminFmClose = function() {
+  document.getElementById('adminFileManagerModal').classList.remove('active');
+  adminFmActiveVpsId = null;
+};
+
+window.adminFmLoadPath = async function(path) {
+  if (!adminFmActiveVpsId) return;
+  if (!path) path = '/';
+  if (!path.startsWith('/')) path = '/' + path;
+  adminFmCurrentPath = path;
+
+  document.getElementById('admin-fm-current-path').value = path;
+  const tbody = document.getElementById('admin-fm-table-body');
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--color-text-muted);"><i data-lucide="loader-2" class="spin" style="margin-bottom: 12px; width: 32px; height: 32px;"></i><br>Loading files...</td></tr>`;
+  if (window.lucide) lucide.createIcons();
+
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to load directory.");
+    const items = data.items || [];
+
+    // Sort directories first, then files, then alphabetically
+    items.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.type === 'directory' ? -1 : 1;
+    });
+
+    tbody.innerHTML = '';
+
+    // Add ".." up directory if not at root
+    if (path !== '/') {
+      let upPath = path.substring(0, path.lastIndexOf('/'));
+      if (upPath === '') upPath = '/';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 12px 16px; text-align: center; color: var(--color-text-muted);"><i data-lucide="corner-left-up"></i></td>
+        <td style="padding: 12px 16px; cursor: pointer; font-weight: 500;" onclick="adminFmLoadPath('${escapeHtml(upPath)}')">..</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted);">--</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted);">--</td>
+        <td style="padding: 12px 16px; text-align: right;"></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    if (items.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="5" style="text-align: center; padding: 24px; color: var(--color-text-muted);">Directory is empty.</td>`;
+      tbody.appendChild(tr);
+    }
+
+    items.forEach(item => {
+      const isDir = item.type === 'directory';
+      const icon = isDir ? 'folder' : 'file';
+      const sizeStr = isDir ? '--' : formatBytes(item.size);
+      const modStr = item.modified ? new Date(item.modified * 1000).toLocaleString() : '--';
+      const fullPath = path === '/' ? `/${item.name}` : `${path}/${item.name}`;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding: 12px 16px; text-align: center; color: ${isDir ? 'var(--color-cool)' : 'var(--color-text-muted)'};"><i data-lucide="${icon}"></i></td>
+        <td style="padding: 12px 16px; cursor: ${isDir ? 'pointer' : 'default'}; font-weight: ${isDir ? '600' : '400'}; color: var(--color-text-main);" ${isDir ? `onclick="adminFmLoadPath('${escapeHtml(fullPath)}')" ` : ''}>${escapeHtml(item.name)}</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted); font-size: 13px;">${sizeStr}</td>
+        <td style="padding: 12px 16px; color: var(--color-text-muted); font-size: 13px;">${modStr}</td>
+        <td style="padding: 12px 16px; text-align: right;">
+          <div style="display: flex; gap: 4px; justify-content: flex-end;">
+            ${!isDir ? `<button class="btn btn-outline btn-small" onclick="adminFmDownloadFile('${escapeHtml(fullPath)}')" style="padding: 4px 8px;" title="Download File"><i data-lucide="download" style="width: 14px; height: 14px;"></i></button>` : ''}
+            ${!isDir ? `<button class="btn btn-outline btn-small" onclick="adminFmOpenFile('${escapeHtml(fullPath)}')" style="padding: 4px 8px;" title="Edit File"><i data-lucide="edit-3" style="width: 14px; height: 14px;"></i></button>` : ''}
+            <button class="btn btn-outline btn-small" onclick="adminFmDelete('${escapeHtml(fullPath)}', ${isDir})" style="padding: 4px 8px; color: var(--color-danger); border-color: #fca5a5;" title="Delete"><i data-lucide="trash-2" style="width: 14px; height: 14px;"></i></button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (window.lucide) lucide.createIcons();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--color-danger);"><i data-lucide="alert-circle" style="margin-bottom: 8px;"></i><br>${escapeHtml(err.message)}</td></tr>`;
+    if (window.lucide) lucide.createIcons();
+    showToast(err.message, 'error');
+  }
+};
+
+window.adminFmRefresh = function() {
+  adminFmLoadPath(adminFmCurrentPath);
+};
+
+window.adminFmNewFolder = async function() {
+  const name = prompt("Enter new folder name:");
+  if (!name) return;
+  const fullPath = adminFmCurrentPath === '/' ? `/${name}` : `${adminFmCurrentPath}/${name}`;
+
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files/directory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: fullPath })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create directory.");
+    showToast("Directory created.", "success");
+    adminFmRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.adminFmNewFile = async function() {
+  const name = prompt("Enter new file name:");
+  if (!name) return;
+  const fullPath = adminFmCurrentPath === '/' ? `/${name}` : `${adminFmCurrentPath}/${name}`;
+
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: fullPath, content: "" })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create file.");
+    showToast("File created.", "success");
+    adminFmRefresh();
+    adminFmOpenFile(fullPath);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.adminFmUploadFile = async function(input) {
+  if (!input.files || input.files.length === 0) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('path', adminFmCurrentPath);
+  formData.append('file', file);
+
+  showToast("Uploading file...", "info");
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Upload failed.");
+    showToast("File uploaded successfully.", "success");
+    adminFmRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    input.value = '';
+  }
+};
+
+window.adminFmDownloadFile = function(path) {
+  if (!adminFmActiveVpsId) return;
+  window.location.href = `/api/admin/vps/${adminFmActiveVpsId}/files/download?path=${encodeURIComponent(path)}`;
+};
+
+window.adminFmOpenFile = async function(path) {
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files/content?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to read file.");
+
+    adminFmEditingFilePath = path;
+    document.getElementById('admin-fm-editor-filename').textContent = path;
+    document.getElementById('admin-fm-editor-textarea').value = data.content;
+
+    document.getElementById('admin-fm-browser').style.display = 'none';
+    document.getElementById('admin-fm-editor').style.display = 'flex';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.adminFmCloseEditor = function() {
+  adminFmEditingFilePath = null;
+  document.getElementById('admin-fm-editor').style.display = 'none';
+  document.getElementById('admin-fm-browser').style.display = 'block';
+};
+
+window.adminFmSaveFile = async function() {
+  if (!adminFmEditingFilePath) return;
+  const content = document.getElementById('admin-fm-editor-textarea').value;
+
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: adminFmEditingFilePath, content: content })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to save file.");
+    showToast("File saved successfully.", "success");
+    adminFmCloseEditor();
+    adminFmRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+window.adminFmDelete = async function(path, isDir) {
+  const typeStr = isDir ? 'directory' : 'file';
+  if (!confirm(`Are you sure you want to permanently delete this ${typeStr}?\n${path}`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/vps/${adminFmActiveVpsId}/files?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to delete.");
+    showToast(`${typeStr} deleted.`, "success");
+    adminFmRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+function formatBytes(bytes, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 

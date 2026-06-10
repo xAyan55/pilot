@@ -1564,6 +1564,7 @@ window.fileManagerLoadPath = async function(path) {
         <td style="padding: 12px 16px; color: var(--color-text-muted); font-size: 13px;">${modStr}</td>
         <td style="padding: 12px 16px; text-align: right;">
           <div style="display: flex; gap: 4px; justify-content: flex-end;">
+            ${!isDir ? `<button class="btn btn-outline btn-small" onclick="fileManagerDownloadFile('${escapeHtml(fullPath)}')" style="padding: 4px 8px;" title="Download File"><i data-lucide="download" style="width: 14px; height: 14px;"></i></button>` : ''}
             ${!isDir ? `<button class="btn btn-outline btn-small" onclick="fileManagerOpenFile('${escapeHtml(fullPath)}')" style="padding: 4px 8px;" title="Edit File"><i data-lucide="edit-3" style="width: 14px; height: 14px;"></i></button>` : ''}
             <button class="btn btn-outline btn-small" onclick="fileManagerDelete('${escapeHtml(fullPath)}', ${isDir})" style="padding: 4px 8px; color: var(--color-danger); border-color: #fca5a5;" title="Delete"><i data-lucide="trash-2" style="width: 14px; height: 14px;"></i></button>
           </div>
@@ -1686,6 +1687,35 @@ window.fileManagerDelete = async function(path, isDir) {
   } catch (err) {
     showToast(err.message, 'error');
   }
+};
+
+window.fileManagerUploadFile = async function(input) {
+  if (!input.files || input.files.length === 0) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('path', currentFmPath);
+  formData.append('file', file);
+
+  showToast("Uploading file...", "info");
+  try {
+    const res = await fetch(`/api/client/vps/${currentVpsId}/files/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Upload failed.");
+    showToast("File uploaded successfully.", "success");
+    fileManagerRefresh();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    input.value = '';
+  }
+};
+
+window.fileManagerDownloadFile = function(path) {
+  if (!currentVpsId) return;
+  window.location.href = `/api/client/vps/${currentVpsId}/files/download?path=${encodeURIComponent(path)}`;
 };
 
 function formatBytes(bytes, decimals = 2) {

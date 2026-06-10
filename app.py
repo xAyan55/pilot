@@ -1267,8 +1267,304 @@ def client_vps_files_directory(vps_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
+@app.route('/api/client/vps/<int:vps_id>/files/upload', methods=['POST'])
+def client_vps_files_upload(vps_id):
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ? AND user_id = ?", (vps_id, session['user_id']))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    path = request.form.get('path', '/')
+    if 'file' not in request.files:
+        return jsonify({"message": "No file uploaded"}), 400
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({"message": "Empty file uploaded"}), 400
+
+    filename = secure_filename(file.filename)
+    target_path = path.rstrip('/') + '/' + filename
+
+    try:
+        file_bytes = file.read()
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            import base64
+            content_b64 = base64.b64encode(file_bytes).decode('utf-8')
+            res, code = make_node_request(node, "/api/vps/files/upload", method='POST', data={
+                "name": vps['container_name'],
+                "path": target_path,
+                "content_b64": content_b64
+            })
+            return jsonify(res), code
+            
+        LXCManager.write_file_bin(vps['container_name'], target_path, file_bytes)
+        log_audit(session['user_id'], f"Uploaded file {target_path} on VPS {vps['container_name']}")
+        return jsonify({"status": "success", "message": "File uploaded successfully."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/client/vps/<int:vps_id>/files/download', methods=['GET'])
+def client_vps_files_download(vps_id):
+    if not is_logged_in():
+        return jsonify({"message": "Unauthorized"}), 401
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ? AND user_id = ?", (vps_id, session['user_id']))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    path = request.args.get('path')
+    if not path:
+        return jsonify({"message": "path is required"}), 400
+
+    try:
+        filename = os.path.basename(path)
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            import urllib.parse
+            q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+            res, code = make_node_request(node, f"/api/vps/files/download?{q}", method='GET')
+            if code != 200:
+                return jsonify(res), code
+            import base64
+            file_bytes = base64.b64decode(res['content_b64'])
+        else:
+            file_bytes = LXCManager.read_file_bin(vps['container_name'], path)
+
+        return Response(
+            file_bytes,
+            mimetype="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
 
 # ----------------- ADMIN OPERATIONS -----------------
+
+@app.route('/api/admin/vps/<int:vps_id>/files', methods=['GET', 'DELETE'])
+def admin_vps_files(vps_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ?", (vps_id,))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    path = request.args.get('path', '/')
+
+    try:
+        if request.method == 'GET':
+            if vps['node_id'] != 1:
+                node = get_node_by_id(vps['node_id'])
+                import urllib.parse
+                q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+                res, code = make_node_request(node, f"/api/vps/files?{q}", method='GET')
+                return jsonify(res), code
+            
+            name = request.args.get('name') or vps['container_name']
+            items = LXCManager.list_files(name, path)
+            return jsonify({"status": "success", "path": path, "items": items})
+            
+        elif request.method == 'DELETE':
+            if vps['node_id'] != 1:
+                node = get_node_by_id(vps['node_id'])
+                import urllib.parse
+                q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+                res, code = make_node_request(node, f"/api/vps/files?{q}", method='DELETE')
+                return jsonify(res), code
+
+            name = request.args.get('name') or vps['container_name']
+            LXCManager.delete_file(name, path)
+            log_audit(session['user_id'], f"Admin deleted {path} on VPS {name}")
+            return jsonify({"status": "success", "message": "Deleted successfully."})
+            
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/admin/vps/<int:vps_id>/files/content', methods=['GET', 'POST'])
+def admin_vps_files_content(vps_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ?", (vps_id,))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    try:
+        if request.method == 'GET':
+            path = request.args.get('path')
+            if not path:
+                return jsonify({"message": "path is required"}), 400
+                
+            if vps['node_id'] != 1:
+                node = get_node_by_id(vps['node_id'])
+                import urllib.parse
+                q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+                res, code = make_node_request(node, f"/api/vps/files/content?{q}", method='GET')
+                return jsonify(res), code
+                
+            name = request.args.get('name') or vps['container_name']
+            content = LXCManager.read_file(name, path)
+            return jsonify({"status": "success", "path": path, "content": content})
+            
+        elif request.method == 'POST':
+            data = request.get_json() or {}
+            path = data.get('path')
+            content = data.get('content', '')
+            if not path:
+                return jsonify({"message": "path is required"}), 400
+
+            if vps['node_id'] != 1:
+                node = get_node_by_id(vps['node_id'])
+                data['name'] = vps['container_name']
+                res, code = make_node_request(node, f"/api/vps/files/content", data=data)
+                return jsonify(res), code
+
+            name = data.get('name') or vps['container_name']
+            LXCManager.write_file(name, path, content)
+            log_audit(session['user_id'], f"Admin wrote file {path} on VPS {name}")
+            return jsonify({"status": "success", "message": "File saved successfully."})
+            
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/admin/vps/<int:vps_id>/files/directory', methods=['POST'])
+def admin_vps_files_directory(vps_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ?", (vps_id,))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+        
+    data = request.get_json() or {}
+    path = data.get('path')
+    if not path:
+        return jsonify({"message": "path is required"}), 400
+
+    try:
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            data['name'] = vps['container_name']
+            res, code = make_node_request(node, f"/api/vps/files/directory", data=data)
+            return jsonify(res), code
+
+        name = data.get('name') or vps['container_name']
+        LXCManager.create_directory(name, path)
+        log_audit(session['user_id'], f"Admin created directory {path} on VPS {name}")
+        return jsonify({"status": "success", "message": "Directory created."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/admin/vps/<int:vps_id>/files/upload', methods=['POST'])
+def admin_vps_files_upload(vps_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ?", (vps_id,))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    path = request.form.get('path', '/')
+    if 'file' not in request.files:
+        return jsonify({"message": "No file uploaded"}), 400
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({"message": "Empty file uploaded"}), 400
+
+    filename = secure_filename(file.filename)
+    target_path = path.rstrip('/') + '/' + filename
+
+    try:
+        file_bytes = file.read()
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            import base64
+            content_b64 = base64.b64encode(file_bytes).decode('utf-8')
+            res, code = make_node_request(node, "/api/vps/files/upload", method='POST', data={
+                "name": vps['container_name'],
+                "path": target_path,
+                "content_b64": content_b64
+            })
+            return jsonify(res), code
+            
+        LXCManager.write_file_bin(vps['container_name'], target_path, file_bytes)
+        log_audit(session['user_id'], f"Admin uploaded file {target_path} on VPS {vps['container_name']}")
+        return jsonify({"status": "success", "message": "File uploaded successfully."})
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/api/admin/vps/<int:vps_id>/files/download', methods=['GET'])
+def admin_vps_files_download(vps_id):
+    if not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vps WHERE id = ?", (vps_id,))
+    vps = cursor.fetchone()
+    conn.close()
+
+    if not vps:
+        return jsonify({"message": "VPS not found."}), 404
+
+    path = request.args.get('path')
+    if not path:
+        return jsonify({"message": "path is required"}), 400
+
+    try:
+        filename = os.path.basename(path)
+        if vps['node_id'] != 1:
+            node = get_node_by_id(vps['node_id'])
+            import urllib.parse
+            q = urllib.parse.urlencode({'path': path, 'name': vps['container_name']})
+            res, code = make_node_request(node, f"/api/vps/files/download?{q}", method='GET')
+            if code != 200:
+                return jsonify(res), code
+            import base64
+            file_bytes = base64.b64decode(res['content_b64'])
+        else:
+            file_bytes = LXCManager.read_file_bin(vps['container_name'], path)
+
+        return Response(
+            file_bytes,
+            mimetype="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 @app.route('/api/admin/users')
 def admin_users_list():

@@ -846,6 +846,30 @@ class LXCManager:
             raise Exception(f"Failed to write file: {e.stderr.strip() if e.stderr else 'Unknown error'}")
 
     @classmethod
+    def read_file_bin(cls, name, path):
+        """Reads a file from the container as raw bytes."""
+        if IS_MOCK_LXC:
+            return b"Mock binary content"
+        try:
+            cmd = [LXC_BIN, 'file', 'pull', f"{name}/{path}", '-']
+            result = subprocess.run(cmd, capture_output=True, check=True)
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to read file: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+
+    @classmethod
+    def write_file_bin(cls, name, path, content_bytes):
+        """Writes binary content to a file in the container."""
+        if IS_MOCK_LXC:
+            return True
+        try:
+            cmd = [LXC_BIN, 'file', 'push', '-', f"{name}/{path}"]
+            subprocess.run(cmd, input=content_bytes, capture_output=True, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to write file: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+
+    @classmethod
     def delete_file(cls, name, path):
         """Deletes a file or directory in the container."""
         if IS_MOCK_LXC:

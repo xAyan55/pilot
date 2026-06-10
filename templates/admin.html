@@ -1403,6 +1403,74 @@
     </div>
   </div>
 
+  <!-- Admin File Manager Modal Overlay -->
+  <div class="modal-overlay" id="adminFileManagerModal">
+    <div class="modal-card" style="max-width: 950px; width: 95%;">
+      <div class="modal-header">
+        <h3><i data-lucide="folder" style="display: inline-block; vertical-align: middle; margin-right: 8px;"></i> File Manager: <span id="admin-fm-vps-name" style="font-family: monospace; font-size: 16px; color: var(--color-cool);">vps-name</span></h3>
+        <button class="modal-close" onclick="adminFmClose()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; min-height: 500px; max-height: 75vh; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-top: 10px;">
+        
+        <!-- File Manager Header / Actions -->
+        <div style="padding: 16px 24px; background-color: var(--color-primary); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+          <!-- Breadcrumbs -->
+          <div style="flex: 1; display: flex; align-items: center; gap: 8px; background: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 4px 12px; overflow-x: auto;">
+            <button class="btn btn-outline btn-small" onclick="adminFmLoadPath('/')" style="padding: 4px; border: none; background: transparent;" title="Root">
+              <i data-lucide="home" style="width: 16px; height: 16px;"></i>
+            </button>
+            <span style="color: var(--color-text-muted);">/</span>
+            <input type="text" id="admin-fm-current-path" value="/" class="form-input" style="border: none; padding: 4px; box-shadow: none; font-family: monospace; font-size: 14px; flex: 1; min-width: 150px; background: transparent;" onkeypress="if(event.key === 'Enter') adminFmLoadPath(this.value)">
+            <button class="btn btn-primary btn-small" onclick="adminFmLoadPath(document.getElementById('admin-fm-current-path').value)" style="padding: 4px 8px;">Go</button>
+          </div>
+          
+          <!-- Toolbar -->
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="file" id="admin-fm-upload-input" style="display: none;" onchange="adminFmUploadFile(this)">
+            <button class="btn btn-secondary btn-small" onclick="document.getElementById('admin-fm-upload-input').click()"><i data-lucide="upload"></i> Upload File</button>
+            <button class="btn btn-secondary btn-small" onclick="adminFmNewFolder()"><i data-lucide="folder-plus"></i> New Folder</button>
+            <button class="btn btn-secondary btn-small" onclick="adminFmNewFile()"><i data-lucide="file-plus"></i> New File</button>
+            <button class="btn btn-outline btn-small" onclick="adminFmRefresh()"><i data-lucide="refresh-cw"></i> Refresh</button>
+          </div>
+        </div>
+
+        <!-- File Browser Area -->
+        <div id="admin-fm-browser" style="flex: 1; overflow-y: auto; background-color: var(--color-white); position: relative;">
+          <table class="db-table" style="width: 100%; border-top: none; border-left: none; border-right: none; margin: 0;">
+            <thead style="position: sticky; top: 0; background: var(--color-background-soft); z-index: 1;">
+              <tr>
+                <th style="width: 40px; padding: 12px 16px;"></th>
+                <th style="padding: 12px 16px;">Name</th>
+                <th style="width: 120px; padding: 12px 16px;">Size</th>
+                <th style="width: 180px; padding: 12px 16px;">Last Modified</th>
+                <th style="width: 150px; padding: 12px 16px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-fm-table-body">
+              <!-- dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- File Editor Area (Hidden by default) -->
+        <div id="admin-fm-editor" style="display: none; flex: 1; flex-direction: column; background-color: #1e1e1e; position: relative;">
+          <div style="padding: 8px 16px; background-color: #2d2d2d; border-bottom: 1px solid #404040; display: flex; align-items: center; justify-content: space-between;">
+            <div style="color: #d4d4d4; font-family: monospace; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+              <span id="admin-fm-editor-filename">filename.txt</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-outline btn-small" onclick="adminFmCloseEditor()" style="border-color: #555; color: #ccc; background: transparent;">Cancel</button>
+              <button class="btn btn-primary btn-small" onclick="adminFmSaveFile()">Save Changes</button>
+            </div>
+          </div>
+          <textarea id="admin-fm-editor-textarea" style="flex: 1; width: 100%; border: none; background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; padding: 16px; resize: none; outline: none; white-space: pre; overflow-wrap: normal; overflow-x: auto; min-height: 300px;"></textarea>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   
