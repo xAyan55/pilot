@@ -130,12 +130,13 @@ try:
     builds = d.get('response', {}).get('builds', {})
     for k, v in builds.items():
         title = (v.get('title') or '').lower()
-        if 'windows 10' in title and ('amd64' in title or 'x64' in title):
-            print(k); break
-    else:
-        print(list(builds.keys())[0] if builds else '')
+        arch = (v.get('arch') or '').lower()
+        if 'windows 10' in title and (arch == 'amd64' or arch == 'x64' or 'amd64' in title or 'x64' in title):
+            print(v.get('uuid', '')); sys.exit(0)
+    for k, v in builds.items():
+        print(v.get('uuid', '')); sys.exit(0)
 except Exception:
-    print('')
+    pass
 " 2>/dev/null) || true
 
         if [ -n "$BUILD_UUID" ]; then
@@ -143,7 +144,12 @@ except Exception:
 import json, sys
 try:
     d = json.load(sys.stdin)
-    print(d.get('response', {}).get('builds', {}).get('$BUILD_UUID', {}).get('title', 'Unknown'))
+    builds = d.get('response', {}).get('builds', {})
+    for k, v in builds.items():
+        if v.get('uuid') == '$BUILD_UUID':
+            print(v.get('title', 'Unknown'))
+            sys.exit(0)
+    print('Unknown')
 except Exception:
     print('Unknown')
 " 2>/dev/null) || true
@@ -190,7 +196,9 @@ except Exception as e:
     sys.exit(1)
 " > "$WORK_DIR/uup-urls.txt" 2>/dev/null || true
 
-    NUM_FILES=$(grep -c "^http" "$WORK_DIR/uup-urls.txt" 2>/dev/null || echo "0")
+    NUM_FILES=$(grep -c "^http" "$WORK_DIR/uup-urls.txt" 2>/dev/null || true)
+    NUM_FILES=$(echo "$NUM_FILES" | tr -d '\r\n[:space:]')
+    NUM_FILES=${NUM_FILES:-0}
 
     if [ "$NUM_FILES" -eq 0 ]; then
         fail "No download URLs found from UUP dump. API may have changed.\nPlease download a Windows 10 ISO manually and run:\n  sudo bash $0 /path/to/Win10.iso"
@@ -219,11 +227,10 @@ except Exception as e:
 
     if [ ! -d "$CONVERTER_DIR/.git" ]; then
         rm -rf "$CONVERTER_DIR"
-        git clone --depth=1 https://git.uupdump.net/uupdump/converter.git "$CONVERTER_DIR" 2>/dev/null || {
-            warn "Primary converter repo unavailable, trying GitHub mirror..."
-            git clone --depth=1 https://github.com/AveYo/MediaCreationTool.bat.git "$CONVERTER_DIR" 2>/dev/null || {
-                fail "Could not download UUP converter. Try downloading a Windows ISO manually."
-            }
+        git clone --depth=1 https://git.uupdump.net/uup-dump/converter.git "$CONVERTER_DIR" 2>/dev/null || {
+            # Since git.uupdump.net/uup-dump/converter.git is the only official source,
+            # we fail gracefully with instructions if it cannot be cloned.
+            fail "Could not download UUP converter from git.uupdump.net/uup-dump/converter.git.\nPlease download a Windows 10 ISO manually and run:\n  sudo bash $0 /path/to/Win10.iso"
         }
     fi
 
