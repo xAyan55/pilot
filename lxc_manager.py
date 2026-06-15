@@ -157,7 +157,8 @@ class LXCManager:
             if log_callback:
                 log_callback(f'[INFO] Windows VM minimums applied: {cpu_cores} vCPU, {ram_mb}MB RAM, {disk_gb}GB disk')
 
-        # Define image candidates
+        # Define image candidates — try multiple remote naming conventions
+        # to handle different LXD/Incus versions and remote configurations
         image_candidates = []
         if is_windows:
             if log_callback:
@@ -168,25 +169,43 @@ class LXCManager:
                 log_callback(f'[INFO] Found Windows image: {resolved_win}')
         elif os_image.startswith('ubuntu/'):
             version = os_image.split('/', 1)[1]
-            image_candidates.append(f"ubuntu:{version}")
+            codenames = {'22.04': 'jammy', '24.04': 'noble', '20.04': 'focal', '24.10': 'oracular', '23.10': 'mantic'}
+            codename = codenames.get(version)
+            # Most reliable sources first
+            image_candidates.append(f"images:ubuntu/{version}/cloud")
             image_candidates.append(f"images:ubuntu/{version}")
-            # Codenames mapping
-            codenames = {'22.04': 'jammy', '24.04': 'noble', '20.04': 'focal'}
-            if version in codenames:
-                image_candidates.append(f"ubuntu:{codenames[version]}")
-                image_candidates.append(f"images:ubuntu/{codenames[version]}")
+            image_candidates.append(f"ubuntu:{version}")
+            image_candidates.append(f"images:ubuntu/{version}/amd64")
+            if codename:
+                image_candidates.append(f"ubuntu:{codename}")
+                image_candidates.append(f"images:ubuntu/{codename}")
+                image_candidates.append(f"images:ubuntu/{codename}/cloud")
+        elif os_image.startswith('debian/'):
+            version = os_image.split('/', 1)[1]
+            codenames = {'11': 'bullseye', '12': 'bookworm', '13': 'trixie'}
+            codename = codenames.get(version)
+            image_candidates.append(f"images:debian/{version}")
+            image_candidates.append(f"images:debian/{version}/cloud")
+            image_candidates.append(f"images:debian/{version}/amd64")
+            if codename:
+                image_candidates.append(f"images:debian/{codename}")
+                image_candidates.append(f"images:debian/{codename}/cloud")
+        elif os_image.startswith('alpine/'):
+            version = os_image.split('/', 1)[1]
+            image_candidates.append(f"images:alpine/{version}")
+            image_candidates.append(f"images:alpine/{version}/cloud")
+            image_candidates.append(f"images:alpine/{version}/amd64")
+        elif os_image.startswith('centos/'):
+            version = os_image.split('/', 1)[1]
+            image_candidates.append(f"images:centos/{version}")
+            image_candidates.append(f"images:centos/{version}/cloud")
+            image_candidates.append(f"images:centos/{version}/amd64")
         else:
             image_candidates.append(f"images:{os_image}")
+            image_candidates.append(f"images:{os_image}/cloud")
             if '/' in os_image:
                 distro, version = os_image.split('/', 1)
-                codenames = {
-                    'debian/11': 'debian/bullseye',
-                    'debian/12': 'debian/bookworm',
-                    'centos/9-stream': 'centos/9-stream',
-                    'alpine/3.18': 'alpine/3.18',
-                }
-                if os_image in codenames:
-                    image_candidates.append(f"images:{codenames[os_image]}")
+                image_candidates.append(f"images:{distro}/{version}/amd64")
 
         # Try launching using candidate list
         launched = False
@@ -209,27 +228,43 @@ class LXCManager:
                 if log_callback:
                     log_callback(f'[WARNING] Source {source} failed: {last_error}')
 
-        # Self-healing fallback: if launch failed, try to fix/update the remote URL in case images remote is blocked or misconfigured
+        # Self-healing fallback: fix/add remotes and retry
         if not launched and not is_windows:
-            if log_callback:
-                log_callback('[INFO] Attempting auto-fix: Updating remote URL of images server...')
-            try:
-                cls._run(['lxc', 'remote', 'set-url', 'images', 'https://images.lxd.canonical.com/'])
-                if log_callback:
-                    log_callback('[INFO] Remote URL updated. Retrying launch candidates...')
-                for source in image_candidates:
-                    launch_cmd = ['lxc', 'launch', source, name]
-                    try:
-                        cls._run(launch_cmd)
-                        launched = True
-                        if log_callback:
-                            log_callback(f'[SUCCESS] Launch succeeded after remote auto-fix using: {source}')
-                        break
-                    except subprocess.CalledProcessError as e2:
-                        last_error = e2.stderr.strip() if e2.stderr else str(e2)
-            except Exception as ex:
-                if log_callback:
-                    log_callback(f'[WARNING] Remote set-url auto-fix failed: {ex}')
+            remote_fixes = [
+                ('images', 'set-url', 'https://images.lxd.canonical.com/'),
+                ('images', 'set-url', 'https://images.linuxcontainers.org/'),
+            ]
+            # Try adding ubuntu: remote if it doesn't exist
+            if any(s.startswith('ubuntu:') for s in image_candidates):
+                remote_fixes.insert(0, ('ubuntu', 'add', 'https://cloud-images.ubuntu.com/releases/'))
+
+            for remote_name, action, url in remote_fixes:
+                if launched:
+                    break
+                try:
+                    if log_callback:
+                        log_callback(f'[INFO] Auto-fix: trying to {action} remote "{remote_name}" -> {url}')
+                    if action == 'add':
+                        try:
+                            cls._run(['lxc', 'remote', 'add', remote_name, url, '--protocol=simplestreams', '--accept-certificate'], check=False)
+                        except Exception:
+                            pass
+                    else:
+                        cls._run(['lxc', 'remote', 'set-url', remote_name, url], check=False)
+
+                    for source in image_candidates:
+                        launch_cmd = ['lxc', 'launch', source, name]
+                        try:
+                            cls._run(launch_cmd)
+                            launched = True
+                            if log_callback:
+                                log_callback(f'[SUCCESS] Launch succeeded after remote auto-fix using: {source}')
+                            break
+                        except subprocess.CalledProcessError as e2:
+                            last_error = e2.stderr.strip() if e2.stderr else str(e2)
+                except Exception as ex:
+                    if log_callback:
+                        log_callback(f'[WARNING] Remote auto-fix "{remote_name}" failed: {ex}')
 
         if not launched:
             raise Exception(f'Deployment step failed: Downloading and launching container image. Details: {last_error}')
