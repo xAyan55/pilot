@@ -618,7 +618,8 @@
 
           <!-- Subpanel 1: Branding -->
           <div class="sub-tab-panel active" id="subpanel-branding">
-            <div class="db-block" style="max-width: 600px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; align-items: start;">
+              <div class="db-block">
               <div class="db-block-header">
                 <h3>Branding & Theme Colors</h3>
               </div>
@@ -773,7 +774,7 @@
               </form>
             </div>
 
-            <div class="db-block" style="max-width: 600px; margin-top: 24px;">
+              <div class="db-block" style="margin-top: 0;">
               <div class="db-block-header" style="border-bottom: 2px solid var(--color-border); padding-bottom: 12px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <i data-lucide="message-square-dashed" style="width: 22px; height: 22px; color: var(--color-cool-text);"></i>
@@ -860,6 +861,7 @@
                   <i data-lucide="save"></i> Save Discord Integration
                 </button>
               </form>
+            </div>
             </div>
           </div>
 
