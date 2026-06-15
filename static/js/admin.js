@@ -532,7 +532,12 @@ async function loadContainers(silent = false) {
       row.innerHTML = `
         <td><strong>${vps.container_name}</strong></td>
         <td>${vps.owner_username}</td>
-        <td style="font-size: 13px;">${vps.os}</td>
+        <td style="font-size: 13px;">
+          <div style="display: flex; align-items: center;">
+            ${getOSIconHtml(vps.os)}
+            <span>${vps.os}</span>
+          </div>
+        </td>
         <td style="font-size: 13px;">${vps.cpu} Cores / ${vps.ram} MB RAM / ${vps.disk} GB SSD</td>
         <td style="font-family: monospace; font-size: 13px;" id="ip-cell-${vps.id}">Fetching IP...</td>
         <td>
@@ -823,6 +828,33 @@ window.handleDeployVPS = function(event) {
 window.closeDeployModal = function() {
   document.getElementById('deployLogModal').classList.remove('active');
 };
+
+// OS Icon Helper for table cells
+function getOSIconHtml(osString) {
+  const osLower = (osString || '').toLowerCase();
+  let imgPath = null;
+  let altText = '';
+  
+  if (osLower.includes('ubuntu')) {
+    imgPath = '/public/images/ubuntu.png';
+    altText = 'Ubuntu';
+  } else if (osLower.includes('debian')) {
+    imgPath = '/public/images/debian.svg';
+    altText = 'Debian';
+  } else if (osLower.includes('alpine')) {
+    imgPath = '/public/images/alpine.png';
+    altText = 'Alpine';
+  } else if (osLower.includes('centos')) {
+    imgPath = '/public/images/CentOS.png';
+    altText = 'CentOS';
+  }
+  
+  if (imgPath) {
+    return `<img src="${imgPath}" alt="${altText}" style="width: 16px; height: 16px; object-fit: contain; margin-right: 6px; flex-shrink: 0;">`;
+  }
+  
+  return '';
+}
 
 // --- OS SELECTOR, PASSWORD HELPERS & RESOURCE PREVIEW UTILITIES ---
 
@@ -1576,7 +1608,12 @@ window.openUserDetailsModal = async function(userId) {
       
       row.innerHTML = `
         <td><strong>${vps.container_name}</strong></td>
-        <td>${vps.os}</td>
+        <td>
+          <div style="display: flex; align-items: center;">
+            ${getOSIconHtml(vps.os)}
+            <span>${vps.os}</span>
+          </div>
+        </td>
         <td style="font-size: 13px;">${vps.cpu} Cores / ${vps.ram} MB / ${vps.disk} GB</td>
         <td>
           <span class="vps-status-badge ${statusClass}" style="padding: 2px 8px; font-size: 10px;">
