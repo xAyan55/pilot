@@ -3630,6 +3630,11 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"[WARNING] Failed to start tunnel monitor: {e}")
         try:
+            from pinggy_monitor import start_monitor as start_pinggy_monitor
+            start_pinggy_monitor()
+        except Exception as e:
+            print(f"[WARNING] Failed to start pinggy monitor: {e}")
+        try:
             from status_monitor import start_status_monitor
             start_status_monitor()
         except Exception as e:

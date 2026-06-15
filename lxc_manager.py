@@ -679,17 +679,29 @@ class LXCManager:
         tunnel_host = None
         tunnel_port = None
         if not IS_MOCK_LXC:
-            import json as _json
+            # First, check if Pinggy tunnel files are active inside the container
             try:
-                daemon_port_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json')
-                if os.path.exists(daemon_port_path):
-                    with open(daemon_port_path) as _f:
-                        _forwards = _json.load(_f)
-                    if name in _forwards:
-                        tunnel_port = _forwards[name]
-                        tunnel_host = '0.0.0.0'
+                p_host = cls.read_file(name, '/var/run/pinggy_host')
+                p_port = cls.read_file(name, '/var/run/pinggy_port')
+                if p_host and p_port:
+                    tunnel_host = p_host.strip()
+                    tunnel_port = int(re.sub(r'[^0-9]', '', p_port.strip()))
             except Exception:
                 pass
+
+            # Fallback to local iptables mapping if no Pinggy tunnel is running
+            if not tunnel_host or not tunnel_port:
+                import json as _json
+                try:
+                    daemon_port_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json')
+                    if os.path.exists(daemon_port_path):
+                        with open(daemon_port_path) as _f:
+                            _forwards = _json.load(_f)
+                        if name in _forwards:
+                            tunnel_port = _forwards[name]
+                            tunnel_host = '0.0.0.0'
+                except Exception:
+                    pass
 
         return {
             'name': name,

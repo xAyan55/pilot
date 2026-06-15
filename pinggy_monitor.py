@@ -10,23 +10,13 @@ import time
 import urllib.request
 import json
 import threading
+import re
 from database import get_db_connection
 
 try:
     from lxc_manager import LXCManager
 except ImportError:
     LXCManager = None
-
-
-def get_node_by_id(node_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return dict(row)
-    return None
 
 
 def make_node_request(node, endpoint, method='POST', data=None):
@@ -55,6 +45,9 @@ def monitor_loop():
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM vps WHERE status = 'running'")
             running_vps = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute("SELECT * FROM nodes")
+            nodes_map = {row['id']: dict(row) for row in cursor.fetchall()}
             conn.close()
 
             for vps in running_vps:
@@ -78,9 +71,9 @@ def monitor_loop():
                         except Exception:
                             pass
                 else:
-                    # Remote node — fetch stats via daemon API
-                    node = get_node_by_id(node_id)
-                    if node:
+                    # Remote node — fetch stats via daemon API if online and fqdn is resolved
+                    node = nodes_map.get(node_id)
+                    if node and node['status'] == 'online' and node['fqdn'] and node['fqdn'] != 'dynamic':
                         res, code = make_node_request(node, "/api/vps/stats", data={
                             "name": container_name,
                             "cpu": vps['cpu'],
