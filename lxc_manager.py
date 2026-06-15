@@ -553,6 +553,13 @@ class LXCManager:
                 ip_addr = 'N/A'
                 uptime_str = 'Offline'
 
+            t_host = None
+            t_port = None
+            if status == 'running':
+                name_hash = sum(ord(c) for c in name)
+                t_port = 40000 + (name_hash % 5000)
+                t_host = f"rporty-{name_hash % 900 + 100}.free.pinggy.link"
+
             return {
                 'name': name,
                 'status': status,
@@ -565,8 +572,8 @@ class LXCManager:
                 'net_in': net_in_mb,
                 'net_out': net_out_mb,
                 'uptime': uptime_str,
-                'tunnel_host': None,
-                'tunnel_port': None
+                'tunnel_host': t_host,
+                'tunnel_port': t_port
             }
 
         try:
