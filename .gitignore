@@ -6,3 +6,5 @@ __pycache__/
 .vscode/
 venv/
 .env
+local_port_forwards.json
+port_forwards.json
