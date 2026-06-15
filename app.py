@@ -536,17 +536,29 @@ def client_vps_stats(vps_id):
         )
 
     # Sync status, tunnel_host, and tunnel_port to DB if they change
+    # Only update tunnel values if stats provides non-null data; never overwrite good DB values with None
+    new_tunnel_host = stats.get('tunnel_host') or vps_row['tunnel_host']
+    new_tunnel_port = stats.get('tunnel_port') or vps_row['tunnel_port']
     if (stats['status'] != vps_row['status'] or 
-        stats.get('tunnel_host') != vps_row['tunnel_host'] or 
-        stats.get('tunnel_port') != vps_row['tunnel_port']):
+        new_tunnel_host != vps_row['tunnel_host'] or 
+        new_tunnel_port != vps_row['tunnel_port']):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE vps SET status = ?, tunnel_host = ?, tunnel_port = ? WHERE id = ?",
-            (stats['status'], stats.get('tunnel_host'), stats.get('tunnel_port'), vps_id)
+            (stats['status'], new_tunnel_host, new_tunnel_port, vps_id)
         )
         conn.commit()
         conn.close()
+
+    # Ensure stats returned to frontend includes tunnel info (prefer stats values, fall back to DB)
+    if not stats.get('tunnel_host'):
+        stats['tunnel_host'] = new_tunnel_host
+    if not stats.get('tunnel_port'):
+        stats['tunnel_port'] = new_tunnel_port
+
+    # Include OS info so frontend can distinguish Windows (RDP) from Linux (SSH)
+    stats['os'] = vps_row['os']
 
     # Track metrics history to feed UI chart
     container_name = vps_row['container_name']
@@ -3415,8 +3427,55 @@ def _local_get_container_ip(name):
 
 def setup_local_port_forward(name, vps_id=None):
     from lxc_manager import IS_MOCK_LXC
+
+    # Determine the tunnel_host to advertise (use server hostname or fallback to 0.0.0.0)
+    import socket
+    advertised_host = '0.0.0.0'
+    try:
+        conn_s = get_db_connection()
+        cur_s = conn_s.cursor()
+        cur_s.execute("SELECT value FROM settings WHERE key = 'ssh_relay_host'")
+        row_s = cur_s.fetchone()
+        conn_s.close()
+        if row_s and row_s['value']:
+            advertised_host = row_s['value']
+    except Exception:
+        pass
+    if advertised_host == '0.0.0.0':
+        try:
+            advertised_host = socket.getfqdn() or '0.0.0.0'
+        except Exception:
+            pass
+
     if IS_MOCK_LXC:
-        return None
+        # In mock mode: allocate a port and update DB but skip iptables
+        with LOCAL_PORT_LOCK:
+            if name in _local_port_allocations:
+                port = _local_port_allocations[name]
+            else:
+                used = set(_local_port_allocations.values())
+                port = None
+                for p in LOCAL_PORT_RANGE:
+                    if p not in used:
+                        port = p
+                        _local_port_allocations[name] = port
+                        break
+                if port is None:
+                    port = 40000 + (vps_id or 0)
+                    _local_port_allocations[name] = port
+        if vps_id:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE vps SET tunnel_host = ?, tunnel_port = ? WHERE id = ?",
+                               (advertised_host, port, vps_id))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        _save_local_port_forwards()
+        return port
+
     ip = _local_get_container_ip(name)
     if not ip or ip in ('N/A', 'Pending'):
         return None
@@ -3470,7 +3529,7 @@ def setup_local_port_forward(name, vps_id=None):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("UPDATE vps SET tunnel_host = ?, tunnel_port = ? WHERE id = ?",
-                       ('0.0.0.0', port, vps_id))
+                       (advertised_host, port, vps_id))
         conn.commit()
         conn.close()
         if is_win:

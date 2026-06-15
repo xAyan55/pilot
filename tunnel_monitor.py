@@ -10,8 +10,30 @@ import time
 import subprocess
 import re
 import threading
+import socket
 from database import get_db_connection
 from lxc_manager import LXCManager, IS_MOCK_LXC
+
+
+def _get_advertised_host():
+    """Return a usable hostname: ssh_relay_host setting > FQDN > 0.0.0.0."""
+    host = '0.0.0.0'
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'ssh_relay_host'")
+        row = cur.fetchone()
+        conn.close()
+        if row and row['value']:
+            host = row['value']
+    except Exception:
+        pass
+    if host == '0.0.0.0':
+        try:
+            host = socket.getfqdn() or '0.0.0.0'
+        except Exception:
+            pass
+    return host
 
 
 def get_local_port_forwards():
@@ -45,6 +67,8 @@ def monitor_loop():
                 time.sleep(15)
                 continue
 
+            advertised_host = _get_advertised_host()
+
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM vps WHERE node_id = 1 AND status = 'running'")
@@ -60,12 +84,12 @@ def monitor_loop():
                     continue
                 if ip and ip in forwards:
                     port = forwards[ip]
-                    if vps.get('tunnel_port') != port or vps.get('tunnel_host') != '0.0.0.0':
+                    if vps.get('tunnel_port') != port or vps.get('tunnel_host') != advertised_host:
                         conn = get_db_connection()
                         cursor = conn.cursor()
                         cursor.execute(
                             "UPDATE vps SET tunnel_host = ?, tunnel_port = ? WHERE id = ?",
-                            ('0.0.0.0', port, vps_id)
+                            (advertised_host, port, vps_id)
                         )
                         conn.commit()
                         conn.close()
@@ -79,3 +103,4 @@ def monitor_loop():
 def start_monitor():
     t = threading.Thread(target=monitor_loop, daemon=True)
     t.start()
+

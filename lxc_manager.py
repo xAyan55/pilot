@@ -700,13 +700,29 @@ class LXCManager:
             if not tunnel_host or not tunnel_port:
                 import json as _json
                 try:
-                    daemon_port_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'port_forwards.json')
-                    if os.path.exists(daemon_port_path):
-                        with open(daemon_port_path) as _f:
+                    # Match the filename used by setup_local_port_forward() in app.py
+                    local_pf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'local_port_forwards.json')
+                    if os.path.exists(local_pf_path):
+                        with open(local_pf_path) as _f:
                             _forwards = _json.load(_f)
                         if name in _forwards:
                             tunnel_port = _forwards[name]
                             tunnel_host = '0.0.0.0'
+                except Exception:
+                    pass
+
+            # Final fallback: read from database so we don't overwrite good values with None
+            if not tunnel_host or not tunnel_port:
+                try:
+                    from database import get_db_connection
+                    _conn = get_db_connection()
+                    _cur = _conn.cursor()
+                    _cur.execute("SELECT tunnel_host, tunnel_port FROM vps WHERE container_name = ?", (name,))
+                    _row = _cur.fetchone()
+                    _conn.close()
+                    if _row and _row['tunnel_host'] and _row['tunnel_port']:
+                        tunnel_host = _row['tunnel_host']
+                        tunnel_port = _row['tunnel_port']
                 except Exception:
                     pass
 
