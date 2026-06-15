@@ -2081,6 +2081,11 @@ async function saveDiscordIntegration(event) {
   const webhookUrl = document.getElementById('discordWebhookUrl').value.trim();
   const notifyUserId = document.getElementById('discordNotifyUserId').value.trim();
   
+  const statusEnabled = document.getElementById('discordStatusEnabled').value;
+  const statusWebhookUrl = document.getElementById('discordStatusWebhookUrl').value.trim();
+  const statusHealthUrl = document.getElementById('discordStatusHealthUrl').value.trim();
+  const statusTitle = document.getElementById('discordStatusTitle').value.trim();
+  
   try {
     const response = await fetch('/api/admin/settings/discord', {
       method: 'POST',
@@ -2089,7 +2094,11 @@ async function saveDiscordIntegration(event) {
         discord_bot_token: token,
         discord_guild_id: guildId,
         discord_webhook_url: webhookUrl,
-        discord_notify_user_id: notifyUserId
+        discord_notify_user_id: notifyUserId,
+        discord_status_enabled: statusEnabled,
+        discord_status_webhook_url: statusWebhookUrl,
+        discord_status_health_url: statusHealthUrl,
+        discord_status_title: statusTitle
       })
     });
     const result = await window.handleFetchResponse(response);

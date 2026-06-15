@@ -245,7 +245,12 @@ def inject_settings():
         'color_accent': '#ABE7B2',
         'color_cool': '#93BFC7',
         'auth_image_url': '/static/images/auth-img.jpg',
-        'discord_notify_user_id': ''
+        'discord_notify_user_id': '',
+        'discord_status_enabled': '0',
+        'discord_status_webhook_url': '',
+        'discord_status_health_url': '',
+        'discord_status_title': 'MintyHost Panel Status',
+        'discord_status_message_id': ''
     }
     for k, v in defaults.items():
         if k not in settings or not settings[k]:
@@ -2048,6 +2053,11 @@ def admin_settings_discord():
     discord_webhook_url = data.get('discord_webhook_url', '').strip()
     discord_notify_user_id = data.get('discord_notify_user_id', '').strip()
     
+    discord_status_enabled = data.get('discord_status_enabled', '0').strip()
+    discord_status_webhook_url = data.get('discord_status_webhook_url', '').strip()
+    discord_status_health_url = data.get('discord_status_health_url', '').strip()
+    discord_status_title = data.get('discord_status_title', 'MintyHost Panel Status').strip()
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -2055,7 +2065,11 @@ def admin_settings_discord():
             'discord_bot_token': bot_token,
             'discord_guild_id': guild_id,
             'discord_webhook_url': discord_webhook_url,
-            'discord_notify_user_id': discord_notify_user_id
+            'discord_notify_user_id': discord_notify_user_id,
+            'discord_status_enabled': discord_status_enabled,
+            'discord_status_webhook_url': discord_status_webhook_url,
+            'discord_status_health_url': discord_status_health_url,
+            'discord_status_title': discord_status_title
         }
         for key, val in updates.items():
             cursor.execute(
@@ -2064,6 +2078,15 @@ def admin_settings_discord():
             )
         conn.commit()
         log_audit(session['user_id'], "Updated Discord integration settings.")
+        
+        # Trigger an immediate status update asynchronously if enabled
+        if discord_status_enabled == '1' and discord_status_webhook_url:
+            try:
+                from status_monitor import send_discord_status
+                threading.Thread(target=send_discord_status, args=("online",), daemon=True).start()
+            except Exception:
+                pass
+                
         return jsonify({"status": "success", "message": "Discord integration settings saved successfully."})
     except Exception as e:
         return jsonify({"message": f"Failed to save Discord settings: {str(e)}"}), 500
@@ -3606,6 +3629,11 @@ if __name__ == '__main__':
             start_monitor()
         except Exception as e:
             print(f"[WARNING] Failed to start tunnel monitor: {e}")
+        try:
+            from status_monitor import start_status_monitor
+            start_status_monitor()
+        except Exception as e:
+            print(f"[WARNING] Failed to start status monitor: {e}")
         try:
             _reapply_local_port_forwards()
         except Exception as e:
