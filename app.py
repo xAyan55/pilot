@@ -2422,7 +2422,10 @@ def handle_terminal_connect(data):
 
     # If container is on a remote node, delegate terminal session via remote node daemon WebSocket
     if vps['node_id'] != 1:
-        node_id = vps['node_id']
+        try:
+            node_id = int(vps['node_id'])
+        except (ValueError, TypeError):
+            node_id = vps['node_id']
         node_conn = None
         if node_namespace and node_id in node_namespace.connected_nodes:
             node_conn = node_namespace.connected_nodes[node_id]
@@ -3639,6 +3642,10 @@ class NodeSocketNamespace(Namespace):
 
     def on_node_auth(self, data):
         node_id = data.get('node_id')
+        try:
+            node_id = int(node_id)
+        except (ValueError, TypeError):
+            pass
         api_key = data.get('api_key')
         if not node_id or not api_key:
             self.emit('node_authenticated', {'status': 'error', 'message': 'Missing credentials'})
@@ -3679,11 +3686,19 @@ class NodeSocketNamespace(Namespace):
 
     def on_node_heartbeat(self, data):
         node_id = data.get('node_id')
+        try:
+            node_id = int(node_id)
+        except (ValueError, TypeError):
+            pass
         if node_id in self.connected_nodes:
             self.connected_nodes[node_id]['last_heartbeat'] = time.time()
 
     def on_container_stats(self, data):
         node_id = data.get('node_id')
+        try:
+            node_id = int(node_id)
+        except (ValueError, TypeError):
+            pass
         cname = data.get('container_name')
         stats = data.get('stats')
         if node_id in self.connected_nodes:
