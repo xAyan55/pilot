@@ -19,18 +19,20 @@ except ImportError:
     LXCManager = None
 
 
-def make_node_request(node, endpoint, method='POST', data=None):
-    url = f"http://{node['fqdn']}:{node['port']}{endpoint}"
+def make_node_request(node, endpoint, method='POST', data=None, timeout=30):
+    scheme = "https" if node['port'] in (443, 8443) else "http"
+    url = f"{scheme}://{node['fqdn']}:{node['port']}{endpoint}"
     headers = {
         "Authorization": f"Bearer {node['api_key']}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     req_data = None
     if data:
         req_data = json.dumps(data).encode('utf-8')
     req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             res_data = response.read().decode('utf-8')
             return json.loads(res_data), response.status
     except Exception as e:

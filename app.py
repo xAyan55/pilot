@@ -154,7 +154,7 @@ def allocate_relay_port(vps_id, ports_setting):
     conn.close()
     return allocated_port
 
-def make_node_request(node, endpoint, method='POST', data=None):
+def make_node_request(node, endpoint, method='POST', data=None, timeout=30):
     import urllib.request
     import urllib.parse
     import json
@@ -176,7 +176,7 @@ def make_node_request(node, endpoint, method='POST', data=None):
         
     req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             res_data = response.read().decode('utf-8')
             return json.loads(res_data), response.status
     except urllib.error.HTTPError as e:
@@ -1683,7 +1683,7 @@ def admin_vps_deploy_stream():
                     "ram": int(ram),
                     "disk": int(disk),
                     "password": root_pw
-                })
+                }, timeout=180)
                 if code != 200:
                     yield f"data: [ERROR] Remote deploy failed: {res.get('message', '')}\n\n"
                     discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Remote rejection)", False, f"Remote deploy failed on node {node['name']}: {res.get('message', '')}")
