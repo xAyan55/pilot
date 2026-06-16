@@ -2,3 +2,5 @@ Flask==3.0.3
 flask-socketio
 eventlet
 python-dotenv
+requests
+websocket-client
