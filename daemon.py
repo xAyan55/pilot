@@ -589,9 +589,158 @@ def connect_panel_websocket(panel_url, node_id, api_key):
                     sio.emit('node_task_result', {'task_id': task_id, 'node_id': node_id, 'result': result})
             except Exception:
                 pass
+
+        # Store active terminal processes per session
+        node_terminal_processes = {}
+
+        def cleanup_node_terminal(session_id):
+            term = node_terminal_processes.pop(session_id, None)
+            if term:
+                try:
+                    os.close(term['master_fd'])
+                except OSError:
+                    pass
+                try:
+                    term['process'].terminate()
+                    term['process'].wait(timeout=3)
+                except Exception:
+                    try:
+                        term['process'].kill()
+                    except Exception:
+                        pass
+                print(f"[WS] Cleaned up remote terminal session {session_id}")
+
+        @sio.on('terminal_start')
+        def on_terminal_start(data):
+            session_id = data.get('session_id')
+            container_name = data.get('container_name')
+            if not session_id or not container_name:
+                return
+
+            try:
+                import pty
+                import select
+                import struct
+                import fcntl
+                import termios
+                HAS_PTY = True
+            except ImportError:
+                HAS_PTY = False
+
+            if not HAS_PTY:
+                sio.emit('node_terminal_output', {
+                    'session_id': session_id,
+                    'output': '\r\n[ERROR] Terminal PTY not supported on this platform.\r\n'
+                })
+                return
+
+            try:
+                # Stop existing session if any
+                if session_id in node_terminal_processes:
+                    cleanup_node_terminal(session_id)
+                    
+                master_fd, slave_fd = pty.openpty()
+                
+                # Check LXC path
+                lxc_bin = LXCManager.LXC_BIN
+                
+                process = subprocess.Popen(
+                    [lxc_bin, 'exec', container_name, '--env', 'TERM=xterm-256color', '--', '/bin/bash'],
+                    stdin=slave_fd,
+                    stdout=slave_fd,
+                    stderr=slave_fd,
+                    preexec_fn=os.setsid,
+                    close_fds=True
+                )
+                os.close(slave_fd)
+                
+                node_terminal_processes[session_id] = {
+                    'master_fd': master_fd,
+                    'process': process,
+                    'container': container_name
+                }
+                
+                # Emit empty output to confirm start
+                sio.emit('node_terminal_output', {
+                    'session_id': session_id,
+                    'output': ''
+                })
+
+                def read_output():
+                    while True:
+                        try:
+                            # Standard thread sleep
+                            time.sleep(0.01)
+                            if process.poll() is not None:
+                                sio.emit('node_terminal_output', {
+                                    'session_id': session_id,
+                                    'output': '\r\n[Session ended]\r\n'
+                                })
+                                break
+                            r, _, _ = select.select([master_fd], [], [], 0.02)
+                            if master_fd in r:
+                                output = os.read(master_fd, 4096)
+                                if output:
+                                    sio.emit('node_terminal_output', {
+                                        'session_id': session_id,
+                                        'output': output.decode('utf-8', errors='replace')
+                                    })
+                                else:
+                                    break
+                        except OSError:
+                            break
+                        except Exception:
+                            break
+                    # Cleanup
+                    cleanup_node_terminal(session_id)
+
+                threading.Thread(target=read_output, daemon=True).start()
+                print(f"[WS] Started remote terminal session {session_id} for {container_name}")
+
+            except Exception as e:
+                sio.emit('node_terminal_output', {
+                    'session_id': session_id,
+                    'output': f'\r\n[ERROR] Failed to start terminal: {str(e)}\r\n'
+                })
+
+        @sio.on('terminal_input')
+        def on_terminal_input(data):
+            session_id = data.get('session_id')
+            term_input = data.get('input')
+            term = node_terminal_processes.get(session_id)
+            if term:
+                try:
+                    os.write(term['master_fd'], term_input.encode('utf-8'))
+                except OSError:
+                    cleanup_node_terminal(session_id)
+
+        @sio.on('terminal_resize')
+        def on_terminal_resize(data):
+            session_id = data.get('session_id')
+            cols = data.get('cols', 80)
+            rows = data.get('rows', 24)
+            term = node_terminal_processes.get(session_id)
+            if term:
+                try:
+                    import struct
+                    import fcntl
+                    import termios
+                    winsize = struct.pack('HHHH', rows, cols, 0, 0)
+                    fcntl.ioctl(term['master_fd'], termios.TIOCSWINSZ, winsize)
+                except Exception:
+                    pass
+
+        @sio.on('terminal_stop')
+        def on_terminal_stop(data):
+            session_id = data.get('session_id')
+            cleanup_node_terminal(session_id)
+
         @sio.on('disconnect')
         def on_disconnect():
             print("[-] Panel WebSocket disconnected. Reconnecting in 10s...")
+            for session_id in list(node_terminal_processes.keys()):
+                cleanup_node_terminal(session_id)
+
         ws_url = panel_url.rstrip('/').replace('http://', 'ws://').replace('https://', 'wss://')
         while True:
             try:

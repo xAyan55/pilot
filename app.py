@@ -205,6 +205,7 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = 'mintyhost-lxc-secret-key-928475'
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+node_namespace = None
 
 # Ensure database is initialized on startup
 with app.app_context():
@@ -2419,12 +2420,30 @@ def handle_terminal_connect(data):
         emit('terminal_output', {'output': '\r\n[ERROR] Access denied. You do not own this container.\r\n'})
         return
 
-    # If container is on a remote node, web terminal console is not supported directly via panel PTY
+    # If container is on a remote node, delegate terminal session via remote node daemon WebSocket
     if vps['node_id'] != 1:
-        emit('terminal_output', {
-            'output': '\r\n[INFO] Web Console is only supported on the Local Node.\r\n'
-                      '[INFO] Please connect using the Bore SSH Tunnel shown in the Overview tab.\r\n'
-        })
+        node_id = vps['node_id']
+        node_conn = None
+        if node_namespace and node_id in node_namespace.connected_nodes:
+            node_conn = node_namespace.connected_nodes[node_id]
+        
+        if not node_conn:
+            emit('terminal_output', {'output': '\r\n[ERROR] Remote node is offline. Cannot open web terminal.\r\n'})
+            return
+            
+        node_sid = node_conn['sid']
+        terminal_processes[sid] = {
+            'remote': True,
+            'node_id': node_id,
+            'node_sid': node_sid,
+            'container': container_name
+        }
+        
+        # Request remote node to start terminal session
+        socketio.emit('terminal_start', {
+            'session_id': sid,
+            'container_name': container_name
+        }, room=node_sid, namespace='/ws/node')
         return
 
     # Check container is running
@@ -2492,24 +2511,39 @@ def handle_terminal_input(data):
     sid = request.sid
     term = terminal_processes.get(sid)
     if term:
-        try:
-            os.write(term['master_fd'], data['input'].encode('utf-8'))
-        except OSError:
-            cleanup_terminal(sid)
+        if term.get('remote'):
+            node_sid = term['node_sid']
+            socketio.emit('terminal_input', {
+                'session_id': sid,
+                'input': data['input']
+            }, room=node_sid, namespace='/ws/node')
+        else:
+            try:
+                os.write(term['master_fd'], data['input'].encode('utf-8'))
+            except OSError:
+                cleanup_terminal(sid)
 
 @socketio.on('terminal_resize')
 def handle_terminal_resize(data):
     """Handle terminal resize events from xterm.js."""
     sid = request.sid
     term = terminal_processes.get(sid)
-    if term and HAS_PTY:
-        try:
-            cols = data.get('cols', 80)
-            rows = data.get('rows', 24)
-            winsize = struct.pack('HHHH', rows, cols, 0, 0)
-            fcntl.ioctl(term['master_fd'], termios.TIOCSWINSZ, winsize)
-        except Exception:
-            pass
+    if term:
+        if term.get('remote'):
+            node_sid = term['node_sid']
+            socketio.emit('terminal_resize', {
+                'session_id': sid,
+                'cols': data.get('cols', 80),
+                'rows': data.get('rows', 24)
+            }, room=node_sid, namespace='/ws/node')
+        elif HAS_PTY:
+            try:
+                cols = data.get('cols', 80)
+                rows = data.get('rows', 24)
+                winsize = struct.pack('HHHH', rows, cols, 0, 0)
+                fcntl.ioctl(term['master_fd'], termios.TIOCSWINSZ, winsize)
+            except Exception:
+                pass
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -2520,18 +2554,24 @@ def cleanup_terminal(sid):
     """Terminate and clean up a terminal session."""
     term = terminal_processes.pop(sid, None)
     if term:
-        try:
-            os.close(term['master_fd'])
-        except OSError:
-            pass
-        try:
-            term['process'].terminate()
-            term['process'].wait(timeout=3)
-        except Exception:
+        if term.get('remote'):
+            node_sid = term['node_sid']
+            socketio.emit('terminal_stop', {
+                'session_id': sid
+            }, room=node_sid, namespace='/ws/node')
+        else:
             try:
-                term['process'].kill()
-            except Exception:
+                os.close(term['master_fd'])
+            except OSError:
                 pass
+            try:
+                term['process'].terminate()
+                term['process'].wait(timeout=3)
+            except Exception:
+                try:
+                    term['process'].kill()
+                except Exception:
+                    pass
 
 
 # ----------------- USER PROFILE API -----------------
@@ -3657,6 +3697,12 @@ class NodeSocketNamespace(Namespace):
         result = data.get('result')
         print(f"[WS/Node] Task {task_id} result: {result.get('message', 'ok')}")
 
+    def on_node_terminal_output(self, data):
+        session_id = data.get('session_id')
+        output = data.get('output')
+        if session_id:
+            socketio.emit('terminal_output', {'output': output}, room=session_id)
+
     def on_disconnect(self):
         disconnected = []
         for node_id, info in list(self.connected_nodes.items()):
@@ -3669,12 +3715,23 @@ class NodeSocketNamespace(Namespace):
                 conn.close()
                 del self.connected_nodes[node_id]
                 print(f"[WS/Node] Node {node_id} ({info.get('name')}) disconnected")
+                
+                # Cleanup any remote terminal sessions on this node
+                terminated_sids = []
+                for client_sid, term in list(terminal_processes.items()):
+                    if term.get('remote') and term.get('node_id') == node_id:
+                        socketio.emit('terminal_output', {'output': '\r\n[Remote node disconnected]\r\n'}, room=client_sid)
+                        terminated_sids.append(client_sid)
+                for client_sid in terminated_sids:
+                    terminal_processes.pop(client_sid, None)
+                    
         if not disconnected:
             print(f"[WS/Node] Unknown client disconnected")
 
 
 # Register the node namespace
-socketio.on_namespace(NodeSocketNamespace('/ws/node'))
+node_namespace = NodeSocketNamespace('/ws/node')
+socketio.on_namespace(node_namespace)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
