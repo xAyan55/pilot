@@ -166,7 +166,8 @@ def make_node_request(node, endpoint, method='POST', data=None):
     url = f"{scheme}://{node['fqdn']}:{node['port']}{endpoint}"
     headers = {
         "Authorization": f"Bearer {node['api_key']}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     req_data = None
