@@ -2,158 +2,284 @@
 
 {% block title %}Client Authentication{% endblock %}
 
+{% block extra_css %}
+<style>
+  ::-webkit-scrollbar { display: none; }
+  body, html { height: 100%; margin: 0; }
+
+  /* Desktop: left panel + right image */
+  .auth-split {
+    display: flex;
+    min-height: 100vh;
+  }
+  .auth-panel {
+    width: 100%;
+    max-width: 440px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 40px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    position: relative;
+    z-index: 1;
+    transition: background 0.25s, border-right-color 0.25s;
+  }
+  html.dark .auth-panel {
+    background: rgba(20, 20, 20, 0.85);
+    border-right-color: rgba(255, 255, 255, 0.08);
+  }
+  .auth-image {
+    flex: 1;
+    background: url('/static/images/auth-img.jpg') center/cover no-repeat;
+  }
+
+  /* Mobile: full-screen centered card */
+  @media (max-width: 768px) {
+    .auth-split { display: block; min-height: 100vh; }
+    .auth-panel {
+      max-width: 100%;
+      border-right: none;
+      padding: 40px 24px;
+      min-height: 100vh;
+      justify-content: center;
+    }
+    .auth-image { display: none; }
+  }
+
+  /* Password Toggle Button */
+  .pw-wrapper { position: relative; }
+  .pw-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: #a3a3a3;
+    line-height: 0;
+    transition: color 0.15s;
+  }
+  .pw-toggle:hover { color: #737373; }
+  html.dark .pw-toggle:hover { color: #d4d4d4; }
+
+  /* Submit Button styling */
+  .auth-submit {
+    width: 100%;
+    padding: 11px;
+    border-radius: 10px;
+    background: #171717;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  html.dark .auth-submit { background: white; color: #0a0a0a; }
+  .auth-submit:hover:not(:disabled) { background: #404040; }
+  html.dark .auth-submit:hover:not(:disabled) { background: #e5e5e5; }
+  .auth-submit:disabled { opacity: 0.6; cursor: default; }
+
+  /* Custom tabs active styles */
+  .auth-tab.active {
+    border-bottom-color: #171717;
+    color: #171717;
+  }
+  html.dark .auth-tab.active {
+    border-bottom-color: #ffffff;
+    color: #ffffff;
+  }
+
+  /* Form Panels visibility transition */
+  .auth-form-panel {
+    display: none;
+  }
+  .auth-form-panel.active {
+    display: block;
+    animation: form-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes form-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .pw-strength { height: 3px; border-radius: 2px; background: #e5e5e5; margin-top: 8px; overflow: hidden; }
+  html.dark .pw-strength { background: rgba(255,255,255,0.08); }
+  .pw-bar { height: 100%; border-radius: 2px; width: 0%; transition: width 0.28s ease, background 0.28s ease; }
+  .pw-hint { font-size: 11px; color: #a3a3a3; margin-top: 5px; min-height: 14px; transition: color 0.2s; }
+
+  .spinner {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.08);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.65s linear infinite;
+    display: none;
+  }
+  html.dark .spinner { border-color: rgba(0,0,0,0.25); border-top-color: #0a0a0a; }
+  .auth-submit.loading .spinner { display: block; }
+  .auth-submit.loading .btn-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Entry animation for the panel */
+  .auth-panel { opacity: 0; transform: translateX(-12px); transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+  .auth-panel.visible { opacity: 1; transform: translateX(0); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="auth-split-screen">
-  <div class="auth-left-pane">
-    <div class="auth-top-nav">
-      <a href="https://discord.gg/Gj8Mxdx2kP" target="_blank" class="auth-nav-link">
-        <i data-lucide="discord" style="width: 16px; height: 16px;"></i> Discord
-      </a>
-      <a href="/client" class="auth-nav-link">
-        <i data-lucide="help-circle" style="width: 16px; height: 16px;"></i> Support center
-      </a>
-    </div>
+<div class="auth-split">
+  <div class="auth-panel" id="authPanel">
 
-    <div class="auth-main-content">
-      <div class="auth-brand-wrapper text-center" style="margin-bottom: 24px;">
-        <a href="/" class="logo" style="justify-content: center; display: inline-flex;">
-          {% if settings.get('logo_url') %}
-          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
-          {% else %}
-          <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
-          {% endif %}
-          <span>{{ settings.get('site_name', 'MintyHost') }}</span>
-        </a>
-      </div>
-
-      <div class="auth-card">
-        <h2 class="auth-heading text-center" id="auth-heading-text"
-          style="margin-bottom: 24px; font-size: 24px; font-weight: 800;">Login to Continue</h2>
-
-        <div class="auth-tabs">
-          <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</div>
-          <div class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Create Account</div>
-        </div>
-
-        <!-- Login Form Panel -->
-        <div class="auth-form-panel active" id="panel-login">
-          <form action="/login" method="POST" id="loginForm">
-            <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
-
-            <div class="form-group">
-              <label for="loginEmail">Your ID</label>
-              <div class="input-wrapper">
-                <i data-lucide="user" class="input-icon-left"></i>
-                <input type="email" name="email" id="loginEmail" class="form-input has-icon-left" placeholder="Your ID"
-                  required>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="loginPassword">Password</label>
-              <div class="input-wrapper">
-                <i data-lucide="key" class="input-icon-left"></i>
-                <input type="password" name="password" id="loginPassword" class="form-input has-icon-left"
-                  placeholder="Password" required>
-                <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
-                  <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <label class="checkbox-label">
-                <input type="checkbox" name="remember" value="yes" checked>
-                <span>Remember me</span>
-              </label>
-            </div>
-
-            <button type="submit" class="btn btn-primary auth-submit-btn">
-              Login <i data-lucide="log-in"></i>
-            </button>
-          </form>
-
-          <div style="margin-top: 24px; text-align: center; font-size: 13px; color: var(--color-text-muted);">
-            <p>Admin account seeded? Use the default credentials mentioned in the documentation.</p>
+    <!-- Branding Wrapper -->
+    <div class="mb-8 text-center sm:text-left">
+      <a href="/" class="inline-flex items-center gap-3">
+        {% if settings.get('logo_url') %}
+          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="h-10 w-10 rounded-xl object-contain">
+        {% else %}
+          <div class="w-10 h-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-lg">
+            {{ settings.get('site_name', 'MintyHost')[0]|upper }}
           </div>
+        {% endif %}
+        <span class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">{{ settings.get('site_name', 'MintyHost') }}</span>
+      </a>
+      <h2 class="text-2xl font-semibold text-neutral-800 dark:text-white mt-6" id="auth-heading-text">Login to Continue</h2>
+      <p class="text-sm text-neutral-500 mt-1">LXC VPS Management Platform</p>
+    </div>
+
+    <!-- Switcher Tabs -->
+    <div class="auth-tabs flex border-b border-neutral-200 dark:border-neutral-800 mb-6">
+      <div class="auth-tab flex-1 text-center py-2.5 font-semibold text-sm cursor-pointer border-b-2 transition-all active" id="tab-login" onclick="switchAuthTab('login')">Sign In</div>
+      <div class="auth-tab flex-1 text-center py-2.5 font-semibold text-sm cursor-pointer border-b-2 transition-all text-neutral-400 dark:text-neutral-500" id="tab-signup" onclick="switchAuthTab('signup')">Create Account</div>
+    </div>
+
+    <!-- Login Form Panel -->
+    <div class="auth-form-panel active" id="panel-login">
+      <form action="/login" method="POST" id="loginForm" autocomplete="on" novalidate>
+        <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
+
+        <div class="space-y-4">
+          <div>
+            <label class="auth-label" for="loginEmail">Your ID (Username or Email)</label>
+            <input type="email" name="email" id="loginEmail" autocomplete="username" class="auth-input" placeholder="you@example.com" required>
+          </div>
+
+          <div>
+            <label class="auth-label" for="loginPassword">Password</label>
+            <div class="pw-wrapper">
+              <input type="password" name="password" id="loginPassword" autocomplete="current-password" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
+              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('loginPassword', this)" aria-label="Toggle password visibility">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <label class="cb-row" id="rememberLabel">
+            <input id="remember" name="remember" type="checkbox" value="yes" checked class="sr-only">
+            <span class="cb-box" id="cbBox" style="background: #171717; border-color: #171717;">
+              <svg class="cb-check" id="cbCheck" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" width="10" height="10" style="display: block;">
+                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="text-sm text-neutral-500 dark:text-neutral-400">Remember me</span>
+          </label>
+
+          <button type="submit" class="auth-submit" id="loginSubmitBtn">
+            <span class="btn-label">Sign in</span>
+            <span class="spinner"></span>
+          </button>
         </div>
+      </form>
+    </div>
 
-        <!-- Signup Form Panel -->
-        <div class="auth-form-panel" id="panel-signup">
-          <form action="/signup" method="POST" id="signupForm">
-            <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
+    <!-- Signup Form Panel -->
+    <div class="auth-form-panel" id="panel-signup">
+      <form action="/signup" method="POST" id="signupForm" autocomplete="on" novalidate>
+        <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
 
-            <div class="form-group">
-              <label for="signupUsername">Username</label>
-              <div class="input-wrapper">
-                <i data-lucide="user" class="input-icon-left"></i>
-                <input type="text" name="username" id="signupUsername" class="form-input has-icon-left"
-                  placeholder="username" required pattern="[a-zA-Z0-9]+">
-              </div>
+        <div class="space-y-4">
+          <div>
+            <label class="auth-label" for="signupUsername">Username</label>
+            <input type="text" name="username" id="signupUsername" autocomplete="username" class="auth-input" placeholder="johndoe" required pattern="[a-zA-Z0-9]+">
+          </div>
+
+          <div>
+            <label class="auth-label" for="signupEmail">Email Address</label>
+            <input type="email" name="email" id="signupEmail" autocomplete="email" class="auth-input" placeholder="name@example.com" required>
+          </div>
+
+          <div>
+            <label class="auth-label" for="signupPassword">Password</label>
+            <div class="pw-wrapper">
+              <input type="password" name="password" id="signupPassword" autocomplete="new-password" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
+              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('signupPassword', this)" aria-label="Toggle password visibility">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
+                </svg>
+              </button>
             </div>
+            <div class="pw-strength"><div class="pw-bar" id="pwBar"></div></div>
+            <p class="pw-hint" id="pwHint">8+ characters, one letter, one number.</p>
+          </div>
 
-            <div class="form-group">
-              <label for="signupEmail">Email Address</label>
-              <div class="input-wrapper">
-                <i data-lucide="mail" class="input-icon-left"></i>
-                <input type="email" name="email" id="signupEmail" class="form-input has-icon-left"
-                  placeholder="name@example.com" required>
-              </div>
+          <div>
+            <label class="auth-label" for="signupConfirmPassword">Confirm Password</label>
+            <div class="pw-wrapper">
+              <input type="password" name="confirm_password" id="signupConfirmPassword" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
+              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('signupConfirmPassword', this)" aria-label="Toggle password visibility">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
+                </svg>
+              </button>
             </div>
+          </div>
 
-            <div class="form-group">
-              <label for="signupPassword">Password</label>
-              <div class="input-wrapper">
-                <i data-lucide="key" class="input-icon-left"></i>
-                <input type="password" name="password" id="signupPassword" class="form-input has-icon-left"
-                  placeholder="••••••••" required>
-                <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
-                  <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="signupConfirmPassword">Confirm Password</label>
-              <div class="input-wrapper">
-                <i data-lucide="key" class="input-icon-left"></i>
-                <input type="password" name="confirm_password" id="signupConfirmPassword"
-                  class="form-input has-icon-left" placeholder="••••••••" required>
-                <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility">
-                  <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary auth-submit-btn">
-              Create Account <i data-lucide="user-plus"></i>
-            </button>
-          </form>
+          <button type="submit" class="auth-submit" id="signupSubmitBtn">
+            <span class="btn-label">Create account</span>
+            <span class="spinner"></span>
+          </button>
         </div>
-      </div>
+      </form>
     </div>
 
-    <div class="auth-footer text-center">
-      <p style="font-size: 12px; color: var(--color-text-muted); font-weight: 600; margin: 0;">
-        Pterodactyl&reg; &copy; 2015 - 2026
-      </p>
-      <p style="font-size: 12px; color: var(--color-text-muted); font-weight: 600; margin: 4px 0 0 0;">
-        Designed by KataBump
-      </p>
+    <!-- Footer Copyright Branding -->
+    <div class="mt-12 text-center text-xs text-neutral-500">
+      <p>&copy; 2026 {{ settings.get('site_name', 'MintyHost') }}. All rights reserved.</p>
+      <p class="mt-1">Designed by KataBump</p>
     </div>
-  </div>
 
-  <div class="auth-right-pane">
-    <div class="auth-image-container">
-      <img src="{{ settings.get('auth_image_url') or '/static/images/auth-img.jpg' }}" alt="Authentication Graphic"
-        class="auth-image">
-    </div>
   </div>
+  <div class="auth-image"></div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      document.getElementById('authPanel').classList.add('visible');
+    });
+  });
+
   function switchAuthTab(type) {
     const tabLogin = document.getElementById('tab-login');
     const tabSignup = document.getElementById('tab-signup');
@@ -164,26 +290,104 @@
     if (type === 'login') {
       tabLogin.classList.add('active');
       tabSignup.classList.remove('active');
+      tabSignup.classList.add('text-neutral-400', 'dark:text-neutral-500');
+      tabLogin.classList.remove('text-neutral-400', 'dark:text-neutral-500');
       panelLogin.classList.add('active');
       panelSignup.classList.remove('active');
       if (headingText) headingText.innerText = "Login to Continue";
     } else {
       tabSignup.classList.add('active');
       tabLogin.classList.remove('active');
+      tabLogin.classList.add('text-neutral-400', 'dark:text-neutral-500');
+      tabSignup.classList.remove('text-neutral-400', 'dark:text-neutral-500');
       panelSignup.classList.add('active');
       panelLogin.classList.remove('active');
       if (headingText) headingText.innerText = "Create Account";
     }
   }
 
-  // Client-side signup matching check
+  // Toggle Password Eye Icons
+  function togglePasswordVisibility(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    
+    btn.innerHTML = show
+      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+          <path fill-rule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-4.38 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clip-rule="evenodd"/>
+          <path d="M10.748 13.93l2.523 2.524a10.065 10.065 0 0 1-5.27 0l-1.978-1.978a4 4 0 0 0 .005-5.53l-.738-.738A8.003 8.003 0 0 0 1.834 9.587a1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 0 10 17c1.09 0 2.14-.175 3.124-.497l-2.376-2.573Z"/>
+         </svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+          <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+          <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
+         </svg>`;
+  }
+
+  // Custom Checkbox Animation Helper
+  const cbInput = document.getElementById('remember');
+  const cbBox   = document.getElementById('cbBox');
+  const cbCheck = document.getElementById('cbCheck');
+  if (cbInput && cbBox && cbCheck) {
+    document.getElementById('rememberLabel').addEventListener('click', function (e) {
+      if (e.target === cbInput) return;
+      cbInput.checked = !cbInput.checked;
+      const isDark = document.documentElement.classList.contains('dark');
+      if (cbInput.checked) {
+        cbBox.style.background = isDark ? '#ffffff' : '#171717';
+        cbBox.style.borderColor = isDark ? '#ffffff' : '#171717';
+        cbCheck.style.display = 'block';
+      } else {
+        cbBox.style.background = '';
+        cbBox.style.borderColor = '';
+        cbCheck.style.display = 'none';
+      }
+    });
+  }
+
+  // Password strength logic
+  const signupPassword = document.getElementById('signupPassword');
+  if (signupPassword) {
+    signupPassword.addEventListener('input', function () {
+      const v = signupPassword.value;
+      const score = [v.length >= 8, /[A-Za-z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
+      const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
+      const labels = ['Too short','Weak','Fair','Strong'];
+      const widths = ['25%','50%','75%','100%'];
+      const bar  = document.getElementById('pwBar');
+      const hint = document.getElementById('pwHint');
+      if (!v) {
+        bar.style.width = '0%';
+        hint.textContent = '8+ characters, one letter, one number.';
+        hint.style.color = '';
+        return;
+      }
+      const idx = Math.max(0, score - 1);
+      bar.style.width = widths[idx];
+      bar.style.background = colors[idx];
+      hint.textContent = labels[idx];
+      hint.style.color = colors[idx];
+    });
+  }
+
+  // Forms loading triggers
+  document.getElementById('loginForm').addEventListener('submit', function () {
+    const btn = document.getElementById('loginSubmitBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+  });
+
   document.getElementById('signupForm').addEventListener('submit', function (e) {
     const pwd = document.getElementById('signupPassword').value;
     const pwdConf = document.getElementById('signupConfirmPassword').value;
     if (pwd !== pwdConf) {
       e.preventDefault();
       window.showToast("Passwords do not match.", "error");
+      return;
     }
+    const btn = document.getElementById('signupSubmitBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
   });
 </script>
 {% endblock %}

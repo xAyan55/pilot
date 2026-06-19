@@ -1,0 +1,61 @@
+/* Layout Stylesheet for VPS Control Panel */
+
+:root {
+    --transition-smooth: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    --sidebar-width: 14rem; /* 56 in tailwind scale */
+}
+
+/* Sidebar structure */
+#pc-sidebar {
+    width: var(--sidebar-width);
+    transition: var(--transition-smooth);
+}
+
+#pc-sidebar2 {
+    transition: var(--transition-smooth);
+}
+
+/* Sidebar Responsive Toggles */
+@media (max-width: 1023px) {
+    #pc-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: calc(-1 * var(--sidebar-width));
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255, 255, 255, 0.95);
+    }
+    
+    html.dark #pc-sidebar {
+        background: rgba(20, 20, 20, 0.95);
+    }
+
+    #pc-sidebar.active {
+        left: 0;
+        display: flex;
+    }
+}
+
+/* Colcont offset adjustments */
+#colcont {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: padding-left 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Adjust layout content wrap padding */
+.content-wrap {
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    .content-wrap {
+        padding: 1rem;
+    }
+}

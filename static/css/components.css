@@ -1,0 +1,385 @@
+/* Components Stylesheet for VPS Control Panel */
+
+/* Custom checkboxes matching the reference design */
+.cb-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.cb-box {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1.5px solid #d4d4d4;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+html.dark .cb-box {
+    background: #262626;
+    border-color: #404040;
+}
+
+.cb-check {
+    display: none;
+}
+
+/* Auth Input Styling */
+.auth-input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+    background: #f9fafb;
+    font-size: 14px;
+    color: #171717;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+html.dark .auth-input {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #e5e5e5;
+}
+
+.auth-input:focus {
+    border-color: #a3a3a3;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+}
+
+html.dark .auth-input:focus {
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.auth-input::placeholder {
+    color: #a3a3a3;
+}
+
+html.dark .auth-input::placeholder {
+    color: #525252;
+}
+
+/* Custom Text Inputs */
+.txt-input {
+    width: 100%;
+    border: 1px solid #e5e5e5;
+    border-radius: 9px;
+    background: #fafafa;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #171717;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+html.dark .txt-input {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.1);
+    color: #e5e5e5;
+}
+
+.txt-input:focus {
+    border-color: #a3a3a3;
+}
+
+html.dark .txt-input:focus {
+    border-color: rgba(255,255,255,0.25);
+}
+
+/* Status Badges */
+.vps-status-badge {
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-running, .status-online, .status-active {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-running .status-dot, .status-online .status-dot, .status-active .status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.status-stopped, .status-offline {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-stopped .status-dot, .status-offline .status-dot {
+    background-color: #ef4444;
+}
+
+.status-starting, .status-restarting, .status-stopping {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-starting .status-dot, .status-restarting .status-dot, .status-stopping .status-dot {
+    background-color: #f59e0b;
+    animation: pulse 1.5s infinite;
+}
+
+/* OS Icon Badges */
+.active-os-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.os-ubuntu {
+    background-color: rgba(233, 84, 32, 0.1);
+    color: #e95420;
+    border: 1px solid rgba(233, 84, 32, 0.2);
+}
+
+.os-debian {
+    background-color: rgba(215, 10, 83, 0.1);
+    color: #d70a53;
+    border: 1px solid rgba(215, 10, 83, 0.2);
+}
+
+.os-alpine {
+    background-color: rgba(13, 75, 126, 0.1);
+    color: #0d4b7e;
+    border: 1px solid rgba(13, 75, 126, 0.2);
+}
+
+.os-centos {
+    background-color: rgba(38, 37, 74, 0.1);
+    color: #26254a;
+    border: 1px solid rgba(38, 37, 74, 0.2);
+}
+
+.os-windows {
+    background-color: rgba(0, 164, 239, 0.1);
+    color: #00a4ef;
+    border: 1px solid rgba(0, 164, 239, 0.2);
+}
+
+/* xterm terminal overrides */
+#terminal {
+    padding: 8px;
+    background: #141414 !important;
+}
+
+#terminal .xterm-viewport {
+    background: #141414 !important;
+}
+
+#terminal .xterm-screen {
+    background: #141414 !important;
+}
+
+/* Stepper Steppes */
+.step-item::after {
+    transition: var(--transition-smooth);
+}
+
+/* Theme customization preset cards */
+.theme-preset-card {
+    transition: var(--transition-smooth);
+}
+.theme-preset-card:hover {
+    transform: translateY(-2px);
+}
+.theme-preset-card.active {
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Toast Notification Styles matching the premium design language */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 24rem;
+    width: calc(100% - 2rem);
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    color: #171717;
+    font-size: 13px;
+    font-weight: 500;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    animation: toast-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+html.dark .toast {
+    background: rgba(30, 30, 30, 0.85);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #e5e5e5;
+}
+
+.toast.success {
+    border-left: 3px solid #10b981;
+}
+
+.toast.success i {
+    color: #10b981;
+}
+
+.toast.error {
+    border-left: 3px solid #ef4444;
+}
+
+.toast.error i {
+    color: #ef4444;
+}
+
+.toast.info {
+    border-left: 3px solid #3b82f6;
+}
+
+.toast.info i {
+    color: #3b82f6;
+}
+
+.toast.fade-out {
+    animation: toast-fade-out 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Modal Overlay & Card Styling matching the global modal aesthetics */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 16px;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-card {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.96);
+    opacity: 0;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .modal-card {
+    background: #1c1c1c;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.modal-overlay.active .modal-card {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.modal-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+html.dark .modal-header {
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.modal-header h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #171717;
+}
+
+html.dark .modal-header h3 {
+    color: #ffffff;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #737373;
+    padding: 4px;
+    border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #171717;
+}
+
+html.dark .modal-close:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+}
+
+.modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+

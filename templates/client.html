@@ -1,428 +1,622 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Area - {{ settings.get('site_name', 'MintyHost') }}</title>
-  
-  {% if settings.get('favicon_url') %}
-    <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
-  {% endif %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-  <!-- xterm.js for web terminal -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-  
-  <style>
-    :root {
-      --color-primary: {{ settings.get('color_primary', '#ECF4E8') }};
-      --color-secondary: {{ settings.get('color_secondary', '#CBF3BB') }};
-      --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
-      --color-cool: {{ settings.get('color_cool', '#93BFC7') }};
+{% extends "base.html" %}
 
-      --color-primary-text: {{ settings.get('color_primary_text', '#0f172a') }};
-      --color-secondary-text: {{ settings.get('color_secondary_text', '#0f172a') }};
-      --color-accent-text: {{ settings.get('color_accent_text', '#0f172a') }};
-      --color-cool-text: {{ settings.get('color_cool_text', '#0f172a') }};
-    }
-  </style>
-</head>
-<body>
+{% block title %}Client Control Dashboard{% endblock %}
 
-  <div class="db-layout">
-    <!-- Sidebar Navigation -->
-    <aside class="db-sidebar">
-      <div class="db-sidebar-header">
-        <a href="/" class="logo">
-          {% if settings.get('logo_url') %}
-            <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
-          {% else %}
-            <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
-          {% endif %}
-          <span>{{ settings.get('site_name', 'MintyHost LXC') }}</span>
-        </a>
+{% block extra_css %}
+<!-- xterm.css for web terminal -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<style>
+  /* Local custom overrides for Client Dashboard */
+  .db-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+  
+  /* Sidebar style adjustments */
+  .sidebar-link-active {
+    background: rgba(0, 0, 0, 0.05);
+    color: #171717;
+  }
+  html.dark .sidebar-link-active {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+
+  /* Scrollable tabs list */
+  .db-tab-panel {
+    display: none;
+  }
+  .db-tab-panel.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Fullscreen terminal custom overrides */
+  .fullscreen-terminal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    height: 100vh !important;
+    background: #141414 !important;
+    padding: 20px !important;
+  }
+
+  /* File manager adjustments */
+  .fm-row:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+  html.dark .fm-row:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="db-layout">
+  
+  <!-- Sidebar Navigation -->
+  <aside id="pc-sidebar" class="sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:z-50 lg:w-56 left-0 border-r border-neutral-200/30 dark:border-white/5 bg-white/8 dark:bg-[#141414]/8 backdrop-blur-xl">
+    
+    <!-- Logo area -->
+    <div class="pl-6 pt-4 pb-4 flex min-w-0 shrink-0">
+      <a href="/" class="flex items-center min-w-0">
+        {% if settings.get('logo_url') %}
+          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="p-1 h-9 w-9 rounded-xl mr-3 shrink-0 inline-flex bg-neutral-900/90 dark:bg-transparent">
+        {% else %}
+          <div class="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-md mr-3 shrink-0 inline-flex">M</div>
+        {% endif %}
+        <span class="text-neutral-700 dark:text-white font-semibold tracking-tight text-md truncate min-w-0">{{ settings.get('site_name', 'MintyHost LXC') }}</span>
+      </a>
+    </div>
+
+    <!-- Active User Box (Click goes to Profile tab) -->
+    <a href="#" data-target="panel-profile" onclick="document.querySelector('[data-target=\'panel-profile\']').click()" class="sidebar-special-link flex items-center space-x-3 py-3 px-4 border-y border-neutral-800/10 dark:border-white/5 shrink-0 hover:bg-neutral-100 dark:hover:bg-white/[0.05] transition-colors group">
+      <div class="h-8 w-8 rounded-xl border border-neutral-700/10 shrink-0 bg-neutral-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden">
+        {% if session.get('pfp') %}
+          <img id="sidebarPfp" src="{{ session.get('pfp') }}" alt="PFP" class="w-full height-full object-cover">
+        {% else %}
+          <span id="sidebarInitials">{{ username[:2]|upper }}</span>
+        {% endif %}
       </div>
-      
-      <ul class="db-menu">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-neutral-700 dark:text-white truncate group-hover:text-neutral-950 dark:group-hover:text-white transition-colors">
+          <span>{{ username }}</span>
+          <span class="text-[10px] text-neutral-500 font-normal"><sup>#{{ "%04d"|format(session.get('user_id', 0)) }}</sup></span>
+        </p>
+        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">Client Account</p>
+      </div>
+    </a>
+
+    <!-- Navigation Scrollable Menu -->
+    <nav class="flex-1 overflow-y-auto py-2">
+      <ul class="space-y-1 px-2">
         <li class="db-menu-item active" id="menu-instances">
-          <a href="#" data-target="panel-instances"><i data-lucide="server"></i> My Instances</a>
+          <a href="#" data-target="panel-instances" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="server" class="w-4 h-4 shrink-0"></i>
+            <span>My Instances</span>
+          </a>
         </li>
-        <li class="db-menu-header" id="menu-mgmt-header" style="margin-top: 16px; padding: 0 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); letter-spacing: 0.5px; display: none;">
-          Server Management
-        </li>
+
+        <!-- Server management sub-section headers (rendered when managing a VPS) -->
+        <p class="pl-4 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pt-4 pb-1" id="menu-mgmt-header" style="display: none;">Server Management</p>
+
         <li class="db-menu-item" id="menu-overview" style="display: none;">
-          <a href="#" data-target="panel-overview"><i data-lucide="layout-dashboard"></i> Overview</a>
+          <a href="#" data-target="panel-overview" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i>
+            <span>Overview</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-console" style="display: none;">
-          <a href="#" data-target="panel-console"><i data-lucide="terminal"></i> Web Console</a>
+          <a href="#" data-target="panel-console" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="terminal" class="w-4 h-4 shrink-0"></i>
+            <span>Web Console</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-files" style="display: none;">
-          <a href="#" data-target="panel-files"><i data-lucide="folder"></i> File Manager</a>
+          <a href="#" data-target="panel-files" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="folder" class="w-4 h-4 shrink-0"></i>
+            <span>File Manager</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-snapshots" style="display: none;">
-          <a href="#" data-target="panel-snapshots"><i data-lucide="camera"></i> Snapshots</a>
+          <a href="#" data-target="panel-snapshots" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="camera" class="w-4 h-4 shrink-0"></i>
+            <span>Snapshots</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-backups" style="display: none;">
-          <a href="#" data-target="panel-backups"><i data-lucide="archive"></i> Backups</a>
+          <a href="#" data-target="panel-backups" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="archive" class="w-4 h-4 shrink-0"></i>
+            <span>Backups</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-firewall" style="display: none;">
-          <a href="#" data-target="panel-firewall"><i data-lucide="shield-alert"></i> Firewall</a>
+          <a href="#" data-target="panel-firewall" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="shield-alert" class="w-4 h-4 shrink-0"></i>
+            <span>Firewall</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-rebuild" style="display: none;">
-          <a href="#" data-target="panel-rebuild"><i data-lucide="refresh-cw"></i> Reinstall</a>
+          <a href="#" data-target="panel-rebuild" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="refresh-cw" class="w-4 h-4 shrink-0"></i>
+            <span>Reinstall</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-settings" style="display: none;">
-          <a href="#" data-target="panel-settings"><i data-lucide="sliders"></i> Settings</a>
+          <a href="#" data-target="panel-settings" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="sliders" class="w-4 h-4 shrink-0"></i>
+            <span>Settings</span>
+          </a>
         </li>
-        <li class="db-menu-item" id="menu-profile" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
-          <a href="#" data-target="panel-profile"><i data-lucide="user"></i> My Profile</a>
+
+        <p class="pl-4 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pt-6 pb-1">Account settings</p>
+
+        <li class="db-menu-item" id="menu-profile">
+          <a href="#" data-target="panel-profile" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="user" class="w-4 h-4 shrink-0"></i>
+            <span>My Profile</span>
+          </a>
         </li>
+
         <li class="db-menu-item" id="menu-apikeys">
-          <a href="#" data-target="panel-apikeys"><i data-lucide="key"></i> API Keys</a>
-        </li>
-        <li class="db-menu-item">
-          <a href="/logout" style="color: var(--color-danger);"><i data-lucide="log-out"></i> Log Out</a>
+          <a href="#" data-target="panel-apikeys" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="key" class="w-4 h-4 shrink-0"></i>
+            <span>API Keys</span>
+          </a>
         </li>
       </ul>
+    </nav>
 
-      <!-- Active Server Sidebar Widget -->
-      <div id="active-server-card" class="sidebar-vps-card" style="display: none; margin: 16px; padding: 14px; background-color: var(--color-primary); border: 1px solid var(--color-secondary); border-radius: var(--radius-md); flex-direction: column; gap: 8px;">
-        <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Managing Instance</div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <div class="active-os-icon" id="sidebar-vps-os-icon" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: var(--color-white); border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-size: 14px; color: var(--color-text-main);">U</div>
-          <div style="overflow: hidden; flex: 1;">
-            <div id="sidebar-vps-name" style="font-weight: 700; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: var(--color-text-main);">webSandbox</div>
-            <div id="sidebar-vps-ip" style="font-size: 11px; font-family: monospace; color: var(--color-text-muted); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">10.155.88.102</div>
-          </div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; border-top: 1px solid rgba(24,35,30,0.06); padding-top: 8px;">
-          <span class="vps-status-badge running" id="sidebar-vps-status" style="padding: 2px 8px; font-size: 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
-            <span class="status-dot"></span>
-            <span id="sidebar-vps-status-text">running</span>
-          </span>
-          <button class="btn btn-outline btn-small" id="btn-switch-server" style="padding: 2px 8px; font-size: 10px; font-weight: 600;" onclick="switchToInstances()"><i data-lucide="arrow-left-right" style="width: 10px; height: 10px; margin-right: 2px;"></i> Switch</button>
+    <!-- Sidebar Active Server Info Card Widget -->
+    <div id="active-server-card" class="sidebar-vps-card border border-neutral-200/40 dark:border-white/5 rounded-2xl p-4 mx-3 mb-3 bg-neutral-100/50 dark:bg-white/[0.02]" style="display: none; flex-direction: column; gap: 8px;">
+      <div class="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Managing Instance</div>
+      <div class="flex items-center gap-3">
+        <div class="active-os-icon shrink-0" id="sidebar-vps-os-icon">U</div>
+        <div class="overflow-hidden flex-1">
+          <div id="sidebar-vps-name" class="font-bold text-xs truncate text-neutral-800 dark:text-white">webSandbox</div>
+          <div id="sidebar-vps-ip" class="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 truncate">10.106.230.12</div>
         </div>
       </div>
-
-      <div class="db-sidebar-footer">
-        <div class="db-user-avatar" style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-          {% if session.get('pfp') %}
-            <img id="sidebarPfp" src="{{ session.get('pfp') }}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">
-          {% else %}
-            <span id="sidebarInitials">{{ username[:2]|upper }}</span>
-          {% endif %}
-        </div>
-        <div class="db-user-info">
-          <div class="db-user-name" title="{{ username }}">{{ username }}</div>
-          <div class="db-user-role">Client Account</div>
-        </div>
+      <div class="flex justify-between items-center mt-2 pt-2 border-t border-neutral-200/40 dark:border-white/5">
+        <span class="vps-status-badge" id="sidebar-vps-status">
+          <span class="status-dot"></span>
+          <span id="sidebar-vps-status-text" class="text-[9px]">running</span>
+        </span>
+        <button class="flex items-center gap-1 text-[10px] font-bold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition-colors" onclick="switchToInstances()">
+          <i data-lucide="arrow-left-right" class="w-3 h-3"></i> Switch
+        </button>
       </div>
-    </aside>
+    </div>
 
-    <!-- Main Workspace -->
-    <div class="db-main">
-      <header class="db-header">
-        <div class="db-title-area">
-          <button class="db-menu-toggle" aria-label="Toggle Sidebar Menu">
-            <i data-lucide="menu"></i>
-          </button>
-          <h2 style="font-size: 20px; font-weight: 700; cursor: pointer; color: var(--color-text-main);" onclick="switchToInstances()">Client Control Dashboard</h2>
-          <div id="header-breadcrumb" style="display: none; align-items: center; gap: 6px; font-size: 15px; color: var(--color-text-muted);">
-            <i data-lucide="chevron-right" style="width: 16px; height: 16px; stroke-width: 2.5px;"></i>
-            <span style="font-weight: 500;">Managing:</span>
-            <strong id="header-vps-name" style="color: var(--color-text-main); font-weight: 700;">webSandbox</strong>
-          </div>
-        </div>
-        <div class="db-actions-area" id="vps-selector-container" style="display: none;">
-          <span style="font-size: 13px; color: var(--color-text-muted);">Active Container:</span>
-          <select id="vps-selector" class="form-input" style="width: auto; padding: 4px 12px; margin-left: 8px;">
-            <!-- Seeded dynamically via JS -->
-          </select>
-        </div>
-      </header>
+    <!-- Log Out Link -->
+    <div class="shrink-0 border-t border-neutral-200/30 dark:border-white/5">
+      <a href="/logout" class="group flex gap-x-3 px-6 py-4 text-sm font-semibold leading-6 text-neutral-500 hover:text-red-600 dark:hover:text-red-500 hover:bg-red-500/5 transition-all">
+        <i data-lucide="log-out" class="w-4 h-4 mt-1 shrink-0"></i>
+        <span>Log Out</span>
+      </a>
+    </div>
 
-      <div class="db-content">
+  </aside>
+
+  <!-- Main Workspace -->
+  <div id="colcont" class="lg:pl-56 flex-1 flex flex-col min-w-0">
+    
+    <!-- Top Navigation Header -->
+    <header class="fixed top-0 left-0 lg:left-56 right-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-neutral-200/30 dark:border-white/5 px-6 bg-white/8 dark:bg-[#141414]/8 backdrop-blur-xl">
+      <div class="flex items-center gap-3">
+        <button class="db-menu-toggle lg:hidden p-2 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/5" aria-label="Toggle Sidebar Menu">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
         
-        <!-- VPS Empty State Panel -->
-        <div id="vps-empty-state" class="text-center" style="display: none; padding: 60px; background-color: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-top: 24px;">
-          <i data-lucide="server" style="width: 64px; height: 64px; color: var(--color-cool); margin-bottom: 20px;"></i>
-          <h3 style="font-size: 22px; font-weight: 700; margin-bottom: 8px;">No virtual servers provisioned yet</h3>
-          <p style="color: var(--color-text-muted); max-width: 500px; margin: 0 auto 24px auto; font-size: 15px;">
-            An administrator has not allocated any LXC containers to your account yet. Please contact the administrator at <strong style="color: var(--color-text-main);">admin@mintyhost.local</strong> to configure your resources.
+        <h2 class="text-md font-bold text-neutral-800 dark:text-white cursor-pointer" onclick="switchToInstances()">Client Dashboard</h2>
+        
+        <!-- Breadcrumb path -->
+        <div id="header-breadcrumb" style="display: none; align-items: center; gap: 6px;" class="text-sm text-neutral-400 dark:text-neutral-500">
+          <i data-lucide="chevron-right" class="w-4 h-4 stroke-[3px]"></i>
+          <span>Managing:</span>
+          <strong id="header-vps-name" class="text-neutral-800 dark:text-white font-bold">webSandbox</strong>
+        </div>
+      </div>
+
+      <!-- Compact selection dropdown for backward logic dependencies -->
+      <div id="vps-selector-container" style="display: none;">
+        <select id="vps-selector" class="txt-input py-1 px-3 text-xs w-auto">
+          <!-- Dynamically populated via JS -->
+        </select>
+      </div>
+    </header>
+
+    <!-- Scrollable Workspace Body -->
+    <main id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="content-wrap">
+        
+        <!-- VPS Empty State Container -->
+        <div id="vps-empty-state" class="text-center py-20 px-8 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm mt-8" style="display: none;">
+          <i data-lucide="server" class="w-16 h-16 mx-auto text-neutral-300 dark:text-neutral-700 mb-6"></i>
+          <h3 class="text-xl font-bold text-neutral-800 dark:text-white mb-2">No virtual servers allocated yet</h3>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400 max-w-md mx-auto mb-6">
+            An administrator has not assigned any LXC container instances to your account yet. Please contact support to configure your resources.
           </p>
+          <a href="mailto:support@mintyhost.local" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition">
+            <i data-lucide="help-circle" class="w-4 h-4"></i> Contact Support
+          </a>
         </div>
 
-        <!-- Main VPS Content Wrapper (Toggled by selector) -->
+        <!-- VPS Active Wrapper -->
         <div id="vps-active-wrapper" style="display: none;">
           
-          <!-- Panel 0: My Instances Grid -->
+          <!-- Panel 0: VPS Listing Tab -->
           <div class="db-tab-panel active" id="panel-instances">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">My Virtual Private Servers</h3>
-                <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Monitor status, IP addresses, and manage resource allocations for all your container instances.</p>
+                <h3 class="text-lg font-bold text-neutral-800 dark:text-white">My Virtual Private Servers</h3>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Monitor status, resource allocations, and manage container operations.</p>
               </div>
-              <button class="btn btn-primary" onclick="window.location.reload()"><i data-lucide="refresh-cw"></i> Refresh List</button>
+              <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 transition shadow-sm" onclick="window.location.reload()">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh List
+              </button>
             </div>
             
-            <!-- VPS Cards Grid -->
-            <div class="vps-grid-layout" id="vps-grid-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; margin-top: 16px;">
-              <!-- Rendered dynamically via javascript -->
+            <!-- Cards Grid Layout -->
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="vps-grid-container">
+              <!-- Rendered dynamically by javascript -->
             </div>
           </div>
 
-          <!-- Panel 1: Overview -->
+          <!-- Panel 1: Overview Tab -->
           <div class="db-tab-panel" id="panel-overview">
             
-            <!-- System metrics header -->
-            <div class="db-stats-grid">
-              <div class="db-stat-card">
-                <div class="db-stat-info">
-                  <label>Power Status</label>
-                  <div class="db-stat-value" id="status-val" style="display: flex; align-items: center; gap: 8px;">
+            <!-- Overview Stats Badges -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+              
+              <!-- Power Badge -->
+              <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:0">
+                <div>
+                  <span class="text-xs text-neutral-500 font-medium">Power Status</span>
+                  <div class="text-sm font-bold text-neutral-800 dark:text-white mt-1" id="status-val">
                     <span class="status-dot"></span>
                     <span id="status-text">Pending</span>
                   </div>
                 </div>
-                <div class="db-stat-icon" id="status-icon"><i data-lucide="power"></i></div>
+                <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                  <i data-lucide="power" class="w-5 h-5"></i>
+                </div>
               </div>
-              <div class="db-stat-card">
-                <div class="db-stat-info" style="flex: 1;">
-                  <label>IPv4 Address</label>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <div class="db-stat-value" id="ip-val" style="font-size: 18px; font-family: monospace;">Fetching...</div>
-                    <button class="btn btn-outline btn-small" id="btn-copy-ip-overview" onclick="copyOverviewIP()" style="padding: 2px 6px;" title="Copy IP Address"><i data-lucide="copy" style="width: 12px; height: 12px;"></i></button>
+
+              <!-- IP Badge -->
+              <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:1">
+                <div class="overflow-hidden flex-1 mr-2">
+                  <span class="text-xs text-neutral-500 font-medium">IP Address</span>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <div class="text-sm font-mono font-bold text-neutral-800 dark:text-white truncate" id="ip-val">Fetching...</div>
+                    <button class="p-1 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition" id="btn-copy-ip-overview" onclick="copyOverviewIP()" title="Copy IP">
+                      <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
                   </div>
                 </div>
-                <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="globe"></i></div>
-              </div>
-              <div class="db-stat-card">
-                <div class="db-stat-info">
-                  <label>Container Uptime</label>
-                  <div class="db-stat-value" id="uptime-val" style="font-size: 18px;">Pending</div>
+                <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                  <i data-lucide="globe" class="w-5 h-5"></i>
                 </div>
-                <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="clock"></i></div>
               </div>
-              <div class="db-stat-card">
-                <div class="db-stat-info" style="flex: 1; min-width: 0;">
-                  <label>SSH Tunnel Relay</label>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <div class="db-stat-value" id="tunnel-val" style="font-size: 13px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;">Pending...</div>
-                    <button class="btn btn-outline btn-small" id="btn-copy-tunnel-overview" onclick="copyOverviewTunnel()" style="padding: 2px 6px;" title="Copy SSH Command"><i data-lucide="copy" style="width: 12px; height: 12px;"></i></button>
+
+              <!-- Uptime Badge -->
+              <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:2">
+                <div>
+                  <span class="text-xs text-neutral-500 font-medium">Uptime Status</span>
+                  <div class="text-sm font-bold text-neutral-800 dark:text-white mt-1" id="uptime-val">Pending</div>
+                </div>
+                <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                  <i data-lucide="clock" class="w-5 h-5"></i>
+                </div>
+              </div>
+
+              <!-- Tunnel Relay Badge -->
+              <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:3">
+                <div class="overflow-hidden flex-1 mr-2">
+                  <span class="text-xs text-neutral-500 font-medium">SSH Relay Tunnel</span>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <div class="text-xs font-mono font-semibold text-neutral-800 dark:text-white truncate" id="tunnel-val">Pending...</div>
+                    <button class="p-1 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition" id="btn-copy-tunnel-overview" onclick="copyOverviewTunnel()" title="Copy SSH command">
+                      <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
                   </div>
                 </div>
-                <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="terminal"></i></div>
+                <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                  <i data-lucide="terminal" class="w-5 h-5"></i>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Operations / Power controls banner -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-5 shadow-sm mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h4 class="text-sm font-bold text-neutral-800 dark:text-white">Container Power Options</h4>
+                <p class="text-xs text-neutral-500 mt-0.5">Control the runtime execution state of your container.</p>
+              </div>
+              <div class="flex flex-wrap gap-2.5">
+                <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition" id="btn-start" onclick="triggerVPSAction('start')">
+                  <i data-lucide="play" class="w-3.5 h-3.5"></i> Start
+                </button>
+                <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-xs font-semibold transition" id="btn-reboot" onclick="triggerVPSAction('restart')">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Restart
+                </button>
+                <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition" id="btn-stop" onclick="triggerVPSAction('stop')">
+                  <i data-lucide="square" class="w-3.5 h-3.5"></i> Stop
+                </button>
               </div>
             </div>
 
-            <!-- Quick power deck -->
-            <div class="db-block" style="margin-bottom: 24px;">
-              <div class="db-block-header" style="border-bottom: none; margin-bottom: 0;">
-                <h3>Container Power Options</h3>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" id="btn-start" onclick="triggerVPSAction('start')"><i data-lucide="play"></i> Start</button>
-                  <button class="btn btn-outline" id="btn-stop" onclick="triggerVPSAction('stop')" style="background-color: #fdf2f2; border-color: #f6d1d1; color: #b91c1c;"><i data-lucide="square"></i> Stop</button>
-                  <button class="btn btn-primary" id="btn-reboot" onclick="triggerVPSAction('restart')"><i data-lucide="refresh-cw"></i> Restart</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="db-grid" style="grid-template-columns: 2fr 1fr;">
-              <!-- Usage Meters -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Real-time Resource Allocations</h3>
-                </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <!-- Allocation Monitors -->
+              <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Real-time Resource Allocations</h3>
                 
-                <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 24px;">
+                <div class="space-y-6">
                   <div class="meter-group">
-                    <label style="display: flex; justify-content: space-between;">
-                      <span>CPU Utilization (<span id="cpu-core-count">1</span> Core)</span>
-                      <strong id="cpu-percent">0%</strong>
-                    </label>
-                    <div class="meter-track">
-                      <div class="meter-bar" id="cpu-bar" style="width: 0%;"></div>
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                      <span class="text-neutral-500">CPU Utilization (<span id="cpu-core-count">1</span> Core)</span>
+                      <span class="text-neutral-900 dark:text-white" id="cpu-percent">0%</span>
+                    </div>
+                    <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                      <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="cpu-bar" style="width: 0%;"></div>
                     </div>
                   </div>
+
                   <div class="meter-group">
-                    <label style="display: flex; justify-content: space-between;">
-                      <span>Memory Load (<span id="ram-limit-text">0 MB</span> Allocated)</span>
-                      <strong id="ram-usage-text">0 MB / 0 MB</strong>
-                    </label>
-                    <div class="meter-track">
-                      <div class="meter-bar" id="ram-bar" style="width: 0%;"></div>
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                      <span class="text-neutral-500">Memory Load (<span id="ram-limit-text">0 MB</span> Allocated)</span>
+                      <span class="text-neutral-900 dark:text-white" id="ram-usage-text">0 MB / 0 MB</span>
+                    </div>
+                    <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                      <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="ram-bar" style="width: 0%;"></div>
                     </div>
                   </div>
+
                   <div class="meter-group">
-                    <label style="display: flex; justify-content: space-between;">
-                      <span>Disk Space Capacity (<span id="disk-limit-text">0 GB</span> Total)</span>
-                      <strong id="disk-usage-text">0 GB / 0 GB</strong>
-                    </label>
-                    <div class="meter-track">
-                      <div class="meter-bar" id="disk-bar" style="width: 0%;"></div>
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                      <span class="text-neutral-500">Disk Capacity (<span id="disk-limit-text">0 GB</span> Total)</span>
+                      <span class="text-neutral-900 dark:text-white" id="disk-usage-text">0 GB / 0 GB</span>
+                    </div>
+                    <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                      <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="disk-bar" style="width: 0%;"></div>
                     </div>
                   </div>
                 </div>
               </div>
 
               <!-- General Container Info -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Container Details</h3>
-                </div>
-                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
-                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                    <span style="color: var(--color-text-muted);">OS Template</span>
-                    <strong id="info-os">Debian 11</strong>
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Container Details</h3>
+                <ul class="space-y-4 text-xs">
+                  <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                    <span class="text-neutral-500">OS Template</span>
+                    <strong class="text-neutral-800 dark:text-white" id="info-os">Debian 11</strong>
                   </li>
-                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                    <span style="color: var(--color-text-muted);">Bridge Interface</span>
-                    <strong style="font-family: monospace;">lxdbr0</strong>
+                  <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                    <span class="text-neutral-500">Bridge Interface</span>
+                    <strong class="text-neutral-800 dark:text-white font-mono">lxdbr0</strong>
                   </li>
-                  <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                    <span style="color: var(--color-text-muted);">Network Gateway</span>
-                    <strong style="font-family: monospace;">10.155.88.1</strong>
+                  <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                    <span class="text-neutral-500">Gateway</span>
+                    <strong class="text-neutral-800 dark:text-white font-mono">10.155.88.1</strong>
                   </li>
-                  <li style="display: flex; justify-content: space-between; padding-bottom: 8px;">
-                    <span style="color: var(--color-text-muted);">Created At</span>
-                    <strong id="info-created">Pending</strong>
+                  <li class="flex justify-between">
+                    <span class="text-neutral-500">Created At</span>
+                    <strong class="text-neutral-800 dark:text-white" id="info-created">Pending</strong>
                   </li>
                 </ul>
               </div>
+
             </div>
 
-            <!-- Resource Chart -->
-            <div class="db-block" style="margin-top: 24px;">
-              <div class="db-block-header">
-                <h3>CPU & RAM Performance Load Graph</h3>
-              </div>
-              <div class="chart-container" style="height: 220px; position: relative;">
+            <!-- Resource Charts Block (Gracefully loaded via JS) -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm mt-8">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">CPU & RAM Performance Load Graph</h3>
+              <div class="relative w-full" style="height: 220px;">
                 <canvas id="resourceChart"></canvas>
               </div>
             </div>
+
           </div>
 
           <!-- Panel 2: Web Console -->
           <div class="db-tab-panel" id="panel-console">
-            <div class="db-block" style="padding: 0; border: none; background: transparent; box-shadow: none;">
-              <div class="terminal-toolbar">
-                <div class="terminal-toolbar-title" style="color: var(--color-white); display: flex; align-items: center; gap: 12px;">
-                  <span class="active-os-icon os-ubuntu" id="console-os-badge" style="width: 24px; height: 24px; font-size: 12px; box-shadow: none;">U</span>
-                  <span id="console-os-text" style="font-weight: 700; color: var(--color-white);">OS: Ubuntu</span>
-                  <span class="vps-status-badge running" id="console-status-badge" style="padding: 2px 8px; font-size: 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; background-color: var(--color-white); border: 2px solid var(--color-border); color: var(--color-text-main); font-weight: bold; box-shadow: 1px 1px 0px var(--color-border);">
+            <div class="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+              
+              <!-- Terminal Toolbar chrome -->
+              <div class="flex items-center justify-between px-4 py-3 bg-neutral-900 border-b border-neutral-800">
+                <div class="flex items-center gap-3">
+                  <span class="active-os-icon os-ubuntu" id="console-os-badge" style="width: 22px; height: 22px; font-size: 10px;">U</span>
+                  <span id="console-os-text" class="text-xs font-semibold text-neutral-300">OS: Ubuntu</span>
+                  <span class="vps-status-badge" id="console-status-badge">
                     <span class="status-dot"></span>
-                    <span id="console-status-text" style="text-transform: uppercase;">CONNECTED</span>
+                    <span id="console-status-text" class="text-[9px]">CONNECTED</span>
                   </span>
                 </div>
-                <div class="terminal-controls">
-                  <button class="terminal-control-btn" onclick="connectTerminal()"><i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Reconnect</button>
-                  <button class="terminal-control-btn" onclick="clearTerminal()"><i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Clear</button>
-                  <button class="terminal-control-btn" onclick="adjustTerminalFont(-1)"><i data-lucide="zoom-out" style="width: 12px; height: 12px;"></i> A-</button>
-                  <button class="terminal-control-btn" onclick="adjustTerminalFont(1)"><i data-lucide="zoom-in" style="width: 12px; height: 12px;"></i> A+</button>
-                  <button class="terminal-control-btn" id="btn-terminal-fullscreen" onclick="toggleTerminalFullscreen()"><i data-lucide="maximize" style="width: 12px; height: 12px;"></i> Fullscreen</button>
+                
+                <div class="flex items-center gap-2">
+                  <button class="inline-flex items-center gap-1 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded-lg transition" onclick="connectTerminal()">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Reconnect
+                  </button>
+                  <button class="inline-flex items-center gap-1 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded-lg transition" onclick="clearTerminal()">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+                  </button>
+                  <button class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded-lg transition" onclick="adjustTerminalFont(-1)">A-</button>
+                  <button class="inline-flex items-center gap-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded-lg transition" onclick="adjustTerminalFont(1)">A+</button>
+                  <button class="inline-flex items-center gap-1 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium rounded-lg transition" id="btn-terminal-fullscreen" onclick="toggleTerminalFullscreen()">
+                    <i data-lucide="maximize" class="w-3 h-3"></i> Fullscreen
+                  </button>
                 </div>
               </div>
-              <div id="terminal-container" style="min-height: 600px;">
-                <!-- Terminal rendered here -->
-              </div>
-              <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 16px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="info" style="width: 14px; height: 14px;"></i> Connected directly to container environment root terminal via standard KVM security interface. If terminal feels laggy, use standard SSH.
-              </p>
+
+              <!-- Terminal Area -->
+              <div id="terminal-container" style="min-height: 520px;" class="bg-[#141414] p-2"></div>
             </div>
+            
+            <p class="text-xs text-neutral-500 mt-4 flex items-center gap-1.5">
+              <i data-lucide="info" class="w-4 h-4"></i> Connected directly to container environment root terminal via standard secure virtualization layer. For larger scrolls, use standard SSH client.
+            </p>
           </div>
 
-          <!-- Panel: File Manager -->
+          <!-- Panel 3: File Manager -->
           <div class="db-tab-panel" id="panel-files">
-            <div class="db-block" style="padding: 0; display: flex; flex-direction: column; min-height: 600px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden;">
-              <!-- File Manager Header / Actions -->
-              <div style="padding: 16px 24px; background-color: var(--color-primary); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <!-- Breadcrumbs -->
-                <div style="flex: 1; display: flex; align-items: center; gap: 8px; background: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 4px 12px; overflow-x: auto;">
-                  <button class="btn btn-outline btn-small" onclick="fileManagerLoadPath('/root')" style="padding: 4px; border: none; background: transparent;" title="Home">
-                    <i data-lucide="home" style="width: 16px; height: 16px;"></i>
-                  </button>
-                  <span style="color: var(--color-text-muted);">/</span>
-                  <input type="text" id="fm-current-path" value="/root" class="form-input" style="border: none; padding: 4px; box-shadow: none; font-family: monospace; font-size: 14px; flex: 1; min-width: 150px; background: transparent;" onkeypress="if(event.key === 'Enter') fileManagerLoadPath(this.value)">
-                  <button class="btn btn-primary btn-small" onclick="fileManagerLoadPath(document.getElementById('fm-current-path').value)" style="padding: 4px 8px;">Go</button>
-                </div>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm flex flex-col" style="min-height: 580px;">
+              
+              <!-- File Manager Toolbar -->
+              <div class="px-5 py-4 bg-neutral-50 dark:bg-white/[0.02] border-b border-neutral-200/30 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
                 
-                <!-- Toolbar -->
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <input type="file" id="fm-upload-input" style="display: none;" onchange="fileManagerUploadFile(this)">
-                  <button class="btn btn-secondary btn-small" onclick="document.getElementById('fm-upload-input').click()"><i data-lucide="upload"></i> Upload File</button>
-                  <button class="btn btn-secondary btn-small" onclick="fileManagerNewFolder()"><i data-lucide="folder-plus"></i> New Folder</button>
-                  <button class="btn btn-secondary btn-small" onclick="fileManagerNewFile()"><i data-lucide="file-plus"></i> New File</button>
-                  <button class="btn btn-outline btn-small" onclick="fileManagerRefresh()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                <!-- Path navigator input -->
+                <div class="flex items-center gap-2 w-full md:max-w-md bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-xl px-3 py-1.5">
+                  <button class="text-neutral-500 hover:text-neutral-800 dark:hover:text-white" onclick="fileManagerLoadPath('/root')" title="Home">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                  </button>
+                  <span class="text-neutral-400">/</span>
+                  <input type="text" id="fm-current-path" value="/root" class="bg-transparent border-none outline-none font-mono text-xs text-neutral-700 dark:text-neutral-300 flex-1 focus:ring-0" onkeypress="if(event.key === 'Enter') fileManagerLoadPath(this.value)">
+                  <button class="px-2 py-1 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 font-bold rounded-lg text-[10px]" onclick="fileManagerLoadPath(document.getElementById('fm-current-path').value)">GO</button>
                 </div>
+
+                <!-- FileManager Actions -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  <input type="file" id="fm-upload-input" style="display: none;" onchange="fileManagerUploadFile(this)">
+                  <button class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="document.getElementById('fm-upload-input').click()">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload File
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="fileManagerNewFolder()">
+                    <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i> New Folder
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="fileManagerNewFile()">
+                    <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> New File
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="fileManagerRefresh()">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                  </button>
+                </div>
+
               </div>
 
-              <!-- File Browser Area -->
-              <div id="fm-browser" style="flex: 1; overflow-y: auto; background-color: var(--color-white); position: relative;">
-                <table class="db-table" style="width: 100%; border-top: none; border-left: none; border-right: none; margin: 0;">
-                  <thead style="position: sticky; top: 0; background: var(--color-background-soft); z-index: 1;">
+              <!-- FileManager Browser Table -->
+              <div id="fm-browser" class="overflow-y-auto flex-1 relative">
+                <table class="w-full text-xs text-left">
+                  <thead class="sticky top-0 bg-neutral-100/80 dark:bg-neutral-800/80 backdrop-blur-md text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider border-b border-neutral-200/30 dark:border-white/5">
                     <tr>
-                      <th style="width: 40px; padding: 12px 16px;"></th>
-                      <th style="padding: 12px 16px;">Name</th>
-                      <th style="width: 120px; padding: 12px 16px;">Size</th>
-                      <th style="width: 180px; padding: 12px 16px;">Last Modified</th>
-                      <th style="width: 100px; padding: 12px 16px; text-align: right;">Actions</th>
+                      <th class="w-12 px-5 py-3"></th>
+                      <th class="px-5 py-3">Name</th>
+                      <th class="w-32 px-5 py-3">Size</th>
+                      <th class="w-48 px-5 py-3">Last Modified</th>
+                      <th class="w-28 px-5 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="fm-table-body">
+                  <tbody id="fm-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
                     <!-- dynamically populated -->
-                    <tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--color-text-muted);"><i data-lucide="loader-2" class="spin" style="margin-bottom: 12px; width: 32px; height: 32px;"></i><br>Loading files...</td></tr>
+                    <tr>
+                      <td colspan="5" class="text-center py-20 text-neutral-500">
+                        <i data-lucide="loader-2" class="animate-spin w-8 h-8 mx-auto mb-3 text-neutral-400"></i>
+                        <span>Loading file tree structure...</span>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
 
-              <!-- File Editor Area (Hidden by default) -->
-              <div id="fm-editor" style="display: none; flex: 1; flex-direction: column; background-color: #1e1e1e; position: relative;">
-                <div style="padding: 8px 16px; background-color: #2d2d2d; border-bottom: 1px solid #404040; display: flex; align-items: center; justify-content: space-between;">
-                  <div style="color: #d4d4d4; font-family: monospace; font-size: 13px; display: flex; align-items: center; gap: 8px;">
-                    <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+              <!-- FileManager Editor Area -->
+              <div id="fm-editor" style="display: none; flex-direction: column; background: #1e1e1e;" class="flex-1">
+                <div class="px-5 py-3 bg-[#2d2d2d] border-b border-neutral-800 flex items-center justify-between">
+                  <div class="text-xs font-mono text-neutral-300 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
                     <span id="fm-editor-filename">filename.txt</span>
                   </div>
-                  <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-outline btn-small" onclick="fileManagerCloseEditor()" style="border-color: #555; color: #ccc; background: transparent;">Cancel</button>
-                    <button class="btn btn-primary btn-small" onclick="fileManagerSaveFile()">Save Changes</button>
+                  <div class="flex gap-2">
+                    <button class="px-3 py-1.5 border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-medium rounded-xl transition" onclick="fileManagerCloseEditor()">Cancel</button>
+                    <button class="px-3 py-1.5 bg-white text-neutral-900 hover:bg-neutral-100 text-xs font-semibold rounded-xl transition" onclick="fileManagerSaveFile()">Save Changes</button>
                   </div>
                 </div>
-                <textarea id="fm-editor-textarea" style="flex: 1; width: 100%; border: none; background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; padding: 16px; resize: none; outline: none; white-space: pre; overflow-wrap: normal; overflow-x: auto;"></textarea>
+                <textarea id="fm-editor-textarea" class="flex-1 w-full bg-[#1e1e1e] text-neutral-300 font-mono text-xs p-5 outline-none resize-none overflow-x-auto" style="min-height: 480px;"></textarea>
               </div>
+
             </div>
           </div>
 
-          <!-- Panel 3: Snapshots -->
+          <!-- Panel 4: Snapshots -->
           <div class="db-tab-panel" id="panel-snapshots">
-            <div class="db-grid" style="grid-template-columns: 1fr 2fr;">
-              <!-- Add Snapshot Card -->
-              <div class="db-block" style="height: fit-content;">
-                <div class="db-block-header">
-                  <h3>Take State Snapshot</h3>
-                </div>
-                <form id="createSnapshotForm" onsubmit="handleCreateSnapshot(event)" style="margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="snapName">Snapshot Name (Alphanumeric)</label>
-                    <input type="text" id="snapName" class="form-input" placeholder="backupCleanState" required pattern="[a-zA-Z0-9]+">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <!-- Take snapshot form -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Take State Snapshot</h3>
+                <form id="createSnapshotForm" onsubmit="handleCreateSnapshot(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="snapName">Snapshot Name (Alphanumeric)</label>
+                    <input type="text" id="snapName" class="auth-input" placeholder="backupCleanState" required pattern="[a-zA-Z0-9]+">
                   </div>
-                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="camera"></i> Save Snapshot</button>
+                  <button type="submit" class="auth-submit w-full mt-2">
+                    <i data-lucide="camera" class="w-4 h-4"></i> Save Snapshot
+                  </button>
                 </form>
               </div>
 
-              <!-- Snapshots Table -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Container Snapshots</h3>
+              <!-- Snapshots list table -->
+              <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Container Snapshots</h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-left border-collapse">
+                    <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+                      <tr>
+                        <th class="py-3">Name</th>
+                        <th class="py-3">Created Date</th>
+                        <th class="py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="snapshots-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                      <!-- Insert dynamically -->
+                    </tbody>
+                  </table>
                 </div>
-                <table class="db-table" style="margin-top: 16px;">
-                  <thead>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Panel 5: Backups -->
+          <div class="db-tab-panel" id="panel-backups">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Backups Tarball Manager</h3>
+                  <p class="text-xs text-neutral-500 mt-0.5">Archive the container root directories into compressed download tarballs.</p>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 transition shadow-sm" onclick="triggerBackup()">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Run System Backup
+                </button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                     <tr>
-                      <th>Name</th>
-                      <th>Created Date</th>
-                      <th class="text-right">Actions</th>
+                      <th class="py-3">Filename</th>
+                      <th class="py-3">Backup Size</th>
+                      <th class="py-3">Date Generated</th>
+                      <th class="py-3 text-right">Download</th>
                     </tr>
                   </thead>
-                  <tbody id="snapshots-table-body">
+                  <tbody id="backups-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
                     <!-- Insert dynamically -->
                   </tbody>
                 </table>
@@ -430,98 +624,79 @@
             </div>
           </div>
 
-          <!-- Panel 4: Backups -->
-          <div class="db-tab-panel" id="panel-backups">
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Backups Tarball Manager</h3>
-                <button class="btn btn-primary" onclick="triggerBackup()"><i data-lucide="plus"></i> Run System Backup</button>
-              </div>
-              <table class="db-table" style="margin-top: 24px;">
-                <thead>
-                  <tr>
-                    <th>Filename</th>
-                    <th>Backup Size</th>
-                    <th>Date Generated</th>
-                    <th class="text-right">Download</th>
-                  </tr>
-                </thead>
-                <tbody id="backups-table-body">
-                  <!-- Insert dynamically -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Panel 5: Firewall Rules -->
+          <!-- Panel 6: Firewall -->
           <div class="db-tab-panel" id="panel-firewall">
-            <div class="db-grid" style="grid-template-columns: 1fr 2fr;">
-              <div class="db-block" style="height: fit-content;">
-                <div class="db-block-header">
-                  <h3>Add Protocol Rule</h3>
-                </div>
-                <form id="firewallForm" onsubmit="handleAddFirewall(event)" style="margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="fwProtocol">Protocol</label>
-                    <select id="fwProtocol" class="form-input">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <!-- Add firewall rule card -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Add Protocol Rule</h3>
+                <form id="firewallForm" onsubmit="handleAddFirewall(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="fwProtocol">Protocol</label>
+                    <select id="fwProtocol" class="auth-input">
                       <option value="TCP">TCP</option>
                       <option value="UDP">UDP</option>
                       <option value="ICMP">ICMP</option>
                     </select>
                   </div>
-                  <div class="form-group" id="fwPortGroup">
-                    <label for="fwPort">Port</label>
-                    <input type="number" id="fwPort" class="form-input" placeholder="80" required min="1" max="65535">
+                  <div id="fwPortGroup">
+                    <label class="auth-label" for="fwPort">Port</label>
+                    <input type="number" id="fwPort" class="auth-input" placeholder="80" required min="1" max="65535">
                   </div>
-                  <div class="form-group">
-                    <label for="fwAction">Action</label>
-                    <select id="fwAction" class="form-input">
+                  <div>
+                    <label class="auth-label" for="fwAction">Action</label>
+                    <select id="fwAction" class="auth-input">
                       <option value="ALLOW">ALLOW</option>
                       <option value="DENY">DENY</option>
                     </select>
                   </div>
-                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="plus-circle"></i> Save Firewall Rule</button>
+                  <button type="submit" class="auth-submit w-full mt-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Save Rule
+                  </button>
                 </form>
               </div>
 
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Active Inbound/Outbound Rules</h3>
+              <!-- Firewall listing table -->
+              <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Active Inbound/Outbound Rules</h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-left border-collapse">
+                    <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+                      <tr>
+                        <th class="py-3">Protocol</th>
+                        <th class="py-3">Port</th>
+                        <th class="py-3">Action</th>
+                        <th class="py-3">Created At</th>
+                        <th class="py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="firewall-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                      <!-- Insert dynamically -->
+                    </tbody>
+                  </table>
                 </div>
-                <table class="db-table" style="margin-top: 16px;">
-                  <thead>
-                    <tr>
-                      <th>Protocol</th>
-                      <th>Port</th>
-                      <th>Action</th>
-                      <th>Created At</th>
-                      <th class="text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="firewall-table-body">
-                    <!-- Insert dynamically -->
-                  </tbody>
-                </table>
               </div>
+
             </div>
           </div>
 
-          <!-- Panel 6: Reinstall -->
+          <!-- Panel 7: Reinstall OS -->
           <div class="db-tab-panel" id="panel-rebuild">
-            <div class="db-block" style="max-width: 600px; margin: 0 auto;">
-              <div class="db-block-header">
-                <h3>Reinstall OS (Full Format)</h3>
-              </div>
-              <div style="background-color: #fff9f0; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: var(--radius-sm); font-size: 13px; color: #78350f; display: flex; gap: 10px; align-items: start;">
-                <i data-lucide="alert-triangle" style="width: 20px; height: 20px; flex-shrink: 0;"></i>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm max-w-xl mx-auto">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Reinstall OS (Full Format)</h3>
+              
+              <div class="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-4 rounded-xl text-xs flex gap-3 mb-6">
+                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
                 <div>
                   <strong>WARNING:</strong> Reinstalling deletes the container root device permanently. Make sure to back up or download crucial configurations before triggering.
                 </div>
               </div>
-              <form id="reinstallForm" onsubmit="handleReinstall(event)">
-                <div class="form-group">
-                  <label for="reinstallOS">Select Operating System Template</label>
-                  <select id="reinstallOS" class="form-input">
+
+              <form id="reinstallForm" onsubmit="handleReinstall(event)" class="space-y-4">
+                <div>
+                  <label class="auth-label" for="reinstallOS">Select Operating System Template</label>
+                  <select id="reinstallOS" class="auth-input">
                     <option value="ubuntu/22.04">Ubuntu 22.04 LTS (images:ubuntu/22.04)</option>
                     <option value="debian/11">Debian 11 Bullseye (images:debian/11)</option>
                     <option value="windows/10">Windows 10 Pro (local image)</option>
@@ -530,209 +705,215 @@
                     <option value="windows/server/2019">Windows Server 2019 (local image)</option>
                   </select>
                 </div>
-                <div class="form-group">
-                  <label for="reinstallPassword">New Root Password</label>
-                  <input type="password" id="reinstallPassword" class="form-input" placeholder="••••••••" required minlength="6">
+
+                <div>
+                  <label class="auth-label" for="reinstallPassword">New Root Password</label>
+                  <input type="password" id="reinstallPassword" class="auth-input" placeholder="••••••••" required minlength="6">
                 </div>
-                <div class="form-group">
-                  <label class="checkbox-label" style="margin-top: 10px;">
-                    <input type="checkbox" id="reinstallConfirm" required>
-                    <span>I confirm I want to wipe this server completely and reinstall the OS.</span>
-                  </label>
-                </div>
-                <button type="submit" class="btn btn-secondary" style="width: 100%;"><i data-lucide="refresh-cw"></i> Rebuild Container</button>
+
+                <label class="cb-row mt-4" id="reinstallConfirmLabel">
+                  <input type="checkbox" id="reinstallConfirm" required class="sr-only">
+                  <span class="cb-box" id="reinstallCbBox">
+                    <svg class="cb-check" id="reinstallCbCheck" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" width="10" height="10">
+                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <span class="text-xs text-neutral-500 dark:text-neutral-400">I confirm I want to wipe this server completely and reinstall the OS.</span>
+                </label>
+
+                <button type="submit" class="auth-submit w-full mt-4">
+                  <i data-lucide="refresh-cw" class="w-4 h-4"></i> Rebuild Container
+                </button>
               </form>
             </div>
           </div>
 
-          <!-- Panel 7: Settings -->
+          <!-- Panel 8: Settings -->
           <div class="db-tab-panel" id="panel-settings">
-            <div class="db-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
               <!-- Rename -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Rename Server Instance</h3>
-                </div>
-                <form id="renameForm" onsubmit="handleRename(event)" style="margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="vpsNewName">New Alphanumeric Name</label>
-                    <input type="text" id="vpsNewName" class="form-input" placeholder="webSandbox" required pattern="[a-zA-Z0-9]+">
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Rename Server Instance</h3>
+                <form id="renameForm" onsubmit="handleRename(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="vpsNewName">New Alphanumeric Name</label>
+                    <input type="text" id="vpsNewName" class="auth-input" placeholder="webSandbox" required pattern="[a-zA-Z0-9]+">
                   </div>
-                  <button type="submit" class="btn btn-primary" style="width: 100%;"><i data-lucide="edit-3"></i> Apply Rename</button>
+                  <button type="submit" class="auth-submit w-full">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i> Apply Rename
+                  </button>
                 </form>
               </div>
 
               <!-- Root Password -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Change Root Password</h3>
-                </div>
-                <form id="passwordForm" onsubmit="handleChangePassword(event)" style="margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="rootPassword">New Root Credentials</label>
-                    <input type="password" id="rootPassword" class="form-input" placeholder="••••••••" required minlength="6">
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Change Root Password</h3>
+                <form id="passwordForm" onsubmit="handleChangePassword(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="rootPassword">New Root Password</label>
+                    <input type="password" id="rootPassword" class="auth-input" placeholder="••••••••" required minlength="6">
                   </div>
-                  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                    <i data-lucide="key"></i> Update Root Password</button>
+                  <button type="submit" class="auth-submit w-full">
+                    <i data-lucide="key" class="w-4 h-4"></i> Update Root Password
+                  </button>
                 </form>
               </div>
+
             </div>
           </div>
 
-          <!-- Panel 8: My Profile -->
+          <!-- Panel 9: Profile -->
           <div class="db-tab-panel" id="panel-profile">
-            <div class="db-grid" style="grid-template-columns: 1fr 1fr;">
-              <!-- Edit Profile Info -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Edit Profile Details</h3>
-                </div>
-                <form id="profileInfoForm" onsubmit="handleUpdateProfile(event)" style="margin-top: 16px;">
-                  <div class="form-group" style="text-align: center; margin-bottom: 24px;">
-                    <label style="display: block; margin-bottom: 12px; font-weight: 700;">Profile Picture</label>
-                    <div style="display: inline-flex; position: relative; margin: 0 auto;">
-                      <div class="profile-pfp-container" style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--color-border); overflow: hidden; background-color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: #0f172a; box-shadow: 4px 4px 0px var(--color-border);">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              <!-- Edit details card -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Edit Profile Details</h3>
+                <form id="profileInfoForm" onsubmit="handleUpdateProfile(event)" class="space-y-4">
+                  
+                  <!-- Pfp uploads -->
+                  <div class="flex flex-col items-center mb-6">
+                    <label class="text-xs font-bold text-neutral-500 mb-2">Profile Picture</label>
+                    <div class="relative">
+                      <div class="profile-pfp-container w-24 h-24 rounded-full border-2 border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-900 text-white flex items-center justify-center font-bold text-2xl">
                         {% if session.get('pfp') %}
-                          <img id="profilePfpImage" src="{{ session.get('pfp') }}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">
+                          <img id="profilePfpImage" src="{{ session.get('pfp') }}" alt="PFP" class="w-full h-full object-cover">
                         {% else %}
                           <span id="profilePfpInitials">{{ username[:2]|upper }}</span>
                         {% endif %}
                       </div>
-                      <input type="file" id="profilePfpInput" accept="image/*" style="display: none;" onchange="previewProfilePfp(this)">
-                      <button type="button" class="btn btn-outline btn-small" style="position: absolute; bottom: 0; right: -10px; padding: 4px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px var(--color-border);" onclick="document.getElementById('profilePfpInput').click()">
-                        <i data-lucide="camera" style="width: 14px; height: 14px;"></i>
+                      <input type="file" id="profilePfpInput" accept="image/*" class="hidden" onchange="previewProfilePfp(this)">
+                      <button type="button" class="absolute bottom-0 right-0 p-1.5 w-8 h-8 rounded-full bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 flex items-center justify-center shadow" onclick="document.getElementById('profilePfpInput').click()">
+                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
                       </button>
                     </div>
                   </div>
-                  
-                  <div class="form-group">
-                    <label for="profileUsername">Username</label>
-                    <input type="text" id="profileUsername" class="form-input" value="{{ username }}" required minlength="3">
+
+                  <div>
+                    <label class="auth-label" for="profileUsername">Username</label>
+                    <input type="text" id="profileUsername" class="auth-input" value="{{ username }}" required minlength="3">
                   </div>
-                  
-                  <div class="form-group">
-                    <label for="profileEmail">Email Address</label>
-                    <input type="email" id="profileEmail" class="form-input" value="{{ session.get('email', '') }}" required>
+                  <div>
+                    <label class="auth-label" for="profileEmail">Email Address</label>
+                    <input type="email" id="profileEmail" class="auth-input" value="{{ session.get('email', '') }}" required>
                   </div>
-                  
-                  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                    <i data-lucide="save"></i> Save Profile Details
+
+                  <button type="submit" class="auth-submit w-full mt-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save Profile Details
                   </button>
                 </form>
               </div>
 
-              <!-- Change Password -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Change Password</h3>
-                </div>
-                <form id="profilePasswordForm" onsubmit="handleUpdatePassword(event)" style="margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="profileCurrentPassword">Current Password</label>
-                    <input type="password" id="profileCurrentPassword" class="form-input" required minlength="6" placeholder="••••••••">
+              <!-- Password change card -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Change Password</h3>
+                <form id="profilePasswordForm" onsubmit="handleUpdatePassword(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="profileCurrentPassword">Current Password</label>
+                    <input type="password" id="profileCurrentPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                   </div>
-                  <div class="form-group">
-                    <label for="profileNewPassword">New Password</label>
-                    <input type="password" id="profileNewPassword" class="form-input" required minlength="6" placeholder="••••••••">
+                  <div>
+                    <label class="auth-label" for="profileNewPassword">New Password</label>
+                    <input type="password" id="profileNewPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                   </div>
-                  <div class="form-group">
-                    <label for="profileConfirmPassword">Confirm New Password</label>
-                    <input type="password" id="profileConfirmPassword" class="form-input" required minlength="6" placeholder="••••••••">
+                  <div>
+                    <label class="auth-label" for="profileConfirmPassword">Confirm New Password</label>
+                    <input type="password" id="profileConfirmPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                   </div>
-                  <button type="submit" class="btn btn-secondary" style="width: 100%; margin-top: 16px;">
-                    <i data-lucide="key"></i> Update Password
+
+                  <button type="submit" class="auth-submit w-full mt-2">
+                    <i data-lucide="key" class="w-4 h-4"></i> Update Password
                   </button>
                 </form>
               </div>
+
             </div>
-          <!-- Panel 9: API Keys -->
+          </div>
+
+          <!-- Panel 10: API Keys -->
           <div class="db-tab-panel" id="panel-apikeys">
-            <div class="db-grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
-              <!-- Generate API Key Form -->
-              <div class="db-block">
-                <div class="db-block-header">
-                  <h3>Generate API Key</h3>
-                </div>
-                <div style="margin-top: 12px; color: var(--color-text-muted); font-size: 13px; line-height: 1.5;">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              <!-- Generate key form -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Generate API Key</h3>
+                <p class="text-xs text-neutral-500 leading-relaxed mb-4">
                   Create credentials to securely access your container VPS via our premium REST API. 
-                  All requests must provide the key via the <code style="background-color: var(--color-background-soft); padding: 2px 6px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-family: monospace;">Authorization: Bearer &lt;key&gt;</code> header.
-                </div>
-                <form id="createApiKeyForm" onsubmit="handleCreateApiKey(event)" style="margin-top: 20px;">
-                  <div class="form-group">
-                    <label for="apiKeyName">Key Description / Name</label>
-                    <input type="text" id="apiKeyName" class="form-input" placeholder="e.g. Discord Bot, CLI Tool, Automation Script" required minlength="3" maxlength="64">
+                  All requests must provide the key via the <code class="bg-neutral-100 dark:bg-neutral-800/80 px-1.5 py-0.5 rounded font-mono text-[10px] border border-neutral-200 dark:border-neutral-700">Authorization: Bearer &lt;key&gt;</code> header.
+                </p>
+                <form id="createApiKeyForm" onsubmit="handleCreateApiKey(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="apiKeyName">Key Description / Name</label>
+                    <input type="text" id="apiKeyName" class="auth-input" placeholder="e.g. Discord Bot, CLI Tool, Automation Script" required minlength="3" maxlength="64">
                   </div>
-                  <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px; box-shadow: var(--shadow-sm);">
-                    <i data-lucide="key-round"></i> Generate API Key
+                  <button type="submit" class="auth-submit w-full">
+                    <i data-lucide="key-round" class="w-4 h-4"></i> Generate API Key
                   </button>
                 </form>
 
-                <!-- Premium Newly Generated Key Modal Display (inline) -->
-                <div id="newlyGeneratedKeyBlock" style="display: none; margin-top: 24px; padding: 16px; background: rgba(16, 185, 129, 0.05); border: 1px dashed var(--color-accent); border-radius: var(--radius-md);">
-                  <div style="display: flex; align-items: center; gap: 8px; color: var(--color-accent); font-weight: 700; font-size: 14px; margin-bottom: 8px;">
-                    <i data-lucide="shield-check" style="width: 18px; height: 18px;"></i>
-                    API Key Successfully Generated!
+                <!-- Newly Generated Key Block -->
+                <div id="newlyGeneratedKeyBlock" style="display: none;" class="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <div class="flex items-center gap-1.5 text-emerald-500 font-bold text-xs mb-2">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i> API Key Successfully Generated!
                   </div>
-                  <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">
+                  <p class="text-[10px] text-neutral-500 dark:text-neutral-400 mb-3 leading-relaxed">
                     Copy this key now. For your security, <strong>it will not be shown again</strong>.
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="text" id="newlyGeneratedKeyValue" class="form-input" readonly style="font-family: monospace; font-size: 13px; background-color: var(--color-background-soft); flex: 1; cursor: text;">
-                    <button class="btn btn-outline" onclick="copyGeneratedApiKey()" title="Copy to clipboard" style="padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                      <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <input type="text" id="newlyGeneratedKeyValue" readonly class="auth-input font-mono text-xs flex-1 cursor-text bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700">
+                    <button class="flex items-center justify-center p-2.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl" onclick="copyGeneratedApiKey()" title="Copy key">
+                      <i data-lucide="copy" class="w-4 h-4 text-neutral-600 dark:text-neutral-300"></i>
                     </button>
                   </div>
                 </div>
               </div>
 
-              <!-- Active API Keys List -->
-              <div class="db-block">
-                <div class="db-block-header" style="display: flex; align-items: center; justify-content: space-between;">
-                  <h3>Active API Keys</h3>
-                  <button class="btn btn-outline btn-small" onclick="loadUserApiKeys()" style="padding: 4px 8px; font-size: 11px;">
-                    <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
+              <!-- Keys list -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Active API Keys</h3>
+                  <button class="inline-flex items-center gap-1 px-2.5 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-[10px] font-bold rounded-xl" onclick="loadUserApiKeys()">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
                   </button>
                 </div>
-                <div class="table-container" style="margin-top: 16px; overflow-x: auto;">
-                  <table class="db-table" style="width: 100%; border-collapse: collapse; min-width: 400px;">
-                    <thead>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-left border-collapse min-w-[340px]">
+                    <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                       <tr>
-                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Name</th>
-                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Key Prefix</th>
-                        <th style="text-align: left; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase;">Last Used</th>
-                        <th style="text-align: right; padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; width: 80px;">Action</th>
+                        <th class="py-3">Name</th>
+                        <th class="py-3">Prefix</th>
+                        <th class="py-3">Last Used</th>
+                        <th class="py-3 text-right">Action</th>
                       </tr>
                     </thead>
-                    <tbody id="userApiKeysTableBody">
+                    <tbody id="userApiKeysTableBody" class="divide-y divide-neutral-200/40 dark:divide-white/5">
                       <tr>
-                        <td colspan="4" style="text-align: center; padding: 24px; color: var(--color-text-muted); font-size: 13px;">
-                          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-                            <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px;"></i>
-                            <span>Fetching API credentials...</span>
-                          </div>
+                        <td colspan="4" class="text-center py-10 text-neutral-500">
+                          <i data-lucide="loader-2" class="animate-spin w-5 h-5 mx-auto mb-2 text-neutral-400"></i>
+                          <span>Fetching active API keys...</span>
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </div>
+
             </div>
 
-            <!-- API Quick Reference Banner -->
-            <div class="db-block" style="margin-top: 24px;">
-              <div class="db-block-header">
-                <h3>API Quick Integration Reference</h3>
-              </div>
-              <div class="db-grid" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px;">
+            <!-- API Docs reference -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm mt-8">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">API Quick Integration Reference</h3>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  <h4 style="font-size: 14px; font-weight: 700; color: var(--color-text-main); margin-bottom: 8px;">Check VPS Status via cURL</h4>
-                  <pre style="background: var(--color-background-soft); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; font-family: monospace; font-size: 12px; overflow-x: auto; color: var(--color-text-main); line-height: 1.5; margin: 0;">curl -X GET \
+                  <h4 class="text-xs font-bold text-neutral-500 mb-2">Check VPS Status via cURL</h4>
+                  <pre class="bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 font-mono text-[10px] text-neutral-800 dark:text-neutral-300 overflow-x-auto leading-relaxed">curl -X GET \
   -H "Authorization: Bearer YOUR_API_KEY" \
   http://{{ request.host }}/api/v1/vps</pre>
                 </div>
                 <div>
-                  <h4 style="font-size: 14px; font-weight: 700; color: var(--color-text-main); margin-bottom: 8px;">Trigger VPS Action</h4>
-                  <pre style="background: var(--color-background-soft); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; font-family: monospace; font-size: 12px; overflow-x: auto; color: var(--color-text-main); line-height: 1.5; margin: 0;">curl -X POST \
+                  <h4 class="text-xs font-bold text-neutral-500 mb-2">Trigger VPS Action</h4>
+                  <pre class="bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 font-mono text-[10px] text-neutral-800 dark:text-neutral-300 overflow-x-auto leading-relaxed">curl -X POST \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"action": "restart"}' \
@@ -740,23 +921,73 @@
                 </div>
               </div>
             </div>
+
           </div>
+
         </div>
 
       </div>
-    </div>
-  </div>
+    </main>
 
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Chart.js for real-time graphs -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- xterm.js scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-  
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/dashboard.js') }}?v=1.0.2"></script>
-</body>
-</html>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js for real-time graphs -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- xterm.js scripts -->
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=1.0.3"></script>
+<script>
+  // Dynamic mobile sidebar drawer toggle
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggleBtn = document.querySelector('.db-menu-toggle');
+    const sidebar = document.getElementById('pc-sidebar');
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.toggle('active');
+      });
+      document.addEventListener('click', (e) => {
+        if (!sidebar.contains(e.target) && sidebar.classList.contains('active')) {
+          sidebar.classList.remove('active');
+        }
+      });
+    }
+    
+    // Add visual indicator for checkbox click behavior on reinstall screen
+    const reinstallConfirmLabel = document.getElementById('reinstallConfirmLabel');
+    const reinstallConfirm = document.getElementById('reinstallConfirm');
+    const reinstallCbBox = document.getElementById('reinstallCbBox');
+    const reinstallCbCheck = document.getElementById('reinstallCbCheck');
+    if (reinstallConfirmLabel && reinstallConfirm && reinstallCbBox && reinstallCbCheck) {
+      reinstallConfirmLabel.addEventListener('click', function(e) {
+        if (e.target === reinstallConfirm) return;
+        reinstallConfirm.checked = !reinstallConfirm.checked;
+        const isDark = document.documentElement.classList.contains('dark');
+        if (reinstallConfirm.checked) {
+          reinstallCbBox.style.background = isDark ? '#ffffff' : '#171717';
+          reinstallCbBox.style.borderColor = isDark ? '#ffffff' : '#171717';
+          reinstallCbCheck.style.display = 'block';
+        } else {
+          reinstallCbBox.style.background = '';
+          reinstallCbBox.style.borderColor = '';
+          reinstallCbCheck.style.display = 'none';
+        }
+      });
+    }
+  });
+
+  // Helper script to listen for navigated EJS transitions
+  document.addEventListener('al:navigated', function () {
+    const activeLink = document.querySelector('.nav-link.active');
+    if (activeLink) {
+      activeLink.classList.add('sidebar-link-active');
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+/* Animations Stylesheet for VPS Control Panel */
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Skeleton Loading utility class */
+.skeleton {
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 200% 100%;
+}
+
+html.dark .skeleton {
+    background: linear-gradient(90deg, #1e1e1e 25%, #2d2d2d 50%, #1e1e1e 75%);
+    background-size: 200% 100%;
+}
+
+/* Toasts animation classes */
+.toast-enter {
+    animation: toast-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.toast-exit {
+    animation: toast-fade-out 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes toast-fade-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toast-fade-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(-8px) scale(0.95); }
+}
+
+/* Glassmorphic backdrop-filter blurs support */
+.backdrop-blur-custom {
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+}

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full js-loading">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,13 +10,20 @@
     <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
   {% endif %}
 
-  <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Core Tailwind and Modular Stylesheets -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/layout-animations.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hide-scrollbars.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+
   {% block extra_css %}{% endblock %}
 
-  <!-- Injected Dynamic Theme Colors -->
+  <!-- Dynamic Theme Configurations & Local Font Fallback -->
   <style>
     :root {
+      /* Database Dynamic Customizer colors */
       --color-primary: {{ settings.get('color_primary', '#ECF4E8') }};
       --color-secondary: {{ settings.get('color_secondary', '#CBF3BB') }};
       --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
@@ -26,99 +33,186 @@
       --color-secondary-text: {{ settings.get('color_secondary_text', '#0f172a') }};
       --color-accent-text: {{ settings.get('color_accent_text', '#0f172a') }};
       --color-cool-text: {{ settings.get('color_cool_text', '#0f172a') }};
+
+      /* Map dynamic preset customizer colors to standardize theme variables */
+      --primary: var(--color-primary);
+      --secondary: var(--color-secondary);
+      --accent: var(--color-accent);
+      --surface: #ffffff;
+      --background: #f9fafb;
+    }
+
+    html.dark {
+      --surface: #1e1e1e;
+      --background: #141414;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* Preloader CSS initialization */
+    .js-loading #page-content > * {
+      opacity: 0;
+      transform: translateY(14px);
     }
   </style>
+
+  <!-- Theme selector script ran immediately before body paint -->
+  <script>
+    (function () {
+      const userPreference = localStorage.getItem('theme');
+      const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (userPreference === 'dark' || (!userPreference && systemPreference)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
 </head>
-<body>
+<body class="bg-neutral-50 dark:bg-[#141414] h-full text-neutral-800 dark:text-white transition-colors duration-200">
 
-  <!-- Navigation Bar -->
-  {% if request.path != '/auth' %}
-  <nav class="navbar">
-    <div class="container">
-      <a href="/" class="logo">
-        {% if settings.get('logo_url') %}
-          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
-        {% else %}
-          <div class="logo-icon">M</div>
-        {% endif %}
-        <span>{{ settings.get('site_name', 'MintyHost') }}</span>
-      </a>
-      
-
-      <div class="nav-btns">
-        {% if session.get('user_id') %}
-          {% if session.get('is_admin') %}
-            <a href="/admin" class="btn btn-secondary"><i data-lucide="shield"></i> Admin Panel</a>
-          {% else %}
-            <a href="/client" class="btn btn-secondary"><i data-lucide="layout-dashboard"></i> Client Area</a>
-          {% endif %}
-          <a href="/logout" class="btn btn-outline">Logout</a>
-        {% else %}
-          <a href="/auth" class="btn btn-primary">Get Started</a>
-        {% endif %}
+  <!-- Preloader Screen -->
+  <div id="pl-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;display:none;align-items:center;justify-content:center;pointer-events:all;background:rgba(249,250,251,0.08);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);">
+    <div id="pl-inner" style="display:flex;flex-direction:column;align-items:center;gap:18px;">
+      {% if settings.get('logo_url') %}
+        <img src="{{ settings.get('logo_url') }}" alt="Logo" style="width:42px;height:42px;object-fit:contain;border-radius:10px;display:block;">
+      {% else %}
+        <div style="width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--color-primary);color:var(--color-primary-text);font-weight:bold;font-size:20px;">M</div>
+      {% endif %}
+      <p style="margin:0;margin-top:-4px;font-size:14px;font-weight:600;letter-spacing:-0.015em;" id="pl-title">{{ settings.get('site_name', 'MintyHost') }}</p>
+      <div style="width:128px;height:1.5px;border-radius:2px;overflow:hidden;" id="pl-track">
+        <div id="pl-bar" style="height:100%;width:0%;border-radius:2px;transition:width 260ms cubic-bezier(0.4,0,0.2,1);"></div>
       </div>
-
-      <button class="mobile-nav-toggle" aria-label="Toggle Navigation">
-        <i data-lucide="menu"></i>
-      </button>
+      <p id="pl-msg" style="margin:0;margin-top:-4px;font-size:11px;color:#737373;letter-spacing:0.01em;transition:opacity 180ms ease;">Loading...</p>
     </div>
-  </nav>
-  {% endif %}
+  </div>
+  <script>
+    (function(){
+      var isDark = document.documentElement.classList.contains('dark');
+      var fg = isDark ? '#ffffff' : '#171717';
+      var track = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+      var ov = document.getElementById('pl-overlay');
+      var t = document.getElementById('pl-title');
+      var tr = document.getElementById('pl-track');
+      var b = document.getElementById('pl-bar');
+      if(ov){ov.style.background = isDark ? 'rgba(14,14,14,0.08)' : 'rgba(249,250,251,0.08)';}
+      if(t)t.style.color = fg;
+      if(tr)tr.style.background = track;
+      if(b)b.style.background = fg;
+    })();
+  </script>
 
-  <!-- Main Content Block -->
-  <main>
-    {% block content %}{% endblock %}
-  </main>
+  <!-- Theme Toggler Widget -->
+  <button id="theme-toggle" class="fixed right-4 top-4 w-14 h-8 flex items-center bg-neutral-300 dark:bg-neutral-700/70 rounded-full p-1 transition-colors duration-500 z-50">
+      <span class="dot bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-500 border border-neutral-950/20"></span>
+  </button>
 
-  <!-- Footer Section -->
-  {% if request.path != '/auth' %}
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a href="/" class="logo">
-            {% if settings.get('logo_url') %}
-              <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
-            {% else %}
-              <div class="logo-icon">M</div>
-            {% endif %}
-            <span>{{ settings.get('site_name', 'MintyHost') }}</span>
-          </a>
-          <p>Ultra-clean, high-performance virtual private servers built for modern developers.</p>
-        </div>
-        <div class="footer-col">
-          <h4>Contact</h4>
-          <ul class="footer-links">
-            <li><a href="/client" class="footer-link">Support Desk</a></li>
-            <li><a href="#" class="footer-link">system@mintyhost.net</a></li>
-            <li><a href="#" class="footer-link">sales@mintyhost.net</a></li>
-          </ul>
-        </div>
+  <!-- Global Confirm Modal -->
+  <div id="globalModal" class="fixed inset-0 z-[9000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="absolute inset-0 bg-black/60" id="globalModalBackdrop"></div>
+    <div id="globalModalPanel" class="relative bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700/60 rounded-2xl shadow-2xl w-full max-w-sm mx-4 transform scale-95 transition-transform duration-200">
+      <div class="px-5 pt-5 pb-4">
+        <p id="globalModalTitle" class="text-sm font-semibold text-neutral-800 dark:text-white leading-snug"></p>
+        <p id="globalModalBody" class="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed"></p>
       </div>
-      <div class="footer-bottom">
-        <div>&copy; 2026 {{ settings.get('site_name', 'MintyHost') }}. All rights reserved.</div>
-        <div>Designed with a clean, flat aesthetic.</div>
+      <div class="flex gap-2 px-5 pb-5 justify-end">
+        <button id="globalModalCancel" class="px-4 py-2 text-xs font-medium rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition">Cancel</button>
+        <button id="globalModalConfirm" class="px-4 py-2 text-xs font-medium rounded-xl text-white transition"></button>
       </div>
     </div>
-  </footer>
-  {% endif %}
+  </div>
 
-  <!-- Toast Notification Wrapper -->
+  <!-- Main Block Content -->
+  {% block content %}{% endblock %}
+
+  <!-- Toast Wrapper Container -->
   <div class="toast-container"></div>
 
-  <!-- Lucide Icons Library -->
+  <!-- Scripts -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Global Application Scripts -->
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-  
-  <!-- Flash Messaging Engine -->
+
+  <!-- Modal Scripts Initialization -->
+  <script>
+  (function () {
+    const overlay  = document.getElementById('globalModal');
+    const panel    = document.getElementById('globalModalPanel');
+    const title    = document.getElementById('globalModalTitle');
+    const body     = document.getElementById('globalModalBody');
+    const cancel   = document.getElementById('globalModalCancel');
+    const confirmBtn  = document.getElementById('globalModalConfirm');
+    const backdrop = document.getElementById('globalModalBackdrop');
+    let currentResolve = null;
+
+    function open({ title: t, body: b, danger = true, confirmLabel = 'Confirm', onConfirm }) {
+      title.textContent = t || '';
+      body.textContent  = b || '';
+      confirmBtn.textContent = confirmLabel;
+      confirmBtn.className = danger
+        ? 'px-4 py-2 text-xs font-medium rounded-xl text-white transition bg-red-600 hover:bg-red-500'
+        : 'px-4 py-2 text-xs font-medium rounded-xl text-white transition bg-neutral-900 dark:bg-neutral-700 hover:bg-neutral-800 dark:hover:bg-neutral-600';
+      currentResolve = onConfirm || null;
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+      panel.classList.remove('scale-95');
+      panel.classList.add('scale-100');
+    }
+
+    function close() {
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+      panel.classList.remove('scale-100');
+      panel.classList.add('scale-95');
+      currentResolve = null;
+    }
+
+    if (cancel) cancel.addEventListener('click', close);
+    if (backdrop) backdrop.addEventListener('click', close);
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        const fn = currentResolve;
+        close();
+        if (fn) fn();
+      });
+    }
+
+    window.modal = { confirm: open };
+
+    // Theme Selector Script
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      updateSwitchPosition();
+    }
+
+    function updateSwitchPosition() {
+      const isDark = document.documentElement.classList.contains('dark');
+      const dot = document.querySelector('#theme-toggle .dot');
+      if (dot) {
+        if (isDark) {
+          dot.classList.add('translate-x-6');
+        } else {
+          dot.classList.remove('translate-x-6');
+        }
+      }
+    }
+
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', toggleTheme);
+      updateSwitchPosition();
+    }
+  })();
+  </script>
+
+  <!-- Flash Messages Listener -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <script>
         document.addEventListener('DOMContentLoaded', () => {
           {% for category, message in messages %}
             window.showToast("{{ message }}", "{{ 'success' if category == 'success' else 'error' }}");
-          {% endfor %};
+          {% endfor %}
         });
       </script>
     {% endif %}

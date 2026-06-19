@@ -1,585 +1,631 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Control - {{ settings.get('site_name', 'MintyHost') }}</title>
+{% extends "base.html" %}
+
+{% block title %}Admin Control{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Local custom overrides for Admin Dashboard */
+  .db-layout {
+    display: flex;
+    min-height: 100vh;
+  }
   
-  {% if settings.get('favicon_url') %}
-    <link rel="shortcut icon" href="{{ settings.get('favicon_url') }}" type="image/x-icon">
-  {% endif %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+  /* Sidebar active indicator mapping parent li.active to internal a tag */
+  .db-menu-item.active a {
+    background: rgba(0, 0, 0, 0.05);
+    color: #171717 !important;
+  }
+  html.dark .db-menu-item.active a {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff !important;
+  }
 
-  <style>
-    :root {
-      --color-primary: {{ settings.get('color_primary', '#ECF4E8') }};
-      --color-secondary: {{ settings.get('color_secondary', '#CBF3BB') }};
-      --color-accent: {{ settings.get('color_accent', '#ABE7B2') }};
-      --color-cool: {{ settings.get('color_cool', '#93BFC7') }};
+  /* Panels transitions */
+  .db-tab-panel {
+    display: none;
+  }
+  .db-tab-panel.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+  }
 
-      --color-primary-text: {{ settings.get('color_primary_text', '#0f172a') }};
-      --color-secondary-text: {{ settings.get('color_secondary_text', '#0f172a') }};
-      --color-accent-text: {{ settings.get('color_accent_text', '#0f172a') }};
-      --color-cool-text: {{ settings.get('color_cool_text', '#0f172a') }};
-    }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
-    .theme-preset-card {
-      position: relative;
-      border: 2px solid var(--color-border);
-      padding: 12px;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      transition: var(--transition-smooth);
-      background: var(--color-white);
-      box-shadow: 2.5px 2.5px 0px var(--color-border);
-    }
+  /* Sub tabs customization */
+  .sub-tab-panel {
+    display: none;
+  }
+  .sub-tab-panel.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+  }
 
-    .theme-preset-card:hover {
-      transform: translate(-1px, -1px);
-      box-shadow: 3.5px 3.5px 0px var(--color-border);
-    }
+  /* Sub navigation buttons style */
+  .subnav-btn {
+    border-bottom: 2px solid transparent;
+  }
+  .subnav-btn.active {
+    color: #171717;
+    border-bottom-color: var(--color-accent, #ABE7B2);
+  }
+  html.dark .subnav-btn.active {
+    color: #ffffff;
+    border-bottom-color: var(--color-accent, #ABE7B2);
+  }
 
-    .theme-preset-card.active {
-      border-color: var(--color-border);
-      background: var(--color-white);
-      box-shadow: 4px 4px 0px var(--color-accent);
-    }
+  /* OS Cards Grid Selector */
+  .os-card {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+  }
+  html.dark .os-card {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .os-card:hover {
+    transform: translateY(-2px);
+    background: rgba(0, 0, 0, 0.02);
+  }
+  html.dark .os-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .os-card.active {
+    border-color: #171717;
+    background: rgba(0, 0, 0, 0.04);
+  }
+  html.dark .os-card.active {
+    border-color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+  }
 
-    /* Custom OS cards selector */
-    .os-card {
-      border: 2px solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: 12px;
-      cursor: pointer;
-      text-align: center;
-      background: var(--color-white);
-      box-shadow: 2px 2px 0px var(--color-border);
-      transition: var(--transition-smooth);
-    }
-    .os-card:hover {
-      transform: translate(-1px, -1px);
-      box-shadow: 3px 3px 0px var(--color-border);
-    }
-    .os-card.active {
-      background-color: var(--color-primary);
-      box-shadow: 4px 4px 0px var(--color-accent);
-    }
+  /* Table cell styles for dynamic rows */
+  #page-content table th, 
+  #page-content table td {
+    padding: 12px 20px;
+    vertical-align: middle;
+  }
+  #page-content tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  #page-content tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.015);
+  }
+  html.dark #page-content tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.015);
+  }
 
-    /* Provisioning Stepper Styles */
-    .stepper-container {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 24px;
-      background: var(--color-primary);
-      border: 2px solid var(--color-border);
-      padding: 16px;
-      border-radius: var(--radius-md);
-      box-shadow: 2.5px 2.5px 0px var(--color-border);
-    }
-    .step-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      position: relative;
-    }
-    .step-item:not(:last-child)::after {
-      content: '';
-      position: absolute;
-      top: 15px;
-      left: calc(50% + 15px);
-      right: calc(-50% + 15px);
-      height: 2px;
-      background-color: var(--color-border-light);
-      z-index: 1;
-    }
-    .step-item.completed:not(:last-child)::after {
-      background-color: var(--color-success);
-    }
-    .step-icon-badge {
-      width: 32px;
-      height: 32px;
-      border: 2px solid var(--color-border);
-      border-radius: 50%;
-      background: var(--color-white);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 13px;
-      z-index: 2;
-      transition: var(--transition-smooth);
-    }
-    .step-item.pending .step-icon-badge {
-      color: var(--color-text-muted);
-      border-color: var(--color-border-light);
-    }
-    .step-item.active .step-icon-badge {
-      background-color: var(--color-accent);
-      color: var(--color-text-main);
-      box-shadow: 0 0 0 4px var(--color-secondary);
-      animation: stepPulse 1.5s infinite;
-    }
-    .step-item.completed .step-icon-badge {
-      background-color: var(--color-success);
-      color: var(--color-white);
-      border-color: var(--color-border);
-    }
-    .step-label {
-      font-size: 11px;
-      font-weight: 700;
-      margin-top: 8px;
-      text-align: center;
-    }
-    .step-item.pending .step-label {
-      color: var(--color-text-muted);
-    }
-    .step-item.active .step-label {
-      color: var(--color-text-main);
-    }
-    .step-item.completed .step-label {
-      color: var(--color-text-main);
-    }
+  /* Stepper connector lines & status indicators */
+  .step-item {
+    position: relative;
+  }
+  .step-item::after {
+    content: '';
+    position: absolute;
+    top: 14px; /* Half of badge height (w-7 is 28px) */
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: #e5e7eb;
+    z-index: 0;
+    transition: background-color 0.25s ease;
+  }
+  html.dark .step-item::after {
+    background: #2d2d2d;
+  }
+  .step-item:last-child::after {
+    display: none;
+  }
+  .step-icon-badge {
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s;
+  }
 
-    @keyframes stepPulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
+  /* Completed Stepper item */
+  .step-item.completed .step-icon-badge {
+    background-color: var(--color-accent) !important;
+    color: var(--color-accent-text, #0f172a) !important;
+    border-color: var(--color-accent) !important;
+  }
+  .step-item.completed::after {
+    background-color: var(--color-accent) !important;
+  }
+  
+  /* Active Stepper item */
+  .step-item.active .step-icon-badge {
+    background-color: var(--color-cool) !important;
+    color: var(--color-cool-text, #0f172a) !important;
+    border-color: var(--color-cool) !important;
+    box-shadow: 0 0 12px var(--color-cool) !important;
+  }
+  
+  /* Pending Stepper item */
+  .step-item.pending .step-icon-badge {
+    background-color: #f3f4f6 !important;
+    color: #6b7280 !important;
+    border-color: #e5e7eb !important;
+  }
+  html.dark .step-item.pending .step-icon-badge {
+    background-color: #1c1c1c !important;
+    color: #9ca3af !important;
+    border-color: #2d2d2d !important;
+  }
+</style>
+{% endblock %}
 
-    /* Terminal Mockup Styles */
-    .terminal-mockup {
-      border: 2px solid var(--color-border);
-      border-radius: var(--radius-md);
-      box-shadow: 4px 4px 0px var(--color-border);
-      overflow: hidden;
-    }
-    .terminal-header {
-      background-color: #e2e8f0;
-      border-bottom: 2px solid var(--color-border);
-      display: flex;
-      align-items: center;
-      padding: 10px 14px;
-      gap: 8px;
-    }
-    .terminal-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      border: 1px solid rgba(0, 0, 0, 0.15);
-    }
-  </style>
-</head>
-<body>
+{% block content %}
+<div class="db-layout">
+  
+  <!-- Sidebar Navigation -->
+  <aside id="pc-sidebar" class="sidebar db-sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:z-50 lg:w-56 left-0 border-r border-neutral-200/30 dark:border-white/5 bg-white/8 dark:bg-[#141414]/8 backdrop-blur-xl">
+    
+    <!-- Logo area -->
+    <div class="pl-6 pt-4 pb-4 flex min-w-0 shrink-0">
+      <a href="/" class="flex items-center min-w-0">
+        {% if settings.get('logo_url') %}
+          <img src="{{ settings.get('logo_url') }}" alt="Logo" class="p-1 h-9 w-9 rounded-xl mr-3 shrink-0 inline-flex bg-neutral-900/90 dark:bg-transparent">
+        {% else %}
+          <div class="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-md mr-3 shrink-0 inline-flex">M</div>
+        {% endif %}
+        <span class="text-neutral-700 dark:text-white font-semibold tracking-tight text-md truncate min-w-0">{{ settings.get('site_name', 'MintyHost') }}</span>
+      </a>
+    </div>
 
-  <div class="db-layout">
-    <!-- Sidebar Navigation -->
-    <aside class="db-sidebar">
-      <div class="db-sidebar-header">
-        <a href="/" class="logo">
-          {% if settings.get('logo_url') %}
-            <img src="{{ settings.get('logo_url') }}" alt="Logo" class="logo-img">
-          {% else %}
-            <div class="logo-icon">{{ settings.get('site_name', 'MintyHost')[0]|upper }}</div>
-          {% endif %}
-          <span>{{ settings.get('site_name', 'MintyHost LXC') }}</span>
-        </a>
+    <!-- Active User Box (Click goes to Profile tab) -->
+    <a href="#" data-target="panel-profile" onclick="document.querySelector('[data-target=\'panel-profile\']').click()" class="sidebar-special-link flex items-center space-x-3 py-3 px-4 border-y border-neutral-800/10 dark:border-white/5 shrink-0 hover:bg-neutral-100 dark:hover:bg-white/[0.05] transition-colors group">
+      <div class="h-8 w-8 rounded-xl border border-neutral-700/10 shrink-0 bg-neutral-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden">
+        {% if session.get('pfp') %}
+          <img id="sidebarPfp" src="{{ session.get('pfp') }}" alt="PFP" class="w-full h-full object-cover">
+        {% else %}
+          <span id="sidebarInitials">{{ username[:2]|upper }}</span>
+        {% endif %}
       </div>
-      
-      <ul class="db-menu">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-neutral-700 dark:text-white truncate group-hover:text-neutral-950 dark:group-hover:text-white transition-colors">
+          <span>{{ username }}</span>
+          <span class="text-[10px] text-neutral-500 font-normal"><sup>#{{ "%04d"|format(session.get('user_id', 0)) }}</sup></span>
+        </p>
+        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">Administrator</p>
+      </div>
+    </a>
+
+    <!-- Navigation Scrollable Menu -->
+    <nav class="flex-1 overflow-y-auto py-2">
+      <ul class="space-y-1 px-2">
         <li class="db-menu-item active">
-          <a href="#" data-target="panel-overview"><i data-lucide="bar-chart-2"></i> Overview</a>
+          <a href="#" data-target="panel-overview" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 shrink-0"></i>
+            <span>Overview</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-deploy"><i data-lucide="plus-circle"></i> Deploy VPS</a>
+          <a href="#" data-target="panel-deploy" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="plus-circle" class="w-4 h-4 shrink-0"></i>
+            <span>Deploy VPS</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-containers"><i data-lucide="server"></i> Virtual Servers</a>
+          <a href="#" data-target="panel-containers" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="server" class="w-4 h-4 shrink-0"></i>
+            <span>Virtual Servers</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-users"><i data-lucide="users"></i> User Management</a>
+          <a href="#" data-target="panel-users" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="users" class="w-4 h-4 shrink-0"></i>
+            <span>User Management</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-nodes"><i data-lucide="network"></i> Nodes</a>
+          <a href="#" data-target="panel-nodes" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="network" class="w-4 h-4 shrink-0"></i>
+            <span>Nodes</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-windows"><i data-lucide="monitor-smartphone"></i> Windows</a>
+          <a href="#" data-target="panel-windows" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="monitor-smartphone" class="w-4 h-4 shrink-0"></i>
+            <span>Windows Images</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-logs"><i data-lucide="file-text"></i> Audit Logs</a>
+          <a href="#" data-target="panel-logs" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="file-text" class="w-4 h-4 shrink-0"></i>
+            <span>Audit Logs</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-customization"><i data-lucide="palette"></i> Customization</a>
+          <a href="#" data-target="panel-customization" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="palette" class="w-4 h-4 shrink-0"></i>
+            <span>Customization</span>
+          </a>
         </li>
+
         <li class="db-menu-item">
-          <a href="#" data-target="panel-apikeys"><i data-lucide="key"></i> API Keys</a>
+          <a href="#" data-target="panel-apikeys" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="key" class="w-4 h-4 shrink-0"></i>
+            <span>API Keys</span>
+          </a>
         </li>
-        <li class="db-menu-item" id="menu-profile" style="margin-top: 20px; border-top: 1px solid var(--color-border); padding-top: 20px;">
-          <a href="#" data-target="panel-profile"><i data-lucide="user"></i> My Profile</a>
-        </li>
-        <li class="db-menu-item">
-          <a href="/logout" style="color: var(--color-danger);"><i data-lucide="log-out"></i> Log Out</a>
+
+        <p class="pl-4 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pt-6 pb-1">Account settings</p>
+
+        <li class="db-menu-item" id="menu-profile">
+          <a href="#" data-target="panel-profile" class="nav-link flex items-center gap-x-3 px-3 py-2 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/[0.05] hover:text-neutral-950 dark:hover:text-white transition-all">
+            <i data-lucide="user" class="w-4 h-4 shrink-0"></i>
+            <span>My Profile</span>
+          </a>
         </li>
       </ul>
+    </nav>
 
-      <div class="db-sidebar-footer">
-        <div class="db-user-avatar" style="padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background-color: var(--color-accent);">
-          {% if session.get('pfp') %}
-            <img id="sidebarPfp" src="{{ session.get('pfp') }}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">
-          {% else %}
-            <span id="sidebarInitials">{{ username[:2]|upper }}</span>
-          {% endif %}
-        </div>
-        <div class="db-user-info">
-          <div class="db-user-name" title="{{ username }}">{{ username }}</div>
-          <div class="db-user-role">Administrator</div>
-        </div>
+    <!-- Log Out Link -->
+    <div class="shrink-0 border-t border-neutral-200/30 dark:border-white/5">
+      <a href="/logout" class="group flex gap-x-3 px-6 py-4 text-sm font-semibold leading-6 text-neutral-500 hover:text-red-600 dark:hover:text-red-500 hover:bg-red-500/5 transition-all">
+        <i data-lucide="log-out" class="w-4 h-4 mt-1 shrink-0"></i>
+        <span>Log Out</span>
+      </a>
+    </div>
+
+  </aside>
+
+  <!-- Main Workspace -->
+  <div id="colcont" class="lg:pl-56 flex-1 flex flex-col min-w-0">
+    
+    <!-- Top Navigation Header -->
+    <header class="fixed top-0 left-0 lg:left-56 right-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-neutral-200/30 dark:border-white/5 px-6 bg-white/8 dark:bg-[#141414]/8 backdrop-blur-xl">
+      <div class="flex items-center gap-3">
+        <button class="db-menu-toggle lg:hidden p-2 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/5" aria-label="Toggle Sidebar Menu">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+        <h2 class="text-md font-bold text-neutral-800 dark:text-white">Admin Control Dashboard</h2>
       </div>
-    </aside>
+    </header>
 
-    <!-- Main Workspace -->
-    <div class="db-main">
-      <header class="db-header">
-        <div class="db-title-area">
-          <button class="db-menu-toggle" aria-label="Toggle Sidebar Menu">
-            <i data-lucide="menu"></i>
-          </button>
-          <h2 style="font-size: 20px; font-weight: 700;">Host Node Administrator</h2>
-        </div>
-      </header>
-
-      <div class="db-content">
+    <!-- Scrollable Workspace Body -->
+    <main id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="content-wrap">
         
-        <!-- Panel 1: Overview -->
+        <!-- Panel 1: Overview Tab -->
         <div class="db-tab-panel active" id="panel-overview">
-          <div class="db-stats-grid">
-            <div class="db-stat-card">
-              <div class="db-stat-info">
-                <label>Active Virtual Servers</label>
-                <div class="db-stat-value" id="stats-vps-count">0</div>
+          
+          <!-- Quick Status Cards Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:0">
+              <div>
+                <span class="text-xs text-neutral-500 font-medium">Active Virtual Servers</span>
+                <div class="text-xl font-extrabold text-neutral-800 dark:text-white mt-1" id="stats-vps-count">0</div>
               </div>
-              <div class="db-stat-icon"><i data-lucide="server"></i></div>
+              <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                <i data-lucide="server" class="w-5 h-5"></i>
+              </div>
             </div>
-            <div class="db-stat-card">
-              <div class="db-stat-info">
-                <label>Total CPU Cores Allocated</label>
-                <div class="db-stat-value" id="stats-cpu-count">0 Cores</div>
+
+            <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:1">
+              <div>
+                <span class="text-xs text-neutral-500 font-medium">CPU Cores Allocated</span>
+                <div class="text-xl font-extrabold text-neutral-800 dark:text-white mt-1" id="stats-cpu-count">0 Cores</div>
               </div>
-              <div class="db-stat-icon"><i data-lucide="cpu"></i></div>
+              <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                <i data-lucide="cpu" class="w-5 h-5"></i>
+              </div>
             </div>
-            <div class="db-stat-card">
-              <div class="db-stat-info">
-                <label>Total RAM Allocated</label>
-                <div class="db-stat-value" id="stats-ram-allocated">0 MB</div>
+
+            <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:2">
+              <div>
+                <span class="text-xs text-neutral-500 font-medium">Total RAM Allocated</span>
+                <div class="text-xl font-extrabold text-neutral-800 dark:text-white mt-1" id="stats-ram-allocated">0 MB</div>
               </div>
-              <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="layers"></i></div>
+              <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                <i data-lucide="layers" class="w-5 h-5"></i>
+              </div>
             </div>
-            <div class="db-stat-card">
-              <div class="db-stat-info">
-                <label>Registered Clients</label>
-                <div class="db-stat-value" id="stats-clients-count">0</div>
+
+            <div class="stats-card flex items-center justify-between p-5 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-shadow" style="--i:3">
+              <div>
+                <span class="text-xs text-neutral-500 font-medium">Registered Clients</span>
+                <div class="text-xl font-extrabold text-neutral-800 dark:text-white mt-1" id="stats-clients-count">0</div>
               </div>
-              <div class="db-stat-icon" style="background-color: var(--color-primary);"><i data-lucide="users"></i></div>
+              <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-500 dark:text-neutral-400">
+                <i data-lucide="users" class="w-5 h-5"></i>
+              </div>
             </div>
           </div>
 
-          <!-- Host Node Stats -->
-          <div class="db-grid" style="grid-template-columns: 2fr 1fr; margin-bottom: 32px;">
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Host Node Resource Utilization</h3>
-              </div>
-              <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 24px;">
+          <!-- Host Node Stats Grid -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            
+            <!-- Resources Allocation details -->
+            <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Host Node Resource Utilization</h3>
+              <div class="space-y-6">
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Host Hypervisor CPU Core Usage</span>
-                    <strong id="node-cpu-percent">0%</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="node-cpu-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Host Hypervisor CPU Core Usage</span>
+                    <span class="text-neutral-900 dark:text-white" id="node-cpu-percent">0%</span>
+                  </div>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="node-cpu-bar" style="width: 0%;"></div>
                   </div>
                 </div>
+
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Host Node Memory Allocation Load</span>
-                    <strong id="node-ram-usage">0 MB / 16384 MB</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="node-ram-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Host Node Memory Allocation Load</span>
+                    <span class="text-neutral-900 dark:text-white" id="node-ram-usage">0 MB / 16384 MB</span>
+                  </div>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="node-ram-bar" style="width: 0%;"></div>
                   </div>
                 </div>
+
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Host Local Storage Space</span>
-                    <strong id="node-disk-usage">0 GB / 0 GB</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="node-disk-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Host Local Storage Space</span>
+                    <span class="text-neutral-900 dark:text-white" id="node-disk-usage">0 GB / 0 GB</span>
+                  </div>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="node-disk-bar" style="width: 0%;"></div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>LXD Environment</h3>
-              </div>
-              <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
-                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                  <span style="color: var(--color-text-muted);">LXC Version</span>
-                  <strong>5.0+ LTS</strong>
+            <!-- LXD Info card -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">LXD Environment</h3>
+              <ul class="space-y-4 text-xs">
+                <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                  <span class="text-neutral-500">LXC Version</span>
+                  <strong class="text-neutral-800 dark:text-white">5.0+ LTS</strong>
                 </li>
-                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                  <span style="color: var(--color-text-muted);">Bridge Interface</span>
-                  <strong style="font-family: monospace;">lxdbr0</strong>
+                <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                  <span class="text-neutral-500">Bridge Interface</span>
+                  <strong class="text-neutral-800 dark:text-white font-mono">lxdbr0</strong>
                 </li>
-                <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
-                  <span style="color: var(--color-text-muted);">IP Gateway</span>
-                  <strong style="font-family: monospace;">10.155.88.1</strong>
+                <li class="flex justify-between pb-3 border-b border-neutral-200/40 dark:border-white/5">
+                  <span class="text-neutral-500">IP Gateway</span>
+                  <strong class="text-neutral-800 dark:text-white font-mono">10.155.88.1</strong>
                 </li>
-                <li style="display: flex; justify-content: space-between; padding-bottom: 8px;">
-                  <span style="color: var(--color-text-muted);">Mock Fallback</span>
-                  <strong id="mock-badge" style="color: var(--color-cool);">Checking...</strong>
+                <li class="flex justify-between">
+                  <span class="text-neutral-500">Mock Fallback</span>
+                  <strong id="mock-badge" class="text-neutral-800 dark:text-white">Checking...</strong>
                 </li>
               </ul>
             </div>
           </div>
 
-          <!-- System Live Trend Monitor -->
-          <div class="db-block" style="margin-bottom: 32px;">
-            <div class="db-block-header">
-              <h3>System Live Monitor (Real-time CPU & RAM)</h3>
-            </div>
-            <div class="chart-container" style="height: 250px; position: relative; margin-top: 16px;">
+          <!-- Host stats chart -->
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm mb-8">
+            <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">System Live Monitor (Real-time CPU & RAM)</h3>
+            <div class="relative w-full" style="height: 250px;">
               <canvas id="hostStatsChart"></canvas>
             </div>
           </div>
 
-          <!-- Quick logs -->
-          <div class="db-block">
-            <div class="db-block-header">
-              <h3>Recent Audit Log Actions</h3>
-              <a href="#" onclick="showAuditTab()" style="font-size: 13px; color: var(--color-cool); font-weight: 600;">View All Logs</a>
+          <!-- Recent Audit Logs -->
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Recent Audit Log Actions</h3>
+              <button class="text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white" onclick="showAuditTab()">View All Logs</button>
             </div>
-            <div class="db-table-wrapper">
-              <table class="db-table">
-                <thead>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                   <tr>
-                    <th>Log ID</th>
-                    <th>User</th>
-                    <th>Action Activity</th>
-                    <th>Timestamp</th>
+                    <th class="py-3">Log ID</th>
+                    <th class="py-3">User</th>
+                    <th class="py-3">Action Activity</th>
+                    <th class="py-3">Timestamp</th>
                   </tr>
                 </thead>
-                <tbody id="quick-logs-body">
-                  <!-- JS Injection -->
+                <tbody id="quick-logs-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                  <!-- dynamically populated -->
                 </tbody>
               </table>
             </div>
           </div>
+
         </div>
 
         <!-- Panel 2: Deploy VPS -->
-        <!-- Panel 2: Deploy VPS -->
         <div class="db-tab-panel" id="panel-deploy">
-          <div class="db-grid" style="grid-template-columns: 1.2fr 0.8fr; align-items: start; gap: 32px;">
-            <!-- Left Block: Provision Form -->
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Provision Virtual Server Instance</h3>
-              </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            <!-- Provision Form -->
+            <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Provision Virtual Server Instance</h3>
               
-              <form id="deployVPSForm" onsubmit="handleDeployVPS(event)" style="margin-top: 16px;">
-                <div class="form-group">
-                  <label for="deployName">Virtual Server Hostname (e.g. webserver)</label>
-                  <input type="text" id="deployName" class="form-input" placeholder="webserver" required pattern="[a-zA-Z0-9\-]+">
-                  <small style="font-size: 11px; color: var(--color-text-muted);">Alphanumeric name. The backend automatically appends random suffix.</small>
+              <form id="deployVPSForm" onsubmit="handleDeployVPS(event)" class="space-y-4">
+                <div>
+                  <label class="auth-label" for="deployName">Virtual Server Hostname (e.g. webserver)</label>
+                  <input type="text" id="deployName" class="auth-input" placeholder="webserver" required pattern="[a-zA-Z0-9\-]+">
+                  <p class="text-[10px] text-neutral-500 mt-1">Alphanumeric name. The backend automatically appends a random suffix.</p>
                 </div>
 
-                <div class="form-group">
-                  <label for="deployOwner">Owner Client Account</label>
-                  <select id="deployOwner" class="form-input" required>
+                <div>
+                  <label class="auth-label" for="deployOwner">Owner Client Account</label>
+                  <select id="deployOwner" class="auth-input" required>
                     <option value="" disabled selected>Select client...</option>
-                    <!-- Populated from users api -->
                   </select>
                 </div>
 
-                <div class="form-group">
-                  <label for="deployNode">Deployment Target Node</label>
-                  <select id="deployNode" class="form-input" required>
-                    <!-- Populated from nodes api -->
+                <div>
+                  <label class="auth-label" for="deployNode">Deployment Target Node</label>
+                  <select id="deployNode" class="auth-input" required>
+                    <!-- Populated via JS -->
                   </select>
                 </div>
 
-                <div class="form-group">
-                  <label>OS Installation Template</label>
+                <div>
+                  <label class="auth-label">OS Installation Template</label>
                   <input type="hidden" id="deployOS" value="ubuntu/22.04" required>
-                  <div class="os-card-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 8px;">
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
                     <div class="os-card active" data-os="ubuntu/22.04" onclick="window.selectOSCard(this)">
-                      <img src="/public/images/ubuntu.png" alt="Ubuntu" style="width: 24px; height: 24px; object-fit: contain; margin: 0 auto 6px auto; display: block;">
-                      <strong style="font-size: 13px; display: block;">Ubuntu</strong>
-                      <span style="font-size: 10px; color: var(--color-text-muted);">22.04 LTS</span>
+                      <img src="/public/images/ubuntu.png" alt="Ubuntu" class="w-6 h-6 mx-auto mb-1.5 object-contain">
+                      <strong class="text-xs block text-neutral-800 dark:text-white">Ubuntu</strong>
+                      <span class="text-[9px] text-neutral-500">22.04 LTS</span>
                     </div>
                     <div class="os-card" data-os="debian/11" onclick="window.selectOSCard(this)">
-                      <img src="/public/images/debian.svg" alt="Debian" style="width: 24px; height: 24px; object-fit: contain; margin: 0 auto 6px auto; display: block;">
-                      <strong style="font-size: 13px; display: block;">Debian</strong>
-                      <span style="font-size: 10px; color: var(--color-text-muted);">11 Bullseye</span>
+                      <img src="/public/images/debian.svg" alt="Debian" class="w-6 h-6 mx-auto mb-1.5 object-contain">
+                      <strong class="text-xs block text-neutral-800 dark:text-white">Debian</strong>
+                      <span class="text-[9px] text-neutral-500">11 Bullseye</span>
                     </div>
                     <div class="os-card" data-os="alpine/3.18" onclick="window.selectOSCard(this)">
-                      <img src="/public/images/alpine.png" alt="Alpine" style="width: 24px; height: 24px; object-fit: contain; margin: 0 auto 6px auto; display: block;">
-                      <strong style="font-size: 13px; display: block;">Alpine</strong>
-                      <span style="font-size: 10px; color: var(--color-text-muted);">3.18 Light</span>
+                      <img src="/public/images/alpine.png" alt="Alpine" class="w-6 h-6 mx-auto mb-1.5 object-contain">
+                      <strong class="text-xs block text-neutral-800 dark:text-white">Alpine</strong>
+                      <span class="text-[9px] text-neutral-500">3.18 Light</span>
                     </div>
                     <div class="os-card" data-os="centos/9-stream" onclick="window.selectOSCard(this)">
-                      <img src="/public/images/CentOS.png" alt="CentOS" style="width: 24px; height: 24px; object-fit: contain; margin: 0 auto 6px auto; display: block;">
-                      <strong style="font-size: 13px; display: block;">CentOS</strong>
-                      <span style="font-size: 10px; color: var(--color-text-muted);">9 Stream</span>
+                      <img src="/public/images/CentOS.png" alt="CentOS" class="w-6 h-6 mx-auto mb-1.5 object-contain">
+                      <strong class="text-xs block text-neutral-800 dark:text-white">CentOS</strong>
+                      <span class="text-[9px] text-neutral-500">9 Stream</span>
                     </div>
                     <div class="os-card" data-os="windows/10" onclick="window.selectOSCard(this)">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="#0078D4" style="margin: 0 auto 6px auto; display: block;"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699m10.949.143L24 24V12.6H10.949"/></svg>
-                      <strong style="font-size: 13px; display: block;">Windows</strong>
-                      <span style="font-size: 10px; color: var(--color-text-muted);">10 Pro</span>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="#0078D4" class="mx-auto mb-1.5"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699m10.949.143L24 24V12.6H10.949"/></svg>
+                      <strong class="text-xs block text-neutral-800 dark:text-white">Windows</strong>
+                      <span class="text-[9px] text-neutral-500">10 Pro</span>
                     </div>
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>vCPU Cores limit</span>
-                    <strong id="cpu-slider-val">2 Cores</strong>
-                  </label>
-                  <input type="range" id="deployCPU" min="1" max="8" value="2" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployCPUVal(this.value)">
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">vCPU Cores limit</span>
+                    <strong class="text-neutral-800 dark:text-white" id="cpu-slider-val">2 Cores</strong>
+                  </div>
+                  <input type="range" id="deployCPU" min="1" max="8" value="2" class="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer" oninput="updateDeployCPUVal(this.value)">
                 </div>
 
-                <div class="form-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>RAM Memory limit (MB)</span>
-                    <strong id="ram-slider-val">2048 MB</strong>
-                  </label>
-                  <input type="range" id="deployRAM" min="512" max="8192" step="512" value="2048" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployRAMVal(this.value)">
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">RAM Memory limit (MB)</span>
+                    <strong class="text-neutral-800 dark:text-white" id="ram-slider-val">2048 MB</strong>
+                  </div>
+                  <input type="range" id="deployRAM" min="512" max="8192" step="512" value="2048" class="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer" oninput="updateDeployRAMVal(this.value)">
                 </div>
 
-                <div class="form-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>NVMe Root Storage size (GB)</span>
-                    <strong id="disk-slider-val">20 GB</strong>
-                  </label>
-                  <input type="range" id="deployDisk" min="10" max="100" step="5" value="20" class="form-input" style="padding: 0; margin-top: 6px;" oninput="updateDeployDiskVal(this.value)">
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">NVMe Root Storage size (GB)</span>
+                    <strong class="text-neutral-800 dark:text-white" id="disk-slider-val">20 GB</strong>
+                  </div>
+                  <input type="range" id="deployDisk" min="10" max="100" step="5" value="20" class="w-full h-1 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer" oninput="updateDeployDiskVal(this.value)">
                 </div>
 
-                <div class="form-group">
-                  <label for="deployPassword">Default Root Password</label>
-                  <div style="display: flex; gap: 8px; align-items: center; position: relative;">
-                    <input type="password" id="deployPassword" class="form-input" placeholder="••••••••" required minlength="6" style="padding-right: 80px; flex: 1;">
-                    <div style="position: absolute; right: 120px; top: 50%; transform: translateY(-50%); display: flex; gap: 8px; align-items: center; z-index: 10;">
-                      <button type="button" onclick="toggleDeployPassword()" style="background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center;" title="Toggle Password">
-                        <i data-lucide="eye" id="password-toggle-icon" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
-                      </button>
-                      <button type="button" onclick="copyGeneratedPassword()" style="background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center;" title="Copy Password">
-                        <i data-lucide="copy" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
-                      </button>
+                <div>
+                  <label class="auth-label" for="deployPassword">Default Root Password</label>
+                  <div class="flex gap-2 items-center relative">
+                    <input type="password" id="deployPassword" class="auth-input flex-1 pr-20" placeholder="••••••••" required minlength="6">
+                    
+                    <div class="absolute right-28 top-1/2 -translate-y-1/2 flex gap-1.5 z-10 text-neutral-400 hover:text-neutral-600 dark:hover:text-white transition-colors">
+                      <button type="button" onclick="toggleDeployPassword()" title="Toggle Password"><i data-lucide="eye" id="password-toggle-icon" class="w-4 h-4"></i></button>
+                      <button type="button" onclick="copyGeneratedPassword()" title="Copy Password"><i data-lucide="copy" class="w-4 h-4"></i></button>
                     </div>
-                    <button type="button" class="btn btn-outline" style="padding: 10px; margin: 0; box-shadow: 2px 2px 0px var(--color-border); font-size: 13px; font-weight: 700; width: 105px;" onclick="triggerPasswordGeneration()" title="Generate Random Password">
-                      <i data-lucide="refresh-cw" style="width: 13px; height: 13px; vertical-align: middle;"></i> Generate
+
+                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-2 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-bold rounded-xl transition" onclick="triggerPasswordGeneration()">
+                      <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Generate
                     </button>
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="deployDiscordUser">Discord User to Notify (Optional)</label>
-                  <div style="position: relative;">
-                    <i data-lucide="bell" class="input-icon-left"></i>
-                    <select id="deployDiscordUser" class="form-input has-icon-left">
-                      <option value="">No Discord notification</option>
-                    </select>
-                  </div>
+                <div>
+                  <label class="auth-label" for="deployDiscordUser">Discord User to Notify (Optional)</label>
+                  <select id="deployDiscordUser" class="auth-input">
+                    <option value="">No Discord notification</option>
+                  </select>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 24px;">
-                  <i data-lucide="play-circle"></i> Deploy Container Instance
+                <button type="submit" class="auth-submit w-full mt-4">
+                  <i data-lucide="play-circle" class="w-4 h-4"></i> Deploy Container Instance
                 </button>
               </form>
             </div>
 
-            <!-- Right Block: Host Capacity Impact Preview -->
-            <div class="db-block" id="host-impact-preview-block" style="position: sticky; top: 100px;">
-              <div class="db-block-header">
-                <h3>Projected Host Impact</h3>
-              </div>
-              <p style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 20px; line-height: 1.5;">
-                Visual estimation of host hypervisor resource utilization after provisioning this container.
-              </p>
+            <!-- Projected Host Capacity Preview -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm lg:sticky lg:top-20">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-2">Projected Host Impact</h3>
+              <p class="text-[11px] text-neutral-500 leading-relaxed mb-6">Visual estimation of hypervisor resources after provisioning this VPS container.</p>
               
-              <div style="display: flex; flex-direction: column; gap: 20px;">
+              <div class="space-y-6">
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Projected Host CPU Load</span>
-                    <strong id="preview-cpu-text">0%</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="preview-cpu-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Projected Host CPU Load</span>
+                    <strong class="text-neutral-800 dark:text-white" id="preview-cpu-text">0%</strong>
                   </div>
-                  <small id="preview-cpu-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0% | Allocation: +2 cores</small>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="preview-cpu-bar" style="width: 0%;"></div>
+                  </div>
+                  <p class="text-[10px] text-neutral-400 mt-1" id="preview-cpu-delta">Current: 0% | Allocation: +2 cores</p>
                 </div>
 
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Projected Host RAM Load</span>
-                    <strong id="preview-ram-text">0 GB / 0 GB</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="preview-ram-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Projected Host RAM Load</span>
+                    <strong class="text-neutral-800 dark:text-white" id="preview-ram-text">0 GB / 0 GB</strong>
                   </div>
-                  <small id="preview-ram-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0 GB | Allocation: +2048 MB</small>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="preview-ram-bar" style="width: 0%;"></div>
+                  </div>
+                  <p class="text-[10px] text-neutral-400 mt-1" id="preview-ram-delta">Current: 0 GB | Allocation: +2048 MB</p>
                 </div>
 
                 <div class="meter-group">
-                  <label style="display: flex; justify-content: space-between;">
-                    <span>Projected Local Storage Load</span>
-                    <strong id="preview-disk-text">0 GB / 0 GB</strong>
-                  </label>
-                  <div class="meter-track">
-                    <div class="meter-bar" id="preview-disk-bar" style="width: 0%;"></div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-neutral-500">Projected Local Storage Load</span>
+                    <strong class="text-neutral-800 dark:text-white" id="preview-disk-text">0 GB / 0 GB</strong>
                   </div>
-                  <small id="preview-disk-delta" style="font-size: 10px; color: var(--color-text-muted);">Current: 0 GB | Allocation: +20 GB</small>
+                  <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800/60 rounded-full overflow-hidden">
+                    <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="preview-disk-bar" style="width: 0%;"></div>
+                  </div>
+                  <p class="text-[10px] text-neutral-400 mt-1" id="preview-disk-delta">Current: 0 GB | Allocation: +20 GB</p>
                 </div>
               </div>
-              
-              <div id="allocation-warning-badge" style="display: none; margin-top: 24px; padding: 12px; background-color: #fee2e2; border: 2px solid var(--color-danger); border-radius: var(--radius-sm); color: var(--color-danger); font-size: 12px; font-weight: 700; text-align: center; box-shadow: 2px 2px 0px var(--color-danger);">
-                <i data-lucide="alert-triangle" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
-                Warning: Exceeds host physical capacity!
+
+              <!-- Capacity warning -->
+              <div id="allocation-warning-badge" style="display: none;" class="mt-6 p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-center text-xs font-bold">
+                <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1"></i> Warning: Exceeds physical capacity!
               </div>
             </div>
+
           </div>
         </div>
 
         <!-- Panel 3: Virtual Servers Table -->
         <div class="db-tab-panel" id="panel-containers">
-          <div class="db-block">
-            <div class="db-block-header">
-              <h3>Active Containers Cluster</h3>
-            </div>
-            
-            <div class="db-table-wrapper" style="margin-top: 16px;">
-              <table class="db-table">
-                <thead>
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+            <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Active Containers Cluster</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                   <tr>
-                    <th>Container Name</th>
-                    <th>Client Owner</th>
-                    <th>OS Template</th>
-                    <th>Hardware Profile</th>
-                    <th>IPv4 Address</th>
-                    <th>Status</th>
-                    <th>Created At</th>
-                    <th class="text-right">Actions</th>
+                    <th class="py-3">Container Name</th>
+                    <th class="py-3">Client Owner</th>
+                    <th class="py-3">OS Template</th>
+                    <th class="py-3">Hardware Profile</th>
+                    <th class="py-3">IPv4 Address</th>
+                    <th class="py-3">Status</th>
+                    <th class="py-3">Created At</th>
+                    <th class="py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="containers-table-body">
-                  <!-- Populate dynamically -->
+                <tbody id="containers-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                  <!-- populated dynamically -->
                 </tbody>
               </table>
             </div>
@@ -588,22 +634,20 @@
 
         <!-- Panel 4: Audit Logs -->
         <div class="db-tab-panel" id="panel-logs">
-          <div class="db-block">
-            <div class="db-block-header">
-              <h3>Security & Operation Logs</h3>
-            </div>
-            <div class="db-table-wrapper" style="margin-top: 16px;">
-              <table class="db-table">
-                <thead>
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+            <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Security & Operation Logs</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                   <tr>
-                    <th>Log ID</th>
-                    <th>Target User</th>
-                    <th>Executed Action</th>
-                    <th>Action Timestamp</th>
+                    <th class="py-3">Log ID</th>
+                    <th class="py-3">Target User</th>
+                    <th class="py-3">Executed Action</th>
+                    <th class="py-3">Action Timestamp</th>
                   </tr>
                 </thead>
-                <tbody id="full-logs-body">
-                  <!-- Populate dynamically -->
+                <tbody id="full-logs-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                  <!-- populated dynamically -->
                 </tbody>
               </table>
             </div>
@@ -612,427 +656,417 @@
 
         <!-- Panel 5: Customization & Branding -->
         <div class="db-tab-panel" id="panel-customization">
+          
+          <!-- Sub-navigation tabs -->
+          <div class="flex gap-2 mb-6 border-b border-neutral-200/30 dark:border-white/5 pb-px">
+            <button class="subnav-btn px-4 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 border-transparent text-neutral-500 hover:text-neutral-950 dark:hover:text-white active" data-subtarget="subpanel-branding">Branding & Theme</button>
+            <button class="subnav-btn px-4 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 border-transparent text-neutral-500 hover:text-neutral-950 dark:hover:text-white" data-subtarget="subpanel-plans">VPS Plans</button>
+            <button class="subnav-btn px-4 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 border-transparent text-neutral-500 hover:text-neutral-950 dark:hover:text-white" data-subtarget="subpanel-faqs">FAQs</button>
+          </div>
 
-          <!-- Subpanel 1: Branding -->
           <div class="sub-tab-panel active" id="subpanel-branding">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; align-items: start;">
-              <div class="db-block">
-              <div class="db-block-header">
-                <h3>Branding & Theme Colors</h3>
-              </div>
-              <form id="brandingForm" onsubmit="saveBranding(event)" style="margin-top: 16px;">
-                <div class="form-group">
-                  <label for="brandSiteName">Hosting Brand Name</label>
-                  <input type="text" id="brandSiteName" class="form-input" value="{{ settings.get('site_name', 'MintyHost LXC') }}" required>
-                </div>
-
-                <div class="form-group">
-                  <label for="brandAuthImageUrl">Authentication Page Image URL</label>
-                  <input type="text" id="brandAuthImageUrl" class="form-input" value="{{ settings.get('auth_image_url') or '/static/images/auth-img.jpg' }}" placeholder="/static/images/auth-img.jpg" required>
-                </div>
-
-                <!-- Custom Logo & Favicon Upload -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-                  <div class="form-group">
-                    <label style="font-weight: 600; color: var(--color-text-main);">Website Logo</label>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                      <div class="logo-preview-container" style="display: flex; align-items: center; justify-content: center; height: 100px; border: 2px dashed var(--color-border); border-radius: var(--radius-md); background: #fafafa; overflow: hidden; position: relative;">
-                        {% if settings.get('logo_url') %}
-                          <img id="adminLogoPreview" src="{{ settings.get('logo_url') }}" alt="Logo Preview" style="max-height: 80px; max-width: 90%; object-fit: contain;">
-                        {% else %}
-                          <div id="adminLogoFallback" class="logo-icon" style="font-size: 32px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: none; border-radius: var(--radius-sm);">M</div>
-                        {% endif %}
-                      </div>
-                      <div style="display: flex; gap: 8px;">
-                        <input type="file" id="logoUploadInput" accept="image/*" style="display: none;" onchange="handleBrandingUpload(this, 'logo')">
-                        <button type="button" class="btn btn-outline" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600;" onclick="document.getElementById('logoUploadInput').click()">
-                          <i data-lucide="upload" style="width: 14px; height: 14px; margin-right: 4px;"></i> Upload
-                        </button>
-                        <button type="button" id="btn-remove-logo" class="btn btn-outline" style="padding: 8px 12px; border-color: #f6d1d1; background: #fdf2f2; color: #b91c1c; display: {% if settings.get('logo_url') %}inline-flex{% else %}none{% endif %}; justify-content: center; align-items: center;" onclick="removeBrandingImage('logo')">
-                          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label style="font-weight: 600; color: var(--color-text-main);">Website Favicon</label>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                      <div class="favicon-preview-container" style="display: flex; align-items: center; justify-content: center; height: 100px; border: 2px dashed var(--color-border); border-radius: var(--radius-md); background: #fafafa; overflow: hidden; position: relative;">
-                        {% if settings.get('favicon_url') %}
-                          <img id="adminFaviconPreview" src="{{ settings.get('favicon_url') }}" alt="Favicon Preview" style="width: 48px; height: 48px; object-fit: contain;">
-                        {% else %}
-                          <div id="adminFaviconFallback" style="font-size: 32px; font-weight: bold; color: var(--color-text-muted);">FI</div>
-                        {% endif %}
-                      </div>
-                      <div style="display: flex; gap: 8px;">
-                        <input type="file" id="faviconUploadInput" accept="image/*,.ico" style="display: none;" onchange="handleBrandingUpload(this, 'favicon')">
-                        <button type="button" class="btn btn-outline" style="flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600;" onclick="document.getElementById('faviconUploadInput').click()">
-                          <i data-lucide="upload" style="width: 14px; height: 14px; margin-right: 4px;"></i> Upload
-                        </button>
-                        <button type="button" id="btn-remove-favicon" class="btn btn-outline" style="padding: 8px 12px; border-color: #f6d1d1; background: #fdf2f2; color: #b91c1c; display: {% if settings.get('favicon_url') %}inline-flex{% else %}none{% endif %}; justify-content: center; align-items: center;" onclick="removeBrandingImage('favicon')">
-                          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="form-group" style="margin-top: 16px; margin-bottom: 20px;">
-                  <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--color-text-main);">Quick Theme Presets</label>
-                  <div class="theme-presets-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    
-                    <div class="theme-preset-card" data-primary="#6367FF" data-secondary="#8494FF" data-accent="#C9BEFF" data-cool="#FFDBFD">
-                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Indigo Lavender</div>
-                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
-                        <div style="flex: 1; background-color: #6367FF;" title="Primary: #6367FF"></div>
-                        <div style="flex: 1; background-color: #8494FF;" title="Secondary: #8494FF"></div>
-                        <div style="flex: 1; background-color: #C9BEFF;" title="Accent: #C9BEFF"></div>
-                        <div style="flex: 1; background-color: #FFDBFD;" title="Cool: #FFDBFD"></div>
-                      </div>
-                    </div>
-
-                    <div class="theme-preset-card" data-primary="#280905" data-secondary="#740A03" data-accent="#C3110C" data-cool="#E6501B">
-                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Crimson Sunset</div>
-                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
-                        <div style="flex: 1; background-color: #280905;" title="Primary: #280905"></div>
-                        <div style="flex: 1; background-color: #740A03;" title="Secondary: #740A03"></div>
-                        <div style="flex: 1; background-color: #C3110C;" title="Accent: #C3110C"></div>
-                        <div style="flex: 1; background-color: #E6501B;" title="Cool: #E6501B"></div>
-                      </div>
-                    </div>
-
-                    <div class="theme-preset-card" data-primary="#2C5EAD" data-secondary="#1591DC" data-accent="#4BB8FA" data-cool="#C4E2F5">
-                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Classic Ocean</div>
-                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
-                        <div style="flex: 1; background-color: #2C5EAD;" title="Primary: #2C5EAD"></div>
-                        <div style="flex: 1; background-color: #1591DC;" title="Secondary: #1591DC"></div>
-                        <div style="flex: 1; background-color: #4BB8FA;" title="Accent: #4BB8FA"></div>
-                        <div style="flex: 1; background-color: #C4E2F5;" title="Cool: #C4E2F5"></div>
-                      </div>
-                    </div>
-
-                    <div class="theme-preset-card" data-primary="#404258" data-secondary="#474E68" data-accent="#50577A" data-cool="#6B728E">
-                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Slate Charcoal</div>
-                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
-                        <div style="flex: 1; background-color: #404258;" title="Primary: #404258"></div>
-                        <div style="flex: 1; background-color: #474E68;" title="Secondary: #474E68"></div>
-                        <div style="flex: 1; background-color: #50577A;" title="Accent: #50577A"></div>
-                        <div style="flex: 1; background-color: #6B728E;" title="Cool: #6B728E"></div>
-                      </div>
-                    </div>
-
-                    <div class="theme-preset-card" data-primary="#111F35" data-secondary="#8A244B" data-accent="#D02752" data-cool="#F63049">
-                      <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main);">Midnight Rose</div>
-                      <div style="display: flex; gap: 4px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 4px;">
-                        <div style="flex: 1; background-color: #111F35;" title="Primary: #111F35"></div>
-                        <div style="flex: 1; background-color: #8A244B;" title="Secondary: #8A244B"></div>
-                        <div style="flex: 1; background-color: #D02752;" title="Accent: #D02752"></div>
-                        <div style="flex: 1; background-color: #F63049;" title="Cool: #F63049"></div>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-                  <div class="form-group">
-                    <label for="brandColorPrimary">Primary Color</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <input type="color" id="brandColorPrimary" value="{{ settings.get('color_primary', '#ECF4E8') }}" style="width: 40px; height: 38px; border: none; cursor: pointer; border-radius: var(--radius-sm);">
-                      <input type="text" id="brandColorPrimaryText" class="form-input" value="{{ settings.get('color_primary', '#ECF4E8') }}" pattern="^#[0-9A-Fa-f]{6}$" required style="font-family: monospace;">
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label for="brandColorSecondary">Secondary Color</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <input type="color" id="brandColorSecondary" value="{{ settings.get('color_secondary', '#CBF3BB') }}" style="width: 40px; height: 38px; border: none; cursor: pointer; border-radius: var(--radius-sm);">
-                      <input type="text" id="brandColorSecondaryText" class="form-input" value="{{ settings.get('color_secondary', '#CBF3BB') }}" pattern="^#[0-9A-Fa-f]{6}$" required style="font-family: monospace;">
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label for="brandColorAccent">Accent Color</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <input type="color" id="brandColorAccent" value="{{ settings.get('color_accent', '#ABE7B2') }}" style="width: 40px; height: 38px; border: none; cursor: pointer; border-radius: var(--radius-sm);">
-                      <input type="text" id="brandColorAccentText" class="form-input" value="{{ settings.get('color_accent', '#ABE7B2') }}" pattern="^#[0-9A-Fa-f]{6}$" required style="font-family: monospace;">
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label for="brandColorCool">Cool / Muted Color</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <input type="color" id="brandColorCool" value="{{ settings.get('color_cool', '#93BFC7') }}" style="width: 40px; height: 38px; border: none; cursor: pointer; border-radius: var(--radius-sm);">
-                      <input type="text" id="brandColorCoolText" class="form-input" value="{{ settings.get('color_cool', '#93BFC7') }}" pattern="^#[0-9A-Fa-f]{6}$" required style="font-family: monospace;">
-                    </div>
-                  </div>
-                </div>
-                <button type="submit" class="btn btn-primary" style="margin-top: 24px; width: 100%;">
-                  <i data-lucide="save"></i> Save Theme Settings
-                </button>
-              </form>
-            </div>
-
-              <div class="db-block" style="margin-top: 0;">
-              <div class="db-block-header" style="border-bottom: 2px solid var(--color-border); padding-bottom: 12px; margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <i data-lucide="message-square-dashed" style="width: 22px; height: 22px; color: var(--color-cool-text);"></i>
-                  <h3 style="margin: 0; font-size: 18px; font-weight: 800;">Discord Bot Notifications Integration</h3>
-                </div>
-              </div>
-              <form id="discordIntegrationForm" onsubmit="saveDiscordIntegration(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordBotToken" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Bot Token</label>
-                  <div style="position: relative;">
-                    <i data-lucide="key-round" class="input-icon-left"></i>
-                    <input type="password" id="discordBotToken" class="form-input has-icon-left" value="{{ settings.get('discord_bot_token', '') }}" placeholder="Enter Bot Token">
-                  </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Can also be configured as <code>DISCORD_BOT_TOKEN</code> in your environment or bot .env file.</small>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordGuildId" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Guild / Server ID</label>
-                  <div style="position: relative;">
-                    <i data-lucide="server" class="input-icon-left"></i>
-                    <input type="text" id="discordGuildId" class="form-input has-icon-left" value="{{ settings.get('discord_guild_id', '') }}" placeholder="Enter Server ID">
-                  </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Can also be configured as <code>DISCORD_GUILD_ID</code> in your environment.</small>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordWebhookUrl" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord Audit Logs Webhook URL</label>
-                  <div style="position: relative;">
-                    <i data-lucide="link" class="input-icon-left"></i>
-                    <input type="url" id="discordWebhookUrl" class="form-input has-icon-left" value="{{ settings.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
-                  </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Audit logs from the panel will be forwarded to this Discord webhook.</small>
-                </div>
-                <div class="form-group" style="margin-bottom: 20px;">
-                  <label for="discordNotifyUserId" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Discord User ID to Notify/Ping (Optional)</label>
-                  <div style="position: relative;">
-                    <i data-lucide="bell" class="input-icon-left"></i>
-                    <input type="text" id="discordNotifyUserId" class="form-input has-icon-left" value="{{ settings.get('discord_notify_user_id', '') }}" placeholder="Enter User ID manually or select...">
-                  </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">This administrator/user will receive DM alerts and pings on success or failure of any VPS container deployment.</small>
-                </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              
+              <!-- Branding settings -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Branding & Theme Colors</h3>
                 
-                <hr style="border: none; border-top: 1px dashed var(--color-border); margin: 24px 0;">
-                <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 800;">Real-Time Status Monitoring</h3>
+                <form id="brandingForm" onsubmit="saveBranding(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="brandSiteName">Hosting Brand Name</label>
+                    <input type="text" id="brandSiteName" class="auth-input" value="{{ settings.get('brandSiteName', 'MintyHost LXC') }}" required>
+                  </div>
+
+                  <div>
+                    <label class="auth-label" for="brandAuthImageUrl">Authentication Page Image URL</label>
+                    <input type="text" id="brandAuthImageUrl" class="auth-input" value="{{ settings.get('auth_image_url') or '/static/images/auth-img.jpg' }}" placeholder="/static/images/auth-img.jpg" required>
+                  </div>
+
+                  <!-- Upload Logos -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-[11px] font-bold text-neutral-500 block mb-1">Website Logo</label>
+                      <div class="flex flex-col gap-2">
+                        <div class="logo-preview-container h-24 border-2 border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/20 rounded-xl flex items-center justify-center overflow-hidden">
+                          {% if settings.get('logo_url') %}
+                            <img id="adminLogoPreview" src="{{ settings.get('logo_url') }}" alt="Logo" class="max-h-16 max-w-[90%] object-contain">
+                          {% else %}
+                            <div id="adminLogoFallback" class="w-12 h-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-md">M</div>
+                          {% endif %}
+                        </div>
+                        <div class="flex gap-2">
+                          <input type="file" id="logoUploadInput" accept="image/*" class="hidden" onchange="handleBrandingUpload(this, 'logo')">
+                          <button type="button" class="flex-1 py-1 px-3 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-[10px] font-bold rounded-xl transition" onclick="document.getElementById('logoUploadInput').click()">Upload</button>
+                          <button type="button" id="btn-remove-logo" class="px-2 border border-red-300 dark:border-red-900 bg-red-500/5 hover:bg-red-500/10 text-red-600 rounded-xl transition" onclick="removeBrandingImage('logo')" style="display: {% if settings.get('logo_url') %}inline-flex{% else %}none{% endif %}; align-items:center; justify-content:center;">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="text-[11px] font-bold text-neutral-500 block mb-1">Website Favicon</label>
+                      <div class="flex flex-col gap-2">
+                        <div class="favicon-preview-container h-24 border-2 border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/20 rounded-xl flex items-center justify-center overflow-hidden">
+                          {% if settings.get('favicon_url') %}
+                            <img id="adminFaviconPreview" src="{{ settings.get('favicon_url') }}" alt="Favicon" class="w-10 h-10 object-contain">
+                          {% else %}
+                            <div id="adminFaviconFallback" class="text-neutral-400 font-bold text-sm">FI</div>
+                          {% endif %}
+                        </div>
+                        <div class="flex gap-2">
+                          <input type="file" id="faviconUploadInput" accept="image/*,.ico" class="hidden" onchange="handleBrandingUpload(this, 'favicon')">
+                          <button type="button" class="flex-1 py-1 px-3 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-[10px] font-bold rounded-xl transition" onclick="document.getElementById('faviconUploadInput').click()">Upload</button>
+                          <button type="button" id="btn-remove-favicon" class="px-2 border border-red-300 dark:border-red-900 bg-red-500/5 hover:bg-red-500/10 text-red-600 rounded-xl transition" onclick="removeBrandingImage('favicon')" style="display: {% if settings.get('favicon_url') %}inline-flex{% else %}none{% endif %}; align-items:center; justify-content:center;">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Presets -->
+                  <div>
+                    <label class="text-xs font-bold text-neutral-500 block mb-2">Quick Theme Presets</label>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="theme-preset-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 p-3 rounded-xl cursor-pointer" data-primary="#6367FF" data-secondary="#8494FF" data-accent="#C9BEFF" data-cool="#FFDBFD">
+                        <span class="text-xs font-bold text-neutral-800 dark:text-white">Indigo Lavender</span>
+                        <div class="flex gap-1 h-3 rounded overflow-hidden mt-2">
+                          <div class="flex-1" style="background:#6367FF;"></div>
+                          <div class="flex-1" style="background:#8494FF;"></div>
+                          <div class="flex-1" style="background:#C9BEFF;"></div>
+                        </div>
+                      </div>
+                      <div class="theme-preset-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 p-3 rounded-xl cursor-pointer" data-primary="#280905" data-secondary="#740A03" data-accent="#C3110C" data-cool="#E6501B">
+                        <span class="text-xs font-bold text-neutral-800 dark:text-white">Crimson Sunset</span>
+                        <div class="flex gap-1 h-3 rounded overflow-hidden mt-2">
+                          <div class="flex-1" style="background:#280905;"></div>
+                          <div class="flex-1" style="background:#740A03;"></div>
+                          <div class="flex-1" style="background:#C3110C;"></div>
+                        </div>
+                      </div>
+                      <div class="theme-preset-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 p-3 rounded-xl cursor-pointer" data-primary="#2C5EAD" data-secondary="#1591DC" data-accent="#4BB8FA" data-cool="#C4E2F5">
+                        <span class="text-xs font-bold text-neutral-800 dark:text-white">Classic Ocean</span>
+                        <div class="flex gap-1 h-3 rounded overflow-hidden mt-2">
+                          <div class="flex-1" style="background:#2C5EAD;"></div>
+                          <div class="flex-1" style="background:#1591DC;"></div>
+                          <div class="flex-1" style="background:#4BB8FA;"></div>
+                        </div>
+                      </div>
+                      <div class="theme-preset-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800 p-3 rounded-xl cursor-pointer" data-primary="#404258" data-secondary="#474E68" data-accent="#50577A" data-cool="#6B728E">
+                        <span class="text-xs font-bold text-neutral-800 dark:text-white">Slate Charcoal</span>
+                        <div class="flex gap-1 h-3 rounded overflow-hidden mt-2">
+                          <div class="flex-1" style="background:#404258;"></div>
+                          <div class="flex-1" style="background:#474E68;"></div>
+                          <div class="flex-1" style="background:#50577A;"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Explicit input customizer -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="text-[10px] font-bold text-neutral-400 block mb-1">Primary Color</label>
+                      <div class="flex gap-2 items-center">
+                        <input type="color" id="brandColorPrimary" value="{{ settings.get('color_primary', '#ECF4E8') }}" class="w-10 h-9 rounded cursor-pointer border-none">
+                        <input type="text" id="brandColorPrimaryText" class="auth-input font-mono text-xs flex-1 py-1" value="{{ settings.get('color_primary', '#ECF4E8') }}" pattern="^#[0-9A-Fa-f]{6}$" required>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-bold text-neutral-400 block mb-1">Secondary Color</label>
+                      <div class="flex gap-2 items-center">
+                        <input type="color" id="brandColorSecondary" value="{{ settings.get('color_secondary', '#CBF3BB') }}" class="w-10 h-9 rounded cursor-pointer border-none">
+                        <input type="text" id="brandColorSecondaryText" class="auth-input font-mono text-xs flex-1 py-1" value="{{ settings.get('color_secondary', '#CBF3BB') }}" pattern="^#[0-9A-Fa-f]{6}$" required>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-bold text-neutral-400 block mb-1">Accent Color</label>
+                      <div class="flex gap-2 items-center">
+                        <input type="color" id="brandColorAccent" value="{{ settings.get('color_accent', '#ABE7B2') }}" class="w-10 h-9 rounded cursor-pointer border-none">
+                        <input type="text" id="brandColorAccentText" class="auth-input font-mono text-xs flex-1 py-1" value="{{ settings.get('color_accent', '#ABE7B2') }}" pattern="^#[0-9A-Fa-f]{6}$" required>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-bold text-neutral-400 block mb-1">Cool Color</label>
+                      <div class="flex gap-2 items-center">
+                        <input type="color" id="brandColorCool" value="{{ settings.get('color_cool', '#93BFC7') }}" class="w-10 h-9 rounded cursor-pointer border-none">
+                        <input type="text" id="brandColorCoolText" class="auth-input font-mono text-xs flex-1 py-1" value="{{ settings.get('color_cool', '#93BFC7') }}" pattern="^#[0-9A-Fa-f]{6}$" required>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button type="submit" class="auth-submit w-full mt-4">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save Theme Settings
+                  </button>
+                </form>
+              </div>
+
+              <!-- Discord bot integrations -->
+              <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+                <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Discord Bot Integration</h3>
                 
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordStatusEnabled" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Enable Status Monitoring Webhook</label>
-                  <div style="position: relative;">
-                    <i data-lucide="activity" class="input-icon-left" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); pointer-events: none;"></i>
-                    <select id="discordStatusEnabled" class="form-input has-icon-left" style="width: 100%;">
+                <form id="discordIntegrationForm" onsubmit="saveDiscordIntegration(event)" class="space-y-4">
+                  <div>
+                    <label class="auth-label" for="discordBotToken">Discord Bot Token</label>
+                    <input type="password" id="discordBotToken" class="auth-input" value="{{ settings.get('discord_bot_token', '') }}" placeholder="Enter Bot Token">
+                  </div>
+
+                  <div>
+                    <label class="auth-label" for="discordGuildId">Discord Server Guild ID</label>
+                    <input type="text" id="discordGuildId" class="auth-input" value="{{ settings.get('discord_guild_id', '') }}" placeholder="Enter Server Guild ID">
+                  </div>
+
+                  <div>
+                    <label class="auth-label" for="discordWebhookUrl">Discord Audit Logs Webhook URL</label>
+                    <input type="url" id="discordWebhookUrl" class="auth-input" value="{{ settings.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
+                  </div>
+
+                  <div>
+                    <label class="auth-label" for="discordNotifyUserId">Discord Notify Admin User ID (Optional)</label>
+                    <input type="text" id="discordNotifyUserId" class="auth-input" value="{{ settings.get('discord_notify_user_id', '') }}" placeholder="Enter User ID to notify on VPS Deploy">
+                  </div>
+
+                  <hr class="border-t border-dashed border-neutral-200 dark:border-neutral-800 my-6">
+                  
+                  <h4 class="text-xs font-bold text-neutral-700 dark:text-neutral-400">Real-Time Status Monitoring</h4>
+
+                  <div>
+                    <label class="auth-label" for="discordStatusEnabled">Enable Status Monitoring Webhook</label>
+                    <select id="discordStatusEnabled" class="auth-input">
                       <option value="0" {% if settings.get('discord_status_enabled', '0') == '0' %}selected{% endif %}>Disabled</option>
                       <option value="1" {% if settings.get('discord_status_enabled', '0') == '1' %}selected{% endif %}>Enabled</option>
                     </select>
                   </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">If enabled, a single Discord embed will be kept updated in real-time (every 10s) with panel and hypervisor health.</small>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordStatusWebhookUrl" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Status Webhook URL</label>
-                  <div style="position: relative;">
-                    <i data-lucide="link-2" class="input-icon-left"></i>
-                    <input type="url" id="discordStatusWebhookUrl" class="form-input has-icon-left" value="{{ settings.get('discord_status_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
+
+                  <div>
+                    <label class="auth-label" for="discordStatusWebhookUrl">Status Webhook URL</label>
+                    <input type="url" id="discordStatusWebhookUrl" class="auth-input" value="{{ settings.get('discord_status_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
                   </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Discord channel webhook where the status embed will be published and updated.</small>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 16px;">
-                  <label for="discordStatusHealthUrl" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Public Panel Health URL</label>
-                  <div style="position: relative;">
-                    <i data-lucide="globe" class="input-icon-left"></i>
-                    <input type="url" id="discordStatusHealthUrl" class="form-input has-icon-left" value="{{ settings.get('discord_status_health_url', '') }}" placeholder="http://your-panel-fqdn/">
+
+                  <div>
+                    <label class="auth-label" for="discordStatusHealthUrl">Public Panel Health URL</label>
+                    <input type="url" id="discordStatusHealthUrl" class="auth-input" value="{{ settings.get('discord_status_health_url', '') }}" placeholder="http://your-panel-fqdn/">
                   </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">The public URL displayed in the Discord status embed pointing to your panel or health check endpoint.</small>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 20px;">
-                  <label for="discordStatusTitle" style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 13px;">Status Embed Title</label>
-                  <div style="position: relative;">
-                    <i data-lucide="type" class="input-icon-left"></i>
-                    <input type="text" id="discordStatusTitle" class="form-input has-icon-left" value="{{ settings.get('discord_status_title', 'MintyHost Panel Status') }}" placeholder="MintyHost Panel Status">
+
+                  <div>
+                    <label class="auth-label" for="discordStatusTitle">Status Embed Title</label>
+                    <input type="text" id="discordStatusTitle" class="auth-input" value="{{ settings.get('discord_status_title', 'MintyHost Panel Status') }}">
                   </div>
-                  <small style="font-size: 11px; color: var(--color-text-muted); display: block; margin-top: 4px;">Title displayed at the top of the Discord status embed.</small>
-                </div>
-                
-                <button type="submit" class="btn btn-secondary" style="margin-top: 10px; width: 100%; box-shadow: 2px 2px 0px var(--color-border); font-weight: 700;">
-                  <i data-lucide="save"></i> Save Discord Integration
-                </button>
-              </form>
+
+                  <button type="submit" class="auth-submit w-full mt-4">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save Discord Integration
+                  </button>
+                </form>
+              </div>
+
             </div>
+          </div> <!-- closes subpanel-branding -->
+
+          <!-- Subpanel 2: VPS Plans -->
+          <div class="sub-tab-panel" id="subpanel-plans" style="display: none;">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <div class="flex justify-between items-center mb-6">
+                <div>
+                  <h3 class="text-sm font-bold text-neutral-800 dark:text-white">VPS Pricing Plans</h3>
+                  <p class="text-xs text-neutral-500 mt-1">Configure pricing tiers, resource limitations, and credit costs.</p>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-3 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 rounded-xl transition shadow-sm" onclick="openPlanModal()">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> Create New Plan
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+                    <tr>
+                      <th class="py-3">Plan ID</th>
+                      <th class="py-3">Plan Name</th>
+                      <th class="py-3">Price (USD)</th>
+                      <th class="py-3">CPU Cores</th>
+                      <th class="py-3">RAM Capacity</th>
+                      <th class="py-3">Disk Storage</th>
+                      <th class="py-3">Bandwidth</th>
+                      <th class="py-3">Credits Price</th>
+                      <th class="py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="custom-plans-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                    <!-- populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subpanel 3: FAQs -->
+          <div class="sub-tab-panel" id="subpanel-faqs" style="display: none;">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <div class="flex justify-between items-center mb-6">
+                <div>
+                  <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Frequently Asked Questions</h3>
+                  <p class="text-xs text-neutral-500 mt-1">Manage FAQs content displayed in public landing pages.</p>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-3 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 rounded-xl transition shadow-sm" onclick="openFaqModal()">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> Create FAQ Item
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+                    <tr>
+                      <th class="py-3">FAQ ID</th>
+                      <th class="py-3">Question</th>
+                      <th class="py-3">Answer Preview</th>
+                      <th class="py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="custom-faqs-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                    <!-- populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
         </div>
 
-        <!-- Panel: My Profile -->
+        <!-- Panel 6: Profile -->
         <div class="db-tab-panel" id="panel-profile">
-          <div class="db-grid" style="grid-template-columns: 1fr 1fr;">
-            <!-- Edit Profile Info -->
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Edit Profile Details</h3>
-              </div>
-              <form id="profileInfoForm" onsubmit="handleUpdateProfile(event)" style="margin-top: 16px;">
-                <div class="form-group" style="text-align: center; margin-bottom: 24px;">
-                  <label style="display: block; margin-bottom: 12px; font-weight: 700;">Profile Picture</label>
-                  <div style="display: inline-flex; position: relative; margin: 0 auto;">
-                    <div class="profile-pfp-container" style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--color-border); overflow: hidden; background-color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: #0f172a; box-shadow: 4px 4px 0px var(--color-border);">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Details -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Edit Profile Details</h3>
+              <form id="profileInfoForm" onsubmit="handleUpdateProfile(event)" class="space-y-4">
+                
+                <div class="flex flex-col items-center mb-4">
+                  <label class="text-xs font-bold text-neutral-500 mb-2">Profile Picture</label>
+                  <div class="relative">
+                    <div class="profile-pfp-container w-20 h-20 rounded-full border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-900 text-white flex items-center justify-center font-bold text-xl">
                       {% if session.get('pfp') %}
-                        <img id="profilePfpImage" src="{{ session.get('pfp') }}" alt="PFP" style="width: 100%; height: 100%; object-fit: cover;">
+                        <img id="profilePfpImage" src="{{ session.get('pfp') }}" alt="PFP" class="w-full h-full object-cover">
                       {% else %}
                         <span id="profilePfpInitials">{{ username[:2]|upper }}</span>
                       {% endif %}
                     </div>
-                    <input type="file" id="profilePfpInput" accept="image/*" style="display: none;" onchange="previewProfilePfp(this)">
-                    <button type="button" class="btn btn-outline btn-small" style="position: absolute; bottom: 0; right: -10px; padding: 4px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px var(--color-border);" onclick="document.getElementById('profilePfpInput').click()">
-                      <i data-lucide="camera" style="width: 14px; height: 14px;"></i>
+                    <input type="file" id="profilePfpInput" accept="image/*" class="hidden" onchange="previewProfilePfp(this)">
+                    <button type="button" class="absolute bottom-0 right-0 p-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 rounded-full w-7 h-7 flex items-center justify-center shadow" onclick="document.getElementById('profilePfpInput').click()">
+                      <i data-lucide="camera" class="w-3.5 h-3.5"></i>
                     </button>
                   </div>
                 </div>
-                
-                <div class="form-group">
-                  <label for="profileUsername">Username</label>
-                  <input type="text" id="profileUsername" class="form-input" value="{{ username }}" required minlength="3">
+
+                <div>
+                  <label class="auth-label" for="profileUsername">Username</label>
+                  <input type="text" id="profileUsername" class="auth-input" value="{{ username }}" required minlength="3">
                 </div>
-                
-                <div class="form-group">
-                  <label for="profileEmail">Email Address</label>
-                  <input type="email" id="profileEmail" class="form-input" value="{{ session.get('email', '') }}" required>
+                <div>
+                  <label class="auth-label" for="profileEmail">Email Address</label>
+                  <input type="email" id="profileEmail" class="auth-input" value="{{ session.get('email', '') }}" required>
                 </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
-                  <i data-lucide="save"></i> Save Profile Details
+
+                <button type="submit" class="auth-submit w-full mt-2">
+                  <i data-lucide="save" class="w-4 h-4"></i> Save Profile Details
                 </button>
               </form>
             </div>
 
-            <!-- Change Password -->
-            <div class="db-block">
-              <div class="db-block-header">
-                <h3>Change Password</h3>
-              </div>
-              <form id="profilePasswordForm" onsubmit="handleUpdatePassword(event)" style="margin-top: 16px;">
-                <div class="form-group">
-                  <label for="profileCurrentPassword">Current Password</label>
-                  <input type="password" id="profileCurrentPassword" class="form-input" required minlength="6" placeholder="••••••••">
+            <!-- Password -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-6">Change Password</h3>
+              <form id="profilePasswordForm" onsubmit="handleUpdatePassword(event)" class="space-y-4">
+                <div>
+                  <label class="auth-label" for="profileCurrentPassword">Current Password</label>
+                  <input type="password" id="profileCurrentPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                 </div>
-                <div class="form-group">
-                  <label for="profileNewPassword">New Password</label>
-                  <input type="password" id="profileNewPassword" class="form-input" required minlength="6" placeholder="••••••••">
+                <div>
+                  <label class="auth-label" for="profileNewPassword">New Password</label>
+                  <input type="password" id="profileNewPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                 </div>
-                <div class="form-group">
-                  <label for="profileConfirmPassword">Confirm New Password</label>
-                  <input type="password" id="profileConfirmPassword" class="form-input" required minlength="6" placeholder="••••••••">
+                <div>
+                  <label class="auth-label" for="profileConfirmPassword">Confirm New Password</label>
+                  <input type="password" id="profileConfirmPassword" class="auth-input" required minlength="6" placeholder="••••••••">
                 </div>
-                <button type="submit" class="btn btn-secondary" style="width: 100%; margin-top: 16px;">
-                  <i data-lucide="key"></i> Update Password
+
+                <button type="submit" class="auth-submit w-full mt-2">
+                  <i data-lucide="key" class="w-4 h-4"></i> Update Password
                 </button>
               </form>
             </div>
+
           </div>
         </div>
 
-        <!-- Panel: API Keys System Management -->
+        <!-- Panel 7: API Keys -->
         <div class="db-tab-panel" id="panel-apikeys">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
-              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">API Keys Management</h3>
-              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Monitor, inspect, and revoke API keys issued to administrators and clients across the entire hosting platform.</p>
+              <h3 class="text-lg font-bold text-neutral-800 dark:text-white">API Keys Management</h3>
+              <p class="text-xs text-neutral-500 mt-1">Revoke or issue API credentials to securely configure VPS operations.</p>
             </div>
-            <button class="btn btn-outline" onclick="loadAdminApiKeys()"><i data-lucide="refresh-cw"></i> Refresh Keys</button>
+            <button class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="loadAdminApiKeys()">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Keys
+            </button>
           </div>
 
-          <!-- API Overview Stats -->
-          <div class="db-stats-grid" style="margin-bottom: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
-            <div class="db-stat-card" style="padding: 20px;">
-              <div class="db-stat-info">
-                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Total Issued Keys</label>
-                <div class="db-stat-value" id="adminTotalKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
-              </div>
+          <!-- API widgets -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-5 shadow-sm">
+              <span class="text-xs text-neutral-500 font-medium uppercase tracking-wider block">Total Issued Keys</span>
+              <strong class="text-3xl font-extrabold text-neutral-800 dark:text-white block mt-2" id="adminTotalKeysCount">0</strong>
             </div>
-            <div class="db-stat-card" style="padding: 20px;">
-              <div class="db-stat-info">
-                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Active Admin Keys</label>
-                <div class="db-stat-value" id="adminActiveAdminKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
-              </div>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-5 shadow-sm">
+              <span class="text-xs text-neutral-500 font-medium uppercase tracking-wider block">Active Admin Keys</span>
+              <strong class="text-3xl font-extrabold text-neutral-800 dark:text-white block mt-2" id="adminActiveAdminKeysCount">0</strong>
             </div>
-            <div class="db-stat-card" style="padding: 20px;">
-              <div class="db-stat-info">
-                <label style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--color-text-muted);">Active Client Keys</label>
-                <div class="db-stat-value" id="adminActiveClientKeysCount" style="font-size: 32px; font-weight: 800; color: var(--color-text-main); margin-top: 8px;">0</div>
-              </div>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-5 shadow-sm">
+              <span class="text-xs text-neutral-500 font-medium uppercase tracking-wider block">Active Client Keys</span>
+              <strong class="text-3xl font-extrabold text-neutral-800 dark:text-white block mt-2" id="adminActiveClientKeysCount">0</strong>
             </div>
           </div>
 
-          <!-- Keys List Block & Generation -->
-          <div class="db-grid" style="grid-template-columns: 1fr 2fr; gap: 24px; margin-top: 16px;">
-            <!-- Generate API Key Form (Admin Context) -->
-            <div class="db-block" style="height: fit-content;">
-              <div class="db-block-header">
-                <h3>Generate Administrator API Key</h3>
-              </div>
-              <div style="margin-top: 12px; color: var(--color-text-muted); font-size: 13px; line-height: 1.5;">
-                Create credentials to securely access admin control features or link your administrator profile to integration tools (such as the VPS Discord Bot).
-              </div>
-              <form id="createApiKeyForm" onsubmit="handleCreateApiKey(event)" style="margin-top: 20px;">
-                <div class="form-group">
-                  <label for="apiKeyName">Key Description / Name</label>
-                  <input type="text" id="apiKeyName" class="form-input" placeholder="e.g. Primary Admin Key, Discord Bot, Cron Job" required minlength="3" maxlength="64">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Generate Administrator API Key</h3>
+              <form id="createApiKeyForm" onsubmit="handleCreateApiKey(event)" class="space-y-4">
+                <div>
+                  <label class="auth-label" for="apiKeyName">Key Description / Name</label>
+                  <input type="text" id="apiKeyName" class="auth-input" placeholder="e.g. Dallas API Bot" required minlength="3" maxlength="64">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px; box-shadow: var(--shadow-sm);">
-                  <i data-lucide="key-round"></i> Generate API Key
+                <button type="submit" class="auth-submit w-full">
+                  <i data-lucide="key-round" class="w-4 h-4"></i> Generate API Key
                 </button>
               </form>
 
-              <!-- Premium Newly Generated Key Modal Display (inline) -->
-              <div id="newlyGeneratedKeyBlock" style="display: none; margin-top: 24px; padding: 16px; background: rgba(16, 185, 129, 0.05); border: 1px dashed var(--color-accent); border-radius: var(--radius-md);">
-                <div style="display: flex; align-items: center; gap: 8px; color: var(--color-accent); font-weight: 700; font-size: 14px; margin-bottom: 8px;">
-                  <i data-lucide="shield-check" style="width: 18px; height: 18px;"></i>
-                  API Key Successfully Generated!
+              <!-- Generate output preview -->
+              <div id="newlyGeneratedKeyBlock" style="display: none;" class="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                <div class="flex items-center gap-1.5 text-emerald-500 font-bold text-xs mb-2">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i> Key Generated!
                 </div>
-                <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">
-                  Copy this key now. For your security, <strong>it will not be shown again</strong>.
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <input type="text" id="newlyGeneratedKeyValue" class="form-input" readonly style="font-family: monospace; font-size: 13px; background-color: var(--color-background-soft); flex: 1; cursor: text;">
-                  <button class="btn btn-outline" onclick="copyGeneratedApiKey()" title="Copy to clipboard" style="padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                    <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+                <div class="flex items-center gap-2">
+                  <input type="text" id="newlyGeneratedKeyValue" readonly class="auth-input font-mono text-xs flex-1 cursor-text bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700">
+                  <button class="p-2 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl" onclick="copyGeneratedApiKey()" title="Copy key">
+                    <i data-lucide="copy" class="w-4 h-4 text-neutral-600 dark:text-neutral-300"></i>
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- All System Keys List -->
-            <div class="db-block">
-              <div class="db-block-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-                <h3>All Registered API Credentials</h3>
-                <div class="search-box" style="position: relative; width: 250px;">
-                  <input type="text" id="adminKeysSearchInput" class="form-input" placeholder="Search by description or user..." onkeyup="filterAdminApiKeys()" style="padding-left: 36px; padding-right: 12px; height: 38px; font-size: 13px;">
-                  <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--color-text-muted);"></i>
-                </div>
-              </div>
-              <div class="db-table-wrapper" style="margin-top: 16px;">
-                <table class="db-table">
-                  <thead>
+            <!-- List table -->
+            <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Active API Keys</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse min-w-[380px]">
+                  <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                     <tr>
-                      <th>User / Account</th>
-                      <th>Key Description</th>
-                      <th>Key Prefix</th>
-                      <th>Role</th>
-                      <th>Created At</th>
-                      <th>Last Used</th>
-                      <th class="text-right">Action</th>
+                      <th class="py-3">Name</th>
+                      <th class="py-3">Key Prefix</th>
+                      <th class="py-3">Last Used</th>
+                      <th class="py-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody id="admin-apikeys-table-body">
-                    <tr>
-                      <td colspan="7" style="text-align: center; padding: 32px; color: var(--color-text-muted); font-size: 13px;">
-                        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-                          <i data-lucide="loader-2" class="spin" style="width: 24px; height: 24px;"></i>
-                          <span>Loading active credentials...</span>
-                        </div>
-                      </td>
-                    </tr>
+                  <tbody id="userApiKeysTableBody" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                    <!-- populated dynamically -->
                   </tbody>
                 </table>
               </div>
@@ -1040,484 +1074,592 @@
           </div>
         </div>
 
-        <!-- Panel: User Management -->
+        <!-- Panel 8: User Management -->
         <div class="db-tab-panel" id="panel-users">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-            <div>
-              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">User Accounts Management</h3>
-              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Monitor user profiles, resource consumption, and manage client credentials.</p>
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Active Clients Directory</h3>
+              <button class="inline-flex items-center gap-1.5 px-3 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 rounded-xl transition shadow-sm" onclick="openUserCreateModal()">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Create New User
+              </button>
             </div>
-            <button class="btn btn-primary" onclick="openUserCreateModal()"><i data-lucide="user-plus"></i> Create New User</button>
-          </div>
-
-          <div class="db-block" style="margin-bottom: 32px;">
-            <div class="db-table-wrapper">
-              <table class="db-table">
-                <thead>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                   <tr>
-                    <th>User ID</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Password Hash</th>
-                    <th>Instances</th>
-                    <th>Resources</th>
-                    <th class="text-right">Actions</th>
+                    <th class="py-3">Username</th>
+                    <th class="py-3">Email Address</th>
+                    <th class="py-3">Role</th>
+                    <th class="py-3">Owned VPS</th>
+                    <th class="py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="users-table-body">
-                  <!-- Populate dynamically -->
+                <tbody id="users-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                  <!-- dynamically populated -->
                 </tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- Panel: Nodes Management -->
+        <!-- Panel 9: Nodes -->
         <div class="db-tab-panel" id="panel-nodes">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-            <div>
-              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">Node Management</h3>
-              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Add and monitor remote hypervisor nodes to host client instances.</p>
+          <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white">Nodes Cluster List</h3>
+              <button class="inline-flex items-center gap-1.5 px-3 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-100 rounded-xl transition shadow-sm" onclick="openNodeCreateModal()">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Register Node
+              </button>
             </div>
-            <button class="btn btn-primary" onclick="openNodeCreateModal()"><i data-lucide="plus-circle"></i> Add New Node</button>
-          </div>
-
-          <div class="db-block" style="margin-bottom: 32px;">
-            <div class="db-table-wrapper">
-              <table class="db-table">
-                <thead>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
                   <tr>
-                    <th>ID</th>
-                    <th>Node Name</th>
-                    <th>FQDN / IP Address</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    <th class="text-right">Actions</th>
+                    <th class="py-3">Node Name</th>
+                    <th class="py-3">Location</th>
+                    <th class="py-3">Connection endpoint</th>
+                    <th class="py-3">Status</th>
+                    <th class="py-3">Active VPS</th>
+                    <th class="py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="nodes-table-body">
-                  <!-- Populate dynamically -->
+                <tbody id="nodes-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                  <!-- dynamically populated -->
                 </tbody>
               </table>
             </div>
           </div>
         </div>
 
-
+        <!-- Panel 10: Windows Templates -->
         <div class="db-tab-panel" id="panel-windows">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-            <div>
-              <h3 style="font-size: 22px; font-weight: 700; color: var(--color-text-main);">Windows Image Manager</h3>
-              <p style="color: var(--color-text-muted); font-size: 14px; margin-top: 4px;">Build, upload, and manage Windows VM images for client deployment.</p>
-            </div>
-          </div>
-
-          <div class="db-block" style="margin-bottom: 24px;">
-            <h4 style="margin-bottom: 12px;">Available Windows Images</h4>
-            <div id="windows-images-list" style="display: flex; flex-wrap: wrap; gap: 8px;">
-              <span style="color: var(--color-text-muted);">Loading...</span>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
-            <div class="db-block">
-              <h4 style="margin-bottom: 12px;">Build Image from ISO / UUP</h4>
-              <p style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 12px;">
-                Streams a Windows 10 ISO build (or uses an existing ISO) and creates a LXD image alias.
-                Build time: 20-40 min. Log streams below.
-              </p>
-              <div class="form-group">
-                <label>Image Alias (e.g. <code>windows/10</code>)</label>
-                <input type="text" id="winBuildAlias" class="form-input" value="windows/10">
-              </div>
-              <div class="form-group">
-                <label>Existing ISO Path (optional — leave empty to download via UUP)</label>
-                <input type="text" id="winBuildIso" class="form-input" placeholder="/root/Win10.iso">
-              </div>
-              <div class="form-group">
-                <label>Default Admin Password (used in the unattended XML)</label>
-                <input type="text" id="winBuildPassword" class="form-input" value="MintyHost!2026">
-              </div>
-              <button class="btn btn-primary" id="winBuildBtn" onclick="startWindowsBuild()"><i data-lucide="hammer"></i> Start Image Build</button>
-              <div id="winBuildStatus" style="margin-top: 16px; font-size: 13px; color: var(--color-text-muted);"></div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Upload form -->
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm h-fit">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Register Windows Template</h3>
+              <form id="windowsUploadForm" onsubmit="handleWindowsUploadSubmit(event)" class="space-y-4">
+                <div>
+                  <label class="auth-label" for="winName">Windows Version Name</label>
+                  <input type="text" id="winName" class="auth-input" placeholder="e.g. Windows 10 LTSC" required>
+                </div>
+                <div>
+                  <label class="auth-label" for="winIsoName">Source ISO Filename</label>
+                  <input type="text" id="winIsoName" class="auth-input" placeholder="e.g. win10_pro.iso" required>
+                  <p class="text-[10px] text-neutral-500 mt-1">Make sure the file exists under <code>/var/lib/lxd/images/</code> on target node.</p>
+                </div>
+                <button type="submit" class="auth-submit w-full mt-2">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> Save Windows Template
+                </button>
+              </form>
             </div>
 
-            <div class="db-block">
-              <h4 style="margin-bottom: 12px;">Upload Pre-built Image</h4>
-              <p style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 12px;">
-                Upload a <code>.vhd</code>, <code>.vhdx</code>, <code>.qcow2</code>, <code>.img</code>, or <code>.iso</code> file directly.
-                It will be imported as a LXD image.
-              </p>
-              <div class="form-group">
-                <label>Image Alias</label>
-                <input type="text" id="winUploadAlias" class="form-input" value="windows/10" placeholder="windows/10 or windows/11 etc.">
+            <!-- List table -->
+            <div class="lg:col-span-2 bg-white dark:bg-neutral-900 border border-neutral-200/30 dark:border-white/5 rounded-2xl p-6 shadow-sm">
+              <h3 class="text-sm font-bold text-neutral-800 dark:text-white mb-4">Configured ISO Templates</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+                    <tr>
+                      <th class="py-3">ISO ID</th>
+                      <th class="py-3">Version Name</th>
+                      <th class="py-3">Source ISO Filename</th>
+                      <th class="py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="windows-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+                    <!-- dynamically populated -->
+                  </tbody>
+                </table>
               </div>
-              <div class="form-group">
-                <label>Disk Image File</label>
-                <input type="file" id="winUploadFile" class="form-input" accept=".vhd,.vhdx,.qcow2,.img,.raw,.iso">
-              </div>
-              <button class="btn btn-primary" onclick="uploadWindowsImage()"><i data-lucide="upload"></i> Upload &amp; Import</button>
-              <div id="winUploadStatus" style="margin-top: 16px; font-size: 13px; color: var(--color-text-muted);"></div>
             </div>
-          </div>
 
-          <div class="db-block">
-            <h4 style="margin-bottom: 12px;">Build Log (tail)</h4>
-            <pre id="winBuildLog" style="max-height: 360px; overflow-y: auto; background: #0f172a; color: #cbd5e1; padding: 14px; border-radius: 8px; font-size: 11px; font-family: monospace; white-space: pre-wrap;"></pre>
           </div>
         </div>
 
+      </div>
+    </main>
 
+  </div>
+</div>
 
+<!-- ==================== MODAL OVERLAYS ==================== -->
+
+<!-- SSE Provisioning Overlay Modal -->
+<div class="modal-overlay" id="deployLogModal">
+  <div class="modal-card max-w-2xl">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">LXD Provisioning logs</h3>
+      <button class="modal-close" id="closeDeployModal" style="display: none;" onclick="closeDeployModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <!-- 4-step Stepper -->
+      <div class="flex justify-between items-center mb-6 bg-neutral-100 dark:bg-neutral-800/40 border border-neutral-200/40 dark:border-white/5 p-4 rounded-xl" id="deployStepper">
+        <div class="flex flex-col items-center flex-1 relative step-item active" id="step-1">
+          <div class="step-icon-badge w-7 h-7 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center font-bold text-xs">1</div>
+          <span class="text-[10px] text-neutral-500 font-semibold mt-1">Initializing</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 relative step-item pending" id="step-2">
+          <div class="step-icon-badge w-7 h-7 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center font-bold text-xs">2</div>
+          <span class="text-[10px] text-neutral-500 font-semibold mt-1">LXD Deploy</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 relative step-item pending" id="step-3">
+          <div class="step-icon-badge w-7 h-7 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center font-bold text-xs">3</div>
+          <span class="text-[10px] text-neutral-500 font-semibold mt-1">OS Setup</span>
+        </div>
+        <div class="flex flex-col items-center flex-1 relative step-item pending" id="step-4">
+          <div class="step-icon-badge w-7 h-7 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center font-bold text-xs">4</div>
+          <span class="text-[10px] text-neutral-500 font-semibold mt-1">Finished</span>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <div class="flex justify-between text-xs font-semibold mb-1">
+          <span class="text-neutral-500">Overall Setup Progress</span>
+          <span class="text-neutral-800 dark:text-white" id="deploy-progress-percent">0%</span>
+        </div>
+        <div class="w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div class="h-full bg-neutral-950 dark:bg-white rounded-full transition-all duration-300" id="deploy-progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+      
+      <!-- Terminal Console Mockup -->
+      <div class="border border-neutral-800 rounded-xl overflow-hidden shadow-md">
+        <div class="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border-b border-neutral-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+          <span class="text-[10px] font-mono text-neutral-500 font-semibold ml-2">lxd-provisioner@mintyhost:~</span>
+        </div>
+        <div class="bg-[#0f172a] text-[#38bdf8] p-4 font-mono text-xs overflow-y-auto leading-relaxed" style="height: 260px;" id="deploy-terminal-logs">
+          <!-- stream lines -->
+        </div>
+      </div>
+      
+      <div class="mt-4 flex justify-end">
+        <button class="inline-flex items-center gap-1.5 px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold rounded-xl transition shadow-sm" id="btn-close-deploy" style="display: none;" onclick="closeDeployModal()">Close Console</button>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- SSE Provisioning Overlay Modal -->
-  <div class="modal-overlay" id="deployLogModal">
-    <div class="modal-card" style="max-width: 750px;">
-      <div class="modal-header">
-        <h3>LXD Provisioning logs</h3>
-        <button class="modal-close" id="closeDeployModal" style="display: none;" onclick="closeDeployModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <!-- Interactive 4-step Provisioning Stepper -->
-        <div class="stepper-container" id="deployStepper">
-          <div class="step-item active" id="step-1">
-            <div class="step-icon-badge">1</div>
-            <div class="step-label">Initializing</div>
-          </div>
-          <div class="step-item pending" id="step-2">
-            <div class="step-icon-badge">2</div>
-            <div class="step-label">LXD Deploy</div>
-          </div>
-          <div class="step-item pending" id="step-3">
-            <div class="step-icon-badge">3</div>
-            <div class="step-label">OS Setup</div>
-          </div>
-          <div class="step-item pending" id="step-4">
-            <div class="step-icon-badge">4</div>
-            <div class="step-label">Finished</div>
-          </div>
+<!-- User Create Modal Overlay -->
+<div class="modal-overlay" id="userCreateModal">
+  <div class="modal-card max-w-sm">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">Create New User Account</h3>
+      <button class="modal-close" onclick="closeUserCreateModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="userCreateForm" onsubmit="handleUserCreateSubmit(event)" class="space-y-4">
+        <div>
+          <label class="auth-label" for="createUsername">Username</label>
+          <input type="text" id="createUsername" class="auth-input" required minlength="3" placeholder="e.g. johndoe">
         </div>
-
-        <div class="deploy-progress-container" style="margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 6px;">
-            <span>Overall Setup Progress</span>
-            <span id="deploy-progress-percent">0%</span>
-          </div>
-          <div class="deploy-progress-bar" style="height: 10px; background-color: var(--color-border); border-radius: 5px; overflow: hidden; border: 1.5px solid var(--color-border);">
-            <div id="deploy-progress-fill" style="height: 100%; width: 0%; background-color: var(--color-accent); transition: width 0.3s;"></div>
-          </div>
+        <div>
+          <label class="auth-label" for="createEmail">Email Address</label>
+          <input type="email" id="createEmail" class="auth-input" required placeholder="e.g. john@example.com">
         </div>
-        
-        <!-- Premium OS Terminal Mockup -->
-        <div class="terminal-mockup">
-          <div class="terminal-header">
-            <div class="terminal-dot" style="background-color: #ef4444; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
-            <div class="terminal-dot" style="background-color: #eab308; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
-            <div class="terminal-dot" style="background-color: #22c55e; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15);"></div>
-            <span style="font-family: monospace; font-size: 11px; font-weight: bold; margin-left: 8px; color: var(--color-text-muted);">lxd-provisioner@mintyhost:~</span>
-          </div>
-          <div style="background-color: #0f172a; color: #38bdf8; padding: 18px; font-family: 'Courier New', Courier, monospace; font-size: 12px; min-height: 250px; max-height: 350px; overflow-y: auto; line-height: 1.5;" id="deploy-terminal-logs">
-            <!-- Dynamically populated stream lines -->
-          </div>
+        <div>
+          <label class="auth-label" for="createRole">Account Role</label>
+          <select id="createRole" class="auth-input">
+            <option value="client" selected>Client Account</option>
+            <option value="admin">Administrator</option>
+          </select>
         </div>
-        
-        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-          <button class="btn btn-primary" id="btn-close-deploy" style="display: none;" onclick="closeDeployModal()">Close Console</button>
+        <div>
+          <label class="auth-label" for="createPassword">Account Password</label>
+          <input type="password" id="createPassword" class="auth-input" required minlength="6" placeholder="••••••••">
         </div>
-      </div>
+        <div>
+          <label class="auth-label" for="createDiscordUser">Discord User to Notify (Optional)</label>
+          <select id="createDiscordUser" class="auth-input">
+            <option value="">No Discord notification</option>
+          </select>
+        </div>
+        <button type="submit" class="auth-submit w-full mt-2">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Create User Account
+        </button>
+      </form>
     </div>
   </div>
+</div>
 
-
-  <!-- User Create Modal Overlay -->
-  <div class="modal-overlay" id="userCreateModal">
-    <div class="modal-card" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3>Create New User Account</h3>
-        <button class="modal-close" onclick="closeUserCreateModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <form id="userCreateForm" onsubmit="handleUserCreateSubmit(event)">
-          <div class="form-group">
-            <label for="createUsername">Username</label>
-            <input type="text" id="createUsername" class="form-input" required minlength="3" placeholder="e.g. johndoe">
-          </div>
-          <div class="form-group">
-            <label for="createEmail">Email Address</label>
-            <input type="email" id="createEmail" class="form-input" required placeholder="e.g. john@example.com">
-          </div>
-          <div class="form-group">
-            <label for="createRole">Account Role</label>
-            <select id="createRole" class="form-input">
-              <option value="client" selected>Client Account</option>
-              <option value="admin">Administrator</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="createPassword">Account Password</label>
-            <input type="password" id="createPassword" class="form-input" required minlength="6" placeholder="••••••••">
-          </div>
-          <div class="form-group">
-            <label for="createDiscordUser">Discord User to Notify (Optional)</label>
-            <div style="position: relative;">
-              <i data-lucide="bell" class="input-icon-left"></i>
-              <select id="createDiscordUser" class="form-input has-icon-left">
-                <option value="">No Discord notification</option>
-              </select>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            <i data-lucide="user-plus"></i> Create User Account
-          </button>
-        </form>
-      </div>
+<!-- User Edit Modal Overlay -->
+<div class="modal-overlay" id="userEditModal">
+  <div class="modal-card max-w-sm">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">Edit User Account</h3>
+      <button class="modal-close" onclick="closeUserEditModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="userEditForm" onsubmit="handleUserEditSubmit(event)" class="space-y-4">
+        <input type="hidden" id="editUserId">
+        <div>
+          <label class="auth-label" for="editUsername">Username</label>
+          <input type="text" id="editUsername" class="auth-input" required minlength="3">
+        </div>
+        <div>
+          <label class="auth-label" for="editEmail">Email Address</label>
+          <input type="email" id="editEmail" class="auth-input" required>
+        </div>
+        <div>
+          <label class="auth-label" for="editRole">Account Role</label>
+          <select id="editRole" class="auth-input">
+            <option value="client">Client Account</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div>
+          <label class="auth-label" for="editPassword">Reset Password (Leave blank to keep current)</label>
+          <input type="password" id="editPassword" class="auth-input" minlength="6" placeholder="••••••••">
+        </div>
+        <button type="submit" class="auth-submit w-full mt-2">
+          <i data-lucide="save" class="w-4 h-4"></i> Update User Details
+        </button>
+      </form>
     </div>
   </div>
+</div>
 
-  <!-- User Edit Modal Overlay -->
-  <div class="modal-overlay" id="userEditModal">
-    <div class="modal-card" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3>Edit User Account</h3>
-        <button class="modal-close" onclick="closeUserEditModal()"><i data-lucide="x"></i></button>
+<!-- User Details Modal Overlay -->
+<div class="modal-overlay" id="userDetailsModal">
+  <div class="modal-card max-w-lg">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">Detailed User Information</h3>
+      <button class="modal-close" onclick="closeUserDetailsModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      
+      <div class="flex items-center gap-4 pb-4 mb-4 border-b border-neutral-200/40 dark:border-white/5">
+        <div class="profile-pfp-container w-16 h-16 rounded-full border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-900 text-white flex items-center justify-center font-bold text-xl" id="detailsPfpContainer">
+          <!-- Initials/PFP -->
+        </div>
+        <div>
+          <h4 class="font-bold text-md text-neutral-800 dark:text-white" id="detailsUsername"></h4>
+          <p class="text-xs text-neutral-500" id="detailsEmail"></p>
+          <span class="vps-status-badge mt-1.5" id="detailsRoleBadge"></span>
+        </div>
       </div>
-      <div class="modal-body">
-        <form id="userEditForm" onsubmit="handleUserEditSubmit(event)">
-          <input type="hidden" id="editUserId">
-          <div class="form-group">
-            <label for="editUsername">Username</label>
-            <input type="text" id="editUsername" class="form-input" required minlength="3">
-          </div>
-          <div class="form-group">
-            <label for="editEmail">Email Address</label>
-            <input type="email" id="editEmail" class="form-input" required>
-          </div>
-          <div class="form-group">
-            <label for="editRole">Account Role</label>
-            <select id="editRole" class="form-input">
-              <option value="client">Client Account</option>
-              <option value="admin">Administrator</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="editPassword">Reset Password (Leave blank to keep current)</label>
-            <input type="password" id="editPassword" class="form-input" minlength="6" placeholder="••••••••">
-          </div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            <i data-lucide="save"></i> Update User Details
-          </button>
-        </form>
+
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="border border-neutral-200/40 dark:border-white/5 p-3 rounded-xl">
+          <span class="text-[10px] text-neutral-500 font-semibold block uppercase">CPU Cores</span>
+          <strong class="text-sm font-bold text-neutral-800 dark:text-white block mt-1" id="detailsTotalCpu">0 Cores</strong>
+        </div>
+        <div class="border border-neutral-200/40 dark:border-white/5 p-3 rounded-xl">
+          <span class="text-[10px] text-neutral-500 font-semibold block uppercase">Memory RAM</span>
+          <strong class="text-sm font-bold text-neutral-800 dark:text-white block mt-1" id="detailsTotalRam">0 MB</strong>
+        </div>
+        <div class="border border-neutral-200/40 dark:border-white/5 p-3 rounded-xl">
+          <span class="text-[10px] text-neutral-500 font-semibold block uppercase">Disk Space</span>
+          <strong class="text-sm font-bold text-neutral-800 dark:text-white block mt-1" id="detailsTotalDisk">0 GB</strong>
+        </div>
       </div>
+
+      <h4 class="text-xs font-bold text-neutral-700 dark:text-neutral-400 mb-3">Owned Virtual Private Servers</h4>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-left border-collapse">
+          <thead class="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+            <tr>
+              <th class="py-2">VPS Name</th>
+              <th class="py-2">OS</th>
+              <th class="py-2">Resources</th>
+              <th class="py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody id="details-vps-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+            <!-- dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
     </div>
   </div>
+</div>
 
-  <!-- User Details Modal Overlay -->
-  <div class="modal-overlay" id="userDetailsModal">
-    <div class="modal-card" style="max-width: 700px;">
-      <div class="modal-header">
-        <h3>Detailed User Information</h3>
-        <button class="modal-close" onclick="closeUserDetailsModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body" style="max-height: 550px; overflow-y: auto;">
-        
-        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--color-border);">
-          <div class="profile-pfp-container" id="detailsPfpContainer" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--color-border); overflow: hidden; background-color: var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 800; color: #0f172a;">
-            <!-- Render PFP or Initials -->
+<!-- Node Create Modal Overlay -->
+<div class="modal-overlay" id="nodeCreateModal">
+  <div class="modal-card max-w-sm">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">Add New Hypervisor Node</h3>
+      <button class="modal-close" onclick="closeNodeCreateModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="nodeCreateForm" onsubmit="handleNodeCreateSubmit(event)" class="space-y-4">
+        <div>
+          <label class="auth-label" for="nodeName">Node Name</label>
+          <input type="text" id="nodeName" class="auth-input" required minlength="3" placeholder="e.g. Dallas Node 1">
+        </div>
+        <div>
+          <label class="auth-label" for="nodeLocation">Location / Country</label>
+          <input type="text" id="nodeLocation" class="auth-input" required placeholder="e.g. USA, Dallas">
+        </div>
+        <div class="grid grid-cols-4 gap-3">
+          <div class="col-span-3">
+            <label class="auth-label" for="nodeFqdn">FQDN / Public IP</label>
+            <input type="text" id="nodeFqdn" class="auth-input" placeholder="node1.mintyhost.net">
           </div>
           <div>
-            <h4 style="font-size: 18px; font-weight: 800; color: var(--color-text-main);" id="detailsUsername"></h4>
-            <p style="color: var(--color-text-muted); font-size: 14px;" id="detailsEmail"></p>
-            <span class="badge badge-open" id="detailsRoleBadge" style="margin-top: 6px;"></span>
+            <label class="auth-label" for="nodePort">Port</label>
+            <input type="number" id="nodePort" class="auth-input" required value="5001" min="1" max="65535">
           </div>
         </div>
+        <button type="submit" class="auth-submit w-full mt-2">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Register Node
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
 
-        <div class="db-stats-grid" style="margin-bottom: 24px;">
-          <div class="db-stat-card" style="padding: 16px;">
-            <div class="db-stat-info">
-              <label>Allocated CPU</label>
-              <div class="db-stat-value" id="detailsTotalCpu" style="font-size: 24px;">0 Cores</div>
-            </div>
-          </div>
-          <div class="db-stat-card" style="padding: 16px;">
-            <div class="db-stat-info">
-              <label>Allocated RAM</label>
-              <div class="db-stat-value" id="detailsTotalRam" style="font-size: 24px;">0 MB</div>
-            </div>
-          </div>
-          <div class="db-stat-card" style="padding: 16px;">
-            <div class="db-stat-info">
-              <label>Allocated Storage</label>
-              <div class="db-stat-value" id="detailsTotalDisk" style="font-size: 24px;">0 GB</div>
-            </div>
-          </div>
-        </div>
+<!-- Node Connection Config details Modal Overlay -->
+<div class="modal-overlay" id="nodeConfigModal">
+  <div class="modal-card max-w-xl">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm">Node Connection Details</h3>
+      <button class="modal-close" onclick="closeNodeConfigModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-xs text-neutral-500 mb-4 leading-relaxed">Follow these steps to connect this remote hypervisor node to your central central control panel.</p>
 
-        <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 12px;">Owned Virtual Private Servers</h4>
-        <div class="db-table-wrapper" style="margin-bottom: 12px;">
-          <table class="db-table">
-            <thead>
-              <tr>
-                <th>VPS Name</th>
-                <th>OS</th>
-                <th>Resources</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="details-vps-body">
-              <!-- Populate dynamically -->
-            </tbody>
-          </table>
-        </div>
-        
+      <h4 class="text-xs font-bold text-neutral-800 dark:text-white mb-1.5">Option A: 1-Click Installation (Recommended)</h4>
+      <p class="text-[11px] text-neutral-500 mb-2">Log into target remote machine via SSH as <strong>root</strong> and execute this command.</p>
+      
+      <div class="flex gap-2 items-center mb-6">
+        <textarea id="nodeInstallCmd" readonly rows="2" class="auth-input font-mono text-[11.5px] bg-neutral-100 dark:bg-neutral-800 flex-1 resize-none" style="padding-right: 8px;"></textarea>
+        <button class="p-2.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl" onclick="copyConfigField('nodeInstallCmd')" title="Copy to clipboard">
+          <i data-lucide="copy" class="w-4 h-4 text-neutral-600 dark:text-neutral-300"></i>
+        </button>
+      </div>
+
+      <h4 class="text-xs font-bold text-neutral-800 dark:text-white mb-1.5">Option B: Manual Configuration</h4>
+      <p class="text-[11px] text-neutral-500 mb-2">If daemon is already installed, update its <code>config.yml</code> and restart the service.</p>
+      <div class="flex gap-2 items-center">
+        <textarea id="nodeConfigYaml" readonly rows="5" class="auth-input font-mono text-[11px] bg-neutral-100 dark:bg-neutral-800 flex-1 resize-none" style="padding-right: 8px;"></textarea>
+        <button class="p-2.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl" onclick="copyConfigField('nodeConfigYaml')" title="Copy to clipboard">
+          <i data-lucide="copy" class="w-4 h-4 text-neutral-600 dark:text-neutral-300"></i>
+        </button>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Node Create Modal Overlay -->
-  <div class="modal-overlay" id="nodeCreateModal">
-    <div class="modal-card" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3>Add New Hypervisor Node</h3>
-        <button class="modal-close" onclick="closeNodeCreateModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <form id="nodeCreateForm" onsubmit="handleNodeCreateSubmit(event)">
-          <div class="form-group">
-            <label for="nodeName">Node Name</label>
-            <input type="text" id="nodeName" class="form-input" required minlength="3" placeholder="e.g. Dallas Node 1">
-          </div>
-          <div class="form-group">
-            <label for="nodeLocation">Location / Country</label>
-            <input type="text" id="nodeLocation" class="form-input" required placeholder="e.g. USA, Dallas">
-          </div>
-          <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 16px;">
-            <div class="form-group">
-              <label for="nodeFqdn">FQDN / Public IP <span style="font-size: 11px; font-weight: normal; color: var(--color-text-muted);">(Optional for dynamic tunnel)</span></label>
-              <input type="text" id="nodeFqdn" class="form-input" placeholder="e.g. node1.mintyhost.net">
-            </div>
-            <div class="form-group">
-              <label for="nodePort">Port</label>
-              <input type="number" id="nodePort" class="form-input" required value="5001" min="1" max="65535">
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            <i data-lucide="plus-circle"></i> Register Node
+<!-- Admin File Manager Modal Overlay -->
+<div class="modal-overlay" id="adminFileManagerModal">
+  <div class="modal-card max-w-4xl">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm flex items-center gap-2">
+        <i data-lucide="folder" class="w-4 h-4 text-neutral-400"></i>
+        <span>File Manager: </span>
+        <span id="admin-fm-vps-name" class="font-mono text-xs text-neutral-500">vps-name</span>
+      </h3>
+      <button class="modal-close" onclick="adminFmClose()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body p-0 flex flex-col overflow-hidden" style="min-height: 480px;">
+      
+      <!-- Toolbar -->
+      <div class="px-5 py-3.5 bg-neutral-50 dark:bg-white/[0.02] border-b border-neutral-200/30 dark:border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-2 w-full sm:max-w-md bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-xl px-3 py-1.5">
+          <button class="text-neutral-500 hover:text-neutral-800 dark:hover:text-white" onclick="adminFmLoadPath('/root')" title="Home">
+            <i data-lucide="home" class="w-4 h-4"></i>
           </button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Node Configuration Modal Overlay -->
-  <div class="modal-overlay" id="nodeConfigModal">
-    <div class="modal-card" style="max-width: 650px;">
-      <div class="modal-header">
-        <h3>Node Connection Details</h3>
-        <button class="modal-close" onclick="closeNodeConfigModal()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body" style="max-height: 550px; overflow-y: auto;">
-        <p style="font-size: 14px; color: var(--color-text-muted); margin-bottom: 16px;">
-          Follow these steps to connect this remote node to your main control panel.
-        </p>
-
-        <h4 style="font-size: 15px; font-weight: 800; margin-bottom: 8px;">Option A: 1-Click Installation (Recommended)</h4>
-        <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 10px;">
-          Log into your target remote machine via SSH as <strong>root</strong> and execute the auto-generated installation script.
-        </p>
-        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 24px;">
-          <textarea id="nodeInstallCmd" class="form-input" readonly rows="2" style="font-family: monospace; font-size: 12px; resize: none; background-color: var(--color-bg-base);"></textarea>
-          <button class="btn btn-secondary" onclick="copyConfigField('nodeInstallCmd')" style="padding: 12px;"><i data-lucide="copy"></i></button>
+          <span class="text-neutral-400">/</span>
+          <input type="text" id="admin-fm-current-path" value="/root" class="bg-transparent border-none outline-none font-mono text-xs text-neutral-700 dark:text-neutral-300 flex-1 focus:ring-0" onkeypress="if(event.key === 'Enter') adminFmLoadPath(this.value)">
+          <button class="px-2 py-1 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 font-bold rounded-lg text-[10px]" onclick="adminFmLoadPath(document.getElementById('admin-fm-current-path').value)">GO</button>
         </div>
 
-        <h4 style="font-size: 15px; font-weight: 800; margin-bottom: 8px;">Option B: Manual Configuration</h4>
-        <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 10px;">
-          If the daemon is already installed, update its <code>config.yml</code> with the block below and restart the service.
-        </p>
-        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 16px;">
-          <textarea id="nodeConfigYaml" class="form-input" readonly rows="5" style="font-family: monospace; font-size: 12px; resize: none; background-color: var(--color-bg-base);"></textarea>
-          <button class="btn btn-secondary" onclick="copyConfigField('nodeConfigYaml')" style="padding: 12px;"><i data-lucide="copy"></i></button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input type="file" id="admin-fm-upload-input" style="display: none;" onchange="adminFmUploadFile(this)">
+          <button class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="document.getElementById('admin-fm-upload-input').click()">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload File
+          </button>
+          <button class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="adminFmNewFolder()">
+            <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i> New Folder
+          </button>
+          <button class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="adminFmNewFile()">
+            <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> New File
+          </button>
+          <button class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition" onclick="adminFmRefresh()">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+          </button>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Admin File Manager Modal Overlay -->
-  <div class="modal-overlay" id="adminFileManagerModal">
-    <div class="modal-card" style="max-width: 950px; width: 95%;">
-      <div class="modal-header">
-        <h3><i data-lucide="folder" style="display: inline-block; vertical-align: middle; margin-right: 8px;"></i> File Manager: <span id="admin-fm-vps-name" style="font-family: monospace; font-size: 16px; color: var(--color-cool);">vps-name</span></h3>
-        <button class="modal-close" onclick="adminFmClose()"><i data-lucide="x"></i></button>
+      <!-- File browser body table -->
+      <div id="admin-fm-browser" class="overflow-y-auto flex-1 relative">
+        <table class="w-full text-xs text-left border-collapse">
+          <thead class="sticky top-0 bg-neutral-100/80 dark:bg-neutral-800/80 backdrop-blur-md text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase border-b border-neutral-200/40 dark:border-white/5">
+            <tr>
+              <th class="w-12 px-5 py-3"></th>
+              <th class="px-5 py-3">Name</th>
+              <th class="w-28 px-5 py-3">Size</th>
+              <th class="w-44 px-5 py-3">Last Modified</th>
+              <th class="w-32 px-5 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-fm-table-body" class="divide-y divide-neutral-200/40 dark:divide-white/5">
+            <!-- dynamically populated -->
+          </tbody>
+        </table>
       </div>
-      <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; min-height: 500px; max-height: 75vh; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-top: 10px;">
-        
-        <!-- File Manager Header / Actions -->
-        <div style="padding: 16px 24px; background-color: var(--color-primary); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-          <!-- Breadcrumbs -->
-          <div style="flex: 1; display: flex; align-items: center; gap: 8px; background: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 4px 12px; overflow-x: auto;">
-            <button class="btn btn-outline btn-small" onclick="adminFmLoadPath('/root')" style="padding: 4px; border: none; background: transparent;" title="Home">
-              <i data-lucide="home" style="width: 16px; height: 16px;"></i>
-            </button>
-            <span style="color: var(--color-text-muted);">/</span>
-            <input type="text" id="admin-fm-current-path" value="/root" class="form-input" style="border: none; padding: 4px; box-shadow: none; font-family: monospace; font-size: 14px; flex: 1; min-width: 150px; background: transparent;" onkeypress="if(event.key === 'Enter') adminFmLoadPath(this.value)">
-            <button class="btn btn-primary btn-small" onclick="adminFmLoadPath(document.getElementById('admin-fm-current-path').value)" style="padding: 4px 8px;">Go</button>
+
+      <!-- File editor panel -->
+      <div id="admin-fm-editor" style="display: none; flex-direction: column; background: #1e1e1e;" class="flex-1">
+        <div class="px-5 py-3 bg-[#2d2d2d] border-b border-neutral-800 flex items-center justify-between">
+          <div class="text-xs font-mono text-neutral-300 flex items-center gap-2">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+            <span id="admin-fm-editor-filename">filename.txt</span>
           </div>
-          
-          <!-- Toolbar -->
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="file" id="admin-fm-upload-input" style="display: none;" onchange="adminFmUploadFile(this)">
-            <button class="btn btn-secondary btn-small" onclick="document.getElementById('admin-fm-upload-input').click()"><i data-lucide="upload"></i> Upload File</button>
-            <button class="btn btn-secondary btn-small" onclick="adminFmNewFolder()"><i data-lucide="folder-plus"></i> New Folder</button>
-            <button class="btn btn-secondary btn-small" onclick="adminFmNewFile()"><i data-lucide="file-plus"></i> New File</button>
-            <button class="btn btn-outline btn-small" onclick="adminFmRefresh()"><i data-lucide="refresh-cw"></i> Refresh</button>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-medium rounded-xl transition" onclick="adminFmCloseEditor()">Cancel</button>
+            <button class="px-3 py-1.5 bg-white text-neutral-900 hover:bg-neutral-100 text-xs font-semibold rounded-xl transition" onclick="adminFmSaveFile()">Save Changes</button>
           </div>
         </div>
-
-        <!-- File Browser Area -->
-        <div id="admin-fm-browser" style="flex: 1; overflow-y: auto; background-color: var(--color-white); position: relative;">
-          <table class="db-table" style="width: 100%; border-top: none; border-left: none; border-right: none; margin: 0;">
-            <thead style="position: sticky; top: 0; background: var(--color-background-soft); z-index: 1;">
-              <tr>
-                <th style="width: 40px; padding: 12px 16px;"></th>
-                <th style="padding: 12px 16px;">Name</th>
-                <th style="width: 120px; padding: 12px 16px;">Size</th>
-                <th style="width: 180px; padding: 12px 16px;">Last Modified</th>
-                <th style="width: 150px; padding: 12px 16px; text-align: right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="admin-fm-table-body">
-              <!-- dynamically populated -->
-            </tbody>
-          </table>
-        </div>
-
-        <!-- File Editor Area (Hidden by default) -->
-        <div id="admin-fm-editor" style="display: none; flex: 1; flex-direction: column; background-color: #1e1e1e; position: relative;">
-          <div style="padding: 8px 16px; background-color: #2d2d2d; border-bottom: 1px solid #404040; display: flex; align-items: center; justify-content: space-between;">
-            <div style="color: #d4d4d4; font-family: monospace; font-size: 13px; display: flex; align-items: center; gap: 8px;">
-              <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
-              <span id="admin-fm-editor-filename">filename.txt</span>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-outline btn-small" onclick="adminFmCloseEditor()" style="border-color: #555; color: #ccc; background: transparent;">Cancel</button>
-              <button class="btn btn-primary btn-small" onclick="adminFmSaveFile()">Save Changes</button>
-            </div>
-          </div>
-          <textarea id="admin-fm-editor-textarea" style="flex: 1; width: 100%; border: none; background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; padding: 16px; resize: none; outline: none; white-space: pre; overflow-wrap: normal; overflow-x: auto; min-height: 300px;"></textarea>
-        </div>
-
+        <textarea id="admin-fm-editor-textarea" class="flex-1 w-full bg-[#1e1e1e] text-neutral-300 font-mono text-xs p-5 outline-none resize-none overflow-x-auto" style="min-height: 380px;"></textarea>
       </div>
+
     </div>
   </div>
+</div>
 
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/admin.js') }}?v=1.0.2"></script>
-</body>
-</html>
+<!-- Plan Edit/Add Modal Overlay -->
+<div class="modal-overlay" id="planModal">
+  <div class="modal-card max-w-sm">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm" id="planModalTitle">Add VPS Plan</h3>
+      <button class="modal-close" onclick="closePlanModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="planForm" onsubmit="window.handlePlanSubmit(event)" class="space-y-4">
+        <input type="hidden" id="planFormId">
+        <div>
+          <label class="auth-label" for="planName">Plan Name</label>
+          <input type="text" id="planName" class="auth-input" required placeholder="e.g. Enterprise Tier">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="auth-label" for="planPrice">Price ($ USD)</label>
+            <input type="number" id="planPrice" step="0.01" class="auth-input" required placeholder="15.00">
+          </div>
+          <div>
+            <label class="auth-label" for="planPriceCredits">Price (Credits)</label>
+            <input type="number" id="planPriceCredits" class="auth-input" required placeholder="1500">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="auth-label" for="planCpu">CPU Cores limit</label>
+            <input type="text" id="planCpu" class="auth-input" required placeholder="e.g. 4 Cores">
+          </div>
+          <div>
+            <label class="auth-label" for="planRam">RAM Capacity limit</label>
+            <input type="text" id="planRam" class="auth-input" required placeholder="e.g. 4096 MB">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="auth-label" for="planDisk">Disk Space size</label>
+            <input type="text" id="planDisk" class="auth-input" required placeholder="e.g. 80 GB">
+          </div>
+          <div>
+            <label class="auth-label" for="planBandwidth">Bandwidth limit</label>
+            <input type="text" id="planBandwidth" class="auth-input" required placeholder="e.g. 5 TB">
+          </div>
+        </div>
+        <button type="submit" class="auth-submit w-full mt-2">
+          <i data-lucide="save" class="w-4 h-4"></i> Save Pricing Plan
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ Edit/Add Modal Overlay -->
+<div class="modal-overlay" id="faqModal">
+  <div class="modal-card max-w-sm">
+    <div class="modal-header">
+      <h3 class="font-bold text-sm" id="faqModalTitle">Add FAQ Item</h3>
+      <button class="modal-close" onclick="closeFaqModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="faqForm" onsubmit="window.handleFaqSubmit(event)" class="space-y-4">
+        <input type="hidden" id="faqFormId">
+        <div>
+          <label class="auth-label" for="faqQuestion">Question Content</label>
+          <input type="text" id="faqQuestion" class="auth-input" required placeholder="e.g. Can I upgrade my resources later?">
+        </div>
+        <div>
+          <label class="auth-label" for="faqAnswer">Answer Content</label>
+          <textarea id="faqAnswer" class="auth-input" rows="4" required placeholder="Describe details..."></textarea>
+        </div>
+        <button type="submit" class="auth-submit w-full mt-2">
+          <i data-lucide="save" class="w-4 h-4"></i> Save FAQ Item
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin.js') }}?v=1.0.3"></script>
+<script>
+  // Mobile sidebar toggle script
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggleBtn = document.querySelector('.db-menu-toggle');
+    const sidebar = document.getElementById('pc-sidebar');
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.toggle('active');
+      });
+      document.addEventListener('click', (e) => {
+        if (!sidebar.contains(e.target) && sidebar.classList.contains('active')) {
+          sidebar.classList.remove('active');
+        }
+      });
+    }
+  });
+
+  // Preset presets helper binding to update theme color picking colors
+  const presetCards = document.querySelectorAll('.theme-preset-card');
+  presetCards.forEach(card => {
+    card.addEventListener('click', () => {
+      presetCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      
+      const primary = card.getAttribute('data-primary');
+      const secondary = card.getAttribute('data-secondary');
+      const accent = card.getAttribute('data-accent');
+      const cool = card.getAttribute('data-cool');
+      
+      document.getElementById('brandColorPrimary').value = primary;
+      document.getElementById('brandColorPrimaryText').value = primary;
+      
+      document.getElementById('brandColorSecondary').value = secondary;
+      document.getElementById('brandColorSecondaryText').value = secondary;
+      
+      document.getElementById('brandColorAccent').value = accent;
+      document.getElementById('brandColorAccentText').value = accent;
+      
+      document.getElementById('brandColorCool').value = cool;
+      document.getElementById('brandColorCoolText').value = cool;
+    });
+  });
+
+  // Sync color inputs
+  const colorsList = ['Primary', 'Secondary', 'Accent', 'Cool'];
+  colorsList.forEach(name => {
+    const picker = document.getElementById(`brandColor${name}`);
+    const text = document.getElementById(`brandColor${name}Text`);
+    if (picker && text) {
+      picker.addEventListener('input', () => { text.value = picker.value.toUpperCase(); });
+      text.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) { picker.value = text.value; } });
+    }
+  });
+</script>
+{% endblock %}
