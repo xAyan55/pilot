@@ -98,7 +98,13 @@ def list_keys():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, name, key, role, created_at, last_used FROM api_keys WHERE user_id = ? ORDER BY id DESC",
+        """
+        SELECT ak.id, ak.name, ak.key, u.role AS role, ak.created_at, ak.last_used 
+        FROM api_keys ak
+        JOIN users u ON ak.user_id = u.id
+        WHERE ak.user_id = ? 
+        ORDER BY ak.id DESC
+        """,
         (g.api_user_id,)
     )
     keys = [dict(r) for r in cursor.fetchall()]
@@ -767,7 +773,7 @@ def admin_list_users():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT u.id, u.username, u.email, u.role,
+        SELECT u.id, u.username, u.email, u.role, u.discord_user_id,
                COUNT(v.id) AS vps_count
         FROM users u
         LEFT JOIN vps v ON u.id = v.user_id
@@ -794,15 +800,25 @@ def admin_create_user():
         return jsonify({"error": "validation", "message": "role must be admin or client."}), 400
     if len(password) < 6:
         return jsonify({"error": "validation", "message": "Password must be at least 6 characters."}), 400
+    
+    db_discord_id = discord_user_id if discord_user_id else None
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, email))
     if cursor.fetchone():
         conn.close()
         return jsonify({"error": "conflict", "message": "Username or email already registered."}), 409
+        
+    if db_discord_id:
+        cursor.execute("SELECT id FROM users WHERE discord_user_id = ?", (db_discord_id,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "conflict", "message": "Discord ID already registered to another user."}), 409
+
     cursor.execute(
-        "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-        (username, email, generate_password_hash(password), role)
+        "INSERT INTO users (username, email, password_hash, role, discord_user_id) VALUES (?, ?, ?, ?, ?)",
+        (username, email, generate_password_hash(password), role, db_discord_id)
     )
     uid = cursor.lastrowid
     conn.commit()
@@ -825,19 +841,41 @@ def admin_update_user(target_id):
     email = data.get('email', '').strip().lower()
     role = data.get('role', 'client')
     new_pw = data.get('password')
+    discord_user_id = data.get('discord_user_id')
+
+    if discord_user_id is not None:
+        discord_user_id = discord_user_id.strip()
+        if not discord_user_id:
+            discord_user_id = None
+
     if not username or not email:
         return jsonify({"error": "validation", "message": "username and email required."}), 400
+    
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Check duplicate username/email
+    cursor.execute("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?", (username, email, target_id))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({"error": "conflict", "message": "Username or email already taken."}), 409
+
+    # Check duplicate discord_user_id
+    if discord_user_id:
+        cursor.execute("SELECT id FROM users WHERE discord_user_id = ? AND id != ?", (discord_user_id, target_id))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "conflict", "message": "Discord ID already registered to another user."}), 409
+
     if new_pw and len(new_pw) >= 6:
         cursor.execute(
-            "UPDATE users SET username=?, email=?, role=?, password_hash=? WHERE id=?",
-            (username, email, role, generate_password_hash(new_pw), target_id)
+            "UPDATE users SET username=?, email=?, role=?, password_hash=?, discord_user_id=? WHERE id=?",
+            (username, email, role, generate_password_hash(new_pw), discord_user_id, target_id)
         )
     else:
         cursor.execute(
-            "UPDATE users SET username=?, email=?, role=? WHERE id=?",
-            (username, email, role, target_id)
+            "UPDATE users SET username=?, email=?, role=?, discord_user_id=? WHERE id=?",
+            (username, email, role, discord_user_id, target_id)
         )
     conn.commit()
     conn.close()
@@ -878,6 +916,20 @@ def admin_suspend_user(target_id):
     action = "suspended" if suspend else "unsuspended"
     _log(g.api_user_id, f"API Admin: {action} user ID {target_id}")
     return jsonify({"status": "success", "message": f"User {action}."})
+
+
+@bp.route('/admin/users/by-discord/<discord_id>', methods=['GET'])
+@require_api_key(roles=['admin'])
+def admin_get_user_by_discord(discord_id):
+    """Retrieve user details by Discord User ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, email, role, pfp, discord_user_id FROM users WHERE discord_user_id = ?", (str(discord_id),))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not_found", "message": "User not linked to this Discord ID."}), 404
+    return jsonify(dict(row))
 
 
 @bp.route('/admin/users/verify', methods=['POST'])
@@ -927,6 +979,10 @@ def admin_deploy_vps():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = cursor.fetchone()
+    
+    if not discord_user_id and user and 'discord_user_id' in user.keys():
+        discord_user_id = user['discord_user_id'] or ''
+
     container_name = name
     if not user:
         conn.close()

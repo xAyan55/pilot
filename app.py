@@ -1770,6 +1770,10 @@ def admin_vps_deploy_stream():
         cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
 
+        nonlocal discord_user_id
+        if not discord_user_id and user and 'discord_user_id' in user.keys():
+            discord_user_id = user['discord_user_id'] or ''
+
         if not user:
             yield "data: [ERROR] Target user owner not found in database.\n\n"
             discord_notify.trigger_vps_deploy_status_alert(container_name, "Failed to Create (Owner missing)", False, f"Target user owner ID {user_id} not found in database.")
@@ -2867,6 +2871,8 @@ def admin_users_create():
     if len(password) < 6:
         return jsonify({"message": "Password must be at least 6 characters."}), 400
 
+    db_discord_id = discord_user_id if discord_user_id else None
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -2876,11 +2882,17 @@ def admin_users_create():
         conn.close()
         return jsonify({"message": "Username or email is already registered."}), 400
 
+    if db_discord_id:
+        cursor.execute("SELECT id FROM users WHERE discord_user_id = ?", (db_discord_id,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"message": "Discord ID is already registered to another user."}), 400
+
     hashed_pw = generate_password_hash(password)
     try:
         cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-            (username, email, hashed_pw, role)
+            "INSERT INTO users (username, email, password_hash, role, discord_user_id) VALUES (?, ?, ?, ?, ?)",
+            (username, email, hashed_pw, role, db_discord_id)
         )
         conn.commit()
         log_audit(session['user_id'], f"Admin created new user account: {username} ({role})")
@@ -2907,6 +2919,12 @@ def admin_users_update(target_user_id):
     email = data.get('email', '').strip().lower()
     role = data.get('role', 'client')
     new_password = data.get('password')
+    discord_user_id = data.get('discord_user_id')
+
+    if discord_user_id is not None:
+        discord_user_id = discord_user_id.strip()
+        if not discord_user_id:
+            discord_user_id = None
 
     if not username or not email or not role:
         return jsonify({"message": "Username, email, and role are required."}), 400
@@ -2923,18 +2941,25 @@ def admin_users_update(target_user_id):
         conn.close()
         return jsonify({"message": "Username or email is already registered by another user."}), 400
 
+    # Check duplicate discord_user_id
+    if discord_user_id:
+        cursor.execute("SELECT id FROM users WHERE discord_user_id = ? AND id != ?", (discord_user_id, target_user_id))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"message": "Discord ID is already registered to another user."}), 400
+
     try:
         if new_password and len(new_password.strip()) >= 6:
             hashed_pw = generate_password_hash(new_password.strip())
             cursor.execute(
-                "UPDATE users SET username = ?, email = ?, role = ?, password_hash = ? WHERE id = ?",
-                (username, email, role, hashed_pw, target_user_id)
+                "UPDATE users SET username = ?, email = ?, role = ?, password_hash = ?, discord_user_id = ? WHERE id = ?",
+                (username, email, role, hashed_pw, discord_user_id, target_user_id)
             )
             log_audit(session['user_id'], f"Admin updated user account details and reset password for ID {target_user_id} ({username})")
         else:
             cursor.execute(
-                "UPDATE users SET username = ?, email = ?, role = ? WHERE id = ?",
-                (username, email, role, target_user_id)
+                "UPDATE users SET username = ?, email = ?, role = ?, discord_user_id = ? WHERE id = ?",
+                (username, email, role, discord_user_id, target_user_id)
             )
             log_audit(session['user_id'], f"Admin updated user account details for ID {target_user_id} ({username})")
             
@@ -3434,7 +3459,13 @@ def session_list_keys():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, name, key, role, created_at, last_used FROM api_keys WHERE user_id = ? ORDER BY id DESC",
+        """
+        SELECT ak.id, ak.name, ak.key, u.role AS role, ak.created_at, ak.last_used 
+        FROM api_keys ak
+        JOIN users u ON ak.user_id = u.id
+        WHERE ak.user_id = ? 
+        ORDER BY ak.id DESC
+        """,
         (session['user_id'],)
     )
     keys = [dict(r) for r in cursor.fetchall()]

@@ -33,7 +33,8 @@ def init_db():
 
     # Migration to add discord_user_id to users table if it does not exist
     try:
-        cursor.execute("ALTER TABLE users ADD COLUMN discord_user_id TEXT UNIQUE DEFAULT NULL")
+        cursor.execute("ALTER TABLE users ADD COLUMN discord_user_id TEXT DEFAULT NULL")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id ON users(discord_user_id)")
     except sqlite3.OperationalError:
         pass
 

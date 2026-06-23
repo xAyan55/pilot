@@ -99,6 +99,17 @@ def get_linked_user(discord_id: int):
     conn.close()
     if row:
         return {"user_id": row[0], "username": row[1], "role": row[2]}
+
+    # Auto-sync fallback: check the panel API using the user's Discord ID
+    res, status = make_api_request(f"/admin/users/by-discord/{discord_id}")
+    if status == 200 and res:
+        panel_user_id = res.get("id")
+        panel_username = res.get("username")
+        panel_role = res.get("role")
+        if panel_user_id and panel_username:
+            save_user_link(discord_id, panel_user_id, panel_username, panel_role)
+            return {"user_id": panel_user_id, "username": panel_username, "role": panel_role}
+
     return None
 
 def remove_user_link(discord_id: int):
@@ -595,33 +606,36 @@ async def check_vps_ownership(interaction: discord.Interaction, vps_id: int, lin
 # SLASH COMMANDS — ACCOUNT & LINK
 # ─────────────────────────────────────────────────────────────────────────────
 
-@bot.tree.command(name="link", description="Link your Discord account to your control panel username.")
-@app_commands.describe(username="Your control panel username.", password="Your control panel password.")
-async def link_account(interaction: discord.Interaction, username: str, password: str):
+@bot.tree.command(name="link", description="Sync and link your Discord account with the control panel.")
+async def link_account(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     
-    # Call verify credentials endpoint using global admin key
-    res, status = make_api_request("/admin/users/verify", method="POST", data={
-        "username": username.strip(),
-        "password": password
-    })
+    # Try auto-linking
+    linked = get_linked_user(interaction.user.id)
+    branding = get_branding()
     
-    if status == 200 and res.get("valid"):
-        user_info = res.get("user")
-        save_user_link(interaction.user.id, user_info["id"], username.strip(), user_info["role"])
-        branding = get_branding()
-        
+    if linked:
         embed = discord.Embed(
-            title="✅ Account Linked Successfully!",
-            description=f"Hey **{username}**, your Discord account is now linked to **{branding['site_name']}**.",
+            title="✅ Account Already Linked!",
+            description=f"Hey **{linked['username']}**, your Discord account is already connected to **{branding['site_name']}**.",
             color=discord.Color.green()
         )
-        embed.add_field(name="Username", value=username, inline=True)
-        embed.add_field(name="Role", value=user_info["role"].upper(), inline=True)
-        embed.set_footer(text=f"{branding['site_name']} REST Bot Integration")
+        embed.add_field(name="Username", value=linked['username'], inline=True)
+        embed.add_field(name="Role", value=linked['role'].upper(), inline=True)
+        embed.set_footer(text=f"{branding['site_name']} Bot Sync")
         await interaction.followup.send(embed=embed, ephemeral=True)
     else:
-        await interaction.followup.send("❌ Link failed. Invalid username or password.", ephemeral=True)
+        # Since we use Discord-only OAuth2 on the panel web, user must login on the web panel first
+        embed = discord.Embed(
+            title="🔒 Automatic Link Sync Required",
+            description=f"Manual password linking is disabled. To connect your account:\n\n"
+                        f"1. Open the control panel in your browser: `{PANEL_URL}`\n"
+                        f"2. Click **Continue with Discord** to log in or register.\n"
+                        f"3. Once logged in, run `/link` or any bot command again to automatically synchronize!",
+            color=discord.Color.orange()
+        )
+        embed.set_footer(text=f"{branding['site_name']}")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="unlink", description="Disconnect your control panel account from Discord.")
@@ -632,8 +646,8 @@ async def unlink_account(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="account-create", description="Register a new panel account linked to your Discord.")
-@app_commands.describe(username="Choose a username.", email="Your email address.", password="Choose a password (min 6 chars).")
-async def account_create(interaction: discord.Interaction, username: str, email: str, password: str):
+@app_commands.describe(username="Choose a username.", email="Your email address.")
+async def account_create(interaction: discord.Interaction, username: str, email: str):
     await interaction.response.defer(ephemeral=True)
     
     # Check if already linked
@@ -642,16 +656,16 @@ async def account_create(interaction: discord.Interaction, username: str, email:
         await interaction.followup.send("❌ You already have a linked panel account. Use `/unlink` first if you want to create a new one.", ephemeral=True)
         return
     
-    if len(password.strip()) < 6:
-        await interaction.followup.send("❌ Password must be at least 6 characters long.", ephemeral=True)
-        return
+    # Auto-generate password
+    password = generate_random_password(16)
     
-    # Create user via admin API
+    # Create user via admin API, passing the discord_user_id
     res, status = make_api_request("/admin/users", method="POST", data={
         "username": username.strip().lower(),
         "email": email.strip().lower(),
-        "password": password.strip(),
-        "role": "client"
+        "password": password,
+        "role": "client",
+        "discord_user_id": str(interaction.user.id)
     })
     
     if status == 201:
@@ -661,17 +675,17 @@ async def account_create(interaction: discord.Interaction, username: str, email:
         
         branding = get_branding()
         
-        # Send credentials via DM
+        # Send credentials via DM (mostly as confirmation/fallback, explaining Discord login)
         try:
             dm_embed = discord.Embed(
                 title=f"🎉 Welcome to {branding['site_name']}!",
-                description="Your control panel account has been created successfully. Here are your credentials:",
+                description=f"Your control panel account has been created successfully. Since we use Discord-only authentication, you can log in directly using your Discord account.",
                 color=discord.Color.green()
             )
             dm_embed.add_field(name="🌐 Panel URL", value=f"`{PANEL_URL}`", inline=False)
             dm_embed.add_field(name="👤 Username", value=f"`{username.strip().lower()}`", inline=True)
             dm_embed.add_field(name="📧 Email", value=f"`{email.strip().lower()}`", inline=True)
-            dm_embed.add_field(name="🔑 Password", value=f"||`{password.strip()}`||", inline=False)
+            dm_embed.add_field(name="🔑 How to Log In", value="Click **Continue with Discord** on the login page.", inline=False)
             dm_embed.set_footer(text=f"{branding['site_name']} • Keep your credentials safe!")
             
             await interaction.user.send(embed=dm_embed)
@@ -682,8 +696,7 @@ async def account_create(interaction: discord.Interaction, username: str, email:
         embed = discord.Embed(
             title="✅ Account Created & Linked!",
             description=f"Your panel account **{username}** has been created and linked to your Discord.\n\n"
-                        f"📬 Your credentials have been sent to your DMs.\n"
-                        f"🌐 Login at: `{PANEL_URL}`",
+                        f"🌐 Login at: `{PANEL_URL}` (use the **Continue with Discord** option)",
             color=discord.Color.green()
         )
         embed.set_footer(text=f"{branding['site_name']}")
