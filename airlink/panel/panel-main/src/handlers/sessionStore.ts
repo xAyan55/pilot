@@ -34,7 +34,10 @@ class PrismaSessionStore extends session.Store {
 
   async destroy(sid: string, callback: (err?: Error) => void) {
     try {
-      await prisma.session.delete({ where: { session_id: sid } });
+      // Use deleteMany instead of delete to avoid throwing when the session
+      // doesn't exist in the DB (e.g. req.session.regenerate() destroys the
+      // old session before it was ever saved to the store).
+      await prisma.session.deleteMany({ where: { session_id: sid } });
       callback();
     } catch (err) {
       callback(err as Error);
