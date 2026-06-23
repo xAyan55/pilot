@@ -72,6 +72,12 @@
                 </a>
               </li>
               <li>
+                <a href="/admin/vps" class="transition nav-link mt-1 text-neutral-600 dark:text-neutral-400 px-4 mx-4 group flex gap-x-3 py-1.5 rounded-xl text-sm leading-6 font-normal">
+                  <%- icon('cpu', { class: 'w-5 mt-0.5 h-5', strokeWidth: 1.5 }) %>
+                  <span><%= req.translations.navLxcVps || 'LXC VPS' %></span>
+                </a>
+              </li>
+              <li>
                 <a href="/admin/users" class="transition nav-link mt-1 text-neutral-600 dark:text-neutral-400 px-4 mx-4 group flex gap-x-3 py-1.5 rounded-xl text-sm leading-6 font-normal">
                   <%- icon('users', { class: 'w-5 mt-0.5 h-5', strokeWidth: 1.5 }) %>
                   <span><%= req.translations.navUsers || 'Users' %></span>
