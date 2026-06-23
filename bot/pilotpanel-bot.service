@@ -1,10 +1,11 @@
 [Unit]
-Description=PilotPanel VPS Management Discord Bot
+Description=PilotPanel Discord Bot
 After=network.target pilotpanel.service
 
 [Service]
 User=root
 WorkingDirectory=/var/www/pilotpanel/bot
+EnvironmentFile=/var/www/pilotpanel/.env
 ExecStart=/var/www/pilotpanel/bot/venv/bin/python bot.py
 Restart=always
 RestartSec=5

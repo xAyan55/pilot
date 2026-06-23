@@ -1,10 +1,11 @@
 [Unit]
-Description=PilotPanel LXC Node Daemon (Bun Core)
+Description=PilotPanel LXC Node Daemon
 After=network.target
 
 [Service]
 User=root
 WorkingDirectory=/var/www/pilotpanel/airlink/daemon/daemon-main
+EnvironmentFile=/var/www/pilotpanel/.env
 ExecStart=/usr/local/bin/bun src/app.ts
 Restart=always
 RestartSec=5

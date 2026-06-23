@@ -1,9 +1,9 @@
 #!/bin/bash
-# PilotPanel LXC Control Panel - Ubuntu Installation Script
+# PilotPanel - Ubuntu Installation Script
 # Made By VoidFlamer
 set -e
 
-# Colors based on request: Deep Cyan, Sky Blue, White, Silver, Navigation Green
+# ─── Colors ───────────────────────────────────────────────────────────────────
 CYAN='\033[36m'
 B_CYAN='\033[1;36m'
 SKY_BLUE='\033[38;5;39m'
@@ -11,7 +11,6 @@ B_SKY_BLUE='\033[1;38;5;39m'
 WHITE='\033[97m'
 B_WHITE='\033[1;97m'
 SILVER='\033[37m'
-B_SILVER='\033[1;37m'
 NAV_GREEN='\033[32m'
 B_NAV_GREEN='\033[1;32m'
 RED='\033[31m'
@@ -20,87 +19,87 @@ YELLOW='\033[33m'
 B_YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Helper functions for aviation-themed output
-info_msg() {
-    echo -e "${B_SKY_BLUE}[ATC]${NC} ${SKY_BLUE}$1${NC}"
-}
-success_msg() {
-    echo -e "${B_NAV_GREEN}[TOWER]${NC} ${NAV_GREEN}$1${NC}"
-}
-warn_msg() {
-    echo -e "${B_YELLOW}[🛰 ALERT]${NC} ${YELLOW}$1${NC}"
-}
-error_msg() {
-    echo -e "${B_RED}[✗ FATAL]${NC} ${B_RED}SYSTEM CRITICAL: $1${NC}"
-}
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+info_msg()    { echo -e "${B_SKY_BLUE}[ATC]${NC} ${SKY_BLUE}$1${NC}"; }
+success_msg() { echo -e "${B_NAV_GREEN}[TOWER]${NC} ${NAV_GREEN}$1${NC}"; }
+warn_msg()    { echo -e "${B_YELLOW}[⚠ ALERT]${NC} ${YELLOW}$1${NC}"; }
+error_msg()   { echo -e "${B_RED}[✗ FATAL]${NC} ${B_RED}$1${NC}"; }
 
 show_progress() {
     local label="$1"
-    local steps=5
     echo -ne "${B_SKY_BLUE}✈${NC} ${SILVER}${label}...${NC}\n"
-    for ((i=1; i<=steps; i++)); do
-        local pct=$((i * 20))
+    for ((i=1;i<=5;i++)); do
         local bar=""
-        for ((j=1; j<=5; j++)); do
-            if [ $j -le $i ]; then
-                bar="${bar}■"
-            else
-                bar="${bar}□"
-            fi
+        for ((j=1;j<=5;j++)); do
+            [ $j -le $i ] && bar="${bar}■" || bar="${bar}□"
         done
-        echo -ne "\r${B_SKY_BLUE}[${bar}]${NC} ${WHITE}${pct}%${NC}"
+        echo -ne "\r${B_SKY_BLUE}[${bar}]${NC} ${WHITE}$((i*20))%${NC}"
         sleep 0.2
     done
     echo -e "\r${B_NAV_GREEN}[■■■■■]${NC} ${NAV_GREEN}100% - Ready.${NC}\n"
 }
 
-# Define variables
-INSTALL_DIR="/var/www/pilotpanel"
+# ─── Root Path (REQUIREMENT #1 & #5) ─────────────────────────────────────────
+# APP_ROOT is the single source of truth for ALL paths in this installer.
+APP_ROOT="/var/www/pilotpanel"
+PANEL_DIR="$APP_ROOT/airlink/panel/panel-main"
+DAEMON_DIR="$APP_ROOT/airlink/daemon/daemon-main"
+BOT_DIR="$APP_ROOT/bot"
+ENV_FILE="$APP_ROOT/.env"             # Single .env at repo root
 REPO_URL="https://github.com/xAyan55/pilot.git"
 
+# ─── Banner ───────────────────────────────────────────────────────────────────
 clear
 echo -e "${B_SKY_BLUE}               ______${NC}"
-echo -e "${B_SKY_BLUE}             //  ||  \\\\ ${NC}"
-echo -e "${B_SKY_BLUE}       ____ //___||___\\\\ ____${NC}"
+echo -e "${B_SKY_BLUE}             //  ||  \\ ${NC}"
+echo -e "${B_SKY_BLUE}       ____ //___||___\\ ____${NC}"
 echo -e "${B_SKY_BLUE}      (____(______/ \\____)____)${NC}"
 echo -e "${B_SKY_BLUE}            |    ||    |${NC}"
 echo -e "${B_SKY_BLUE}            |____||____|${NC}"
-echo -e ""
+echo ""
 echo -e "          ${B_WHITE}P I L O T P A N E L${NC}"
 echo -e "      ${SILVER}Flight Operations Platform${NC}"
 echo -e "${B_SKY_BLUE}────────────────────────────────────────────────────────────${NC}"
 echo ""
 
+# ═════════════════════════════════════════════════════════════════════════════
 echo -e "${B_WHITE}✈ PHASE 1 — PRE-FLIGHT CHECKS${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
 show_progress "Establishing communication with package repository control"
 sudo apt update -y
 
+# ═════════════════════════════════════════════════════════════════════════════
 echo -e "\n${B_WHITE}✈ PHASE 2 — AIRCRAFT PREPARATION${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
 info_msg "Fetching Node.js v20 package repository blueprints..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 
-info_msg "[GROUND CREW] Loading required system utilities (Python, Git, LXC bridges, SSH, Curl)..."
-sudo apt install -y nodejs python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl unzip
+info_msg "Loading required system utilities..."
+sudo apt install -y nodejs python3 python3-pip python3-venv git snapd \
+    bridge-utils uidmap openssh-client curl unzip
 
-info_msg "[GROUND CREW] Provisioning Bun runtime compiler engine..."
+info_msg "Provisioning Bun runtime compiler engine..."
 curl -fsSL https://bun.sh/install | bash
-sudo cp /root/.bun/bin/bun /usr/local/bin/bun || sudo cp "$HOME/.bun/bin/bun" /usr/local/bin/bun || true
+sudo cp /root/.bun/bin/bun /usr/local/bin/bun \
+    || sudo cp "$HOME/.bun/bin/bun" /usr/local/bin/bun \
+    || true
 
-info_msg "[GROUND CREW] Deploying virtualization engine (LXD Snap)..."
+info_msg "Deploying virtualization engine (LXD)..."
 sudo snap install lxd
 
+# ═════════════════════════════════════════════════════════════════════════════
 echo -e "\n${B_WHITE}✈ PHASE 3 — NETWORK CONFIGURATION${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
 info_msg "Configuring container network bridge lxdbr0..."
 if ! sudo lxd init --auto; then
-    warn_msg "Auto-initialization failed due to subnet overlap. Provisioning custom bridge route manually..."
+    warn_msg "Auto-init failed. Creating custom bridge manually..."
     sudo /snap/bin/lxc network create lxdbr0 ipv4.address=10.99.0.1/24 ipv4.nat=true || true
     sudo lxd init --auto
 fi
 
-# Ensure default profile has the network device eth0 attached to lxdbr0
 sudo /snap/bin/lxc profile device add default eth0 nic network=lxdbr0 name=eth0 || true
 
-info_msg "Applying routing policies for container traffic forwarding..."
+info_msg "Applying container traffic forwarding rules..."
 sudo iptables -I FORWARD -i lxdbr0 -j ACCEPT || true
 sudo iptables -I FORWARD -o lxdbr0 -j ACCEPT || true
 if command -v ufw >/dev/null; then
@@ -108,120 +107,272 @@ if command -v ufw >/dev/null; then
     sudo ufw route allow out on lxdbr0 || true
 fi
 
-info_msg "Configuring satellite navigation images registry URL..."
+info_msg "Configuring LXD image registry..."
 sudo /snap/bin/lxc remote set-url images https://images.lxd.canonical.com/ || true
 
-# If running as non-root user, ensure they belong to the lxd group
 if [ "$USER" != "root" ]; then
-    info_msg "Granting user $USER permission to access hypervisor controls..."
-    sudo usermod -aG lxd $USER
+    info_msg "Adding $USER to lxd group..."
+    sudo usermod -aG lxd "$USER"
 fi
 
-echo -e "\n${B_WHITE}✈ PHASE 4 — CONTROL SYSTEM DEPLOYMENT${NC}"
-info_msg "Downloading PilotPanel flight operations blueprints to $INSTALL_DIR..."
+# ═════════════════════════════════════════════════════════════════════════════
+echo -e "\n${B_WHITE}✈ PHASE 4 — CODEBASE DEPLOYMENT${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
+info_msg "Deploying PilotPanel to $APP_ROOT ..."
 sudo mkdir -p /var/www
-if [ -d "$INSTALL_DIR" ]; then
-    warn_msg "Target directory exists. Fetching latest updates from origin control..."
-    sudo chown -R "$USER":"$USER" "$INSTALL_DIR" 2>/dev/null || sudo chown -R root:root "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
+if [ -d "$APP_ROOT" ]; then
+    warn_msg "Target directory exists — pulling latest updates..."
+    sudo chown -R "${USER}":"${USER}" "$APP_ROOT" 2>/dev/null \
+        || sudo chown -R root:root "$APP_ROOT"
+    cd "$APP_ROOT"
     git pull origin main
 else
-    sudo git clone "$REPO_URL" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
+    sudo git clone "$REPO_URL" "$APP_ROOT"
+    cd "$APP_ROOT"
 fi
 
-# Check and copy legacy database if present
-if [ -f "/var/www/lxc/pilotpanel.db" ] && [ ! -f "$INSTALL_DIR/pilotpanel.db" ]; then
-    info_msg "Restoring historical flight records database pilotpanel.db..."
-    sudo cp "/var/www/lxc/pilotpanel.db" "$INSTALL_DIR/pilotpanel.db"
-    sudo chown -R "$USER":"$USER" "$INSTALL_DIR/pilotpanel.db" 2>/dev/null || true
+# ─── Generate root .env (REQUIREMENT #2) ──────────────────────────────────────
+# All secrets live in ONE file: $APP_ROOT/.env
+# The panel and daemon .env files are symlinks to this single file.
+info_msg "Generating master configuration file at $ENV_FILE ..."
+
+# Detect server IP
+SERVER_IP=$(hostname -I | awk '{print $1}')
+SESSION_SECRET=$(openssl rand -hex 32)
+
+if [ ! -f "$ENV_FILE" ]; then
+cat > "$ENV_FILE" << ENVEOF
+# ══════════════════════════════════════════════════════
+#  PilotPanel — Master Configuration
+#  Location: $ENV_FILE
+#  Edit this file, then run: systemctl restart pilotpanel
+# ══════════════════════════════════════════════════════
+
+# ── Discord OAuth2 (REQUIRED) ──────────────────────────
+# Create an app at https://discord.com/developers/applications
+# Under OAuth2 → Redirects, add your callback URL below.
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=http://${SERVER_IP}:5000/auth/discord/callback
+DISCORD_ADMIN_USER_ID=
+
+# ── Panel ──────────────────────────────────────────────
+PORT=5000
+URL=http://${SERVER_IP}:5000
+NAME=PilotPanel
+NODE_ENV=production
+SESSION_SECRET=${SESSION_SECRET}
+
+# ── Database ───────────────────────────────────────────
+DATABASE_URL=file:${PANEL_DIR}/storage/dev.db
+
+# ── Daemon ─────────────────────────────────────────────
+# These are read by the node daemon (airlink/daemon/daemon-main)
+remote=0.0.0.0
+key=change-this-daemon-key-now
+port=5001
+DEBUG=false
+version=3.0.0
+STATS_INTERVAL=10000
+CONTAINER_RUNTIME=docker
+REQUIRE_HMAC=true
+ALLOWED_IPS=
+BEHIND_PROXY=false
+ENVEOF
+    success_msg "Master .env created at $ENV_FILE"
+else
+    warn_msg "$ENV_FILE already exists — skipping creation. Existing values preserved."
+    # Always ensure port and name are correct
+    sed -i 's/^PORT=.*/PORT=5000/' "$ENV_FILE"
+    sed -i 's/^NAME=Airlink/NAME=PilotPanel/' "$ENV_FILE"
 fi
 
-echo -e "\n${B_WHITE}✈ PHASE 5 — FLIGHT SERVICES ACTIVATION${NC}"
-info_msg "Initializing PilotPanel TypeScript cockpit modules..."
-cd "$INSTALL_DIR/airlink/panel/panel-main"
-if [ ! -f ".env" ]; then
-    cp example.env .env
-fi
-# Configure production port to 5000 to match old configuration
-sed -i 's/PORT=3000/PORT=5000/g' .env
-sed -i 's/URL="http:\/\/localhost:3000"/URL="http:\/\/localhost:5000"/g' .env
-sed -i 's/NAME="Airlink"/NAME="PilotPanel"/g' .env
+# ─── Symlink .env to panel and daemon (REQUIREMENT #1 & #5) ───────────────────
+# Panel and daemon read .env from their own working directory.
+# We symlink the single master .env to both locations so only ONE file to edit.
+info_msg "Symlinking master .env to panel and daemon directories..."
+ln -sf "$ENV_FILE" "$PANEL_DIR/.env"
+ln -sf "$ENV_FILE" "$DAEMON_DIR/.env"
+success_msg "Symlinks created: panel and daemon both read from $ENV_FILE"
 
-info_msg "[GROUND CREW] Loading node packages for cockpit interface..."
+# ═════════════════════════════════════════════════════════════════════════════
+echo -e "\n${B_WHITE}✈ PHASE 5 — PANEL BUILD & DATABASE${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
+info_msg "Installing panel Node.js packages..."
+cd "$PANEL_DIR"
 npm install
-info_msg "[GROUND CREW] Building database schema blueprint classes..."
+
+info_msg "Generating Prisma database client..."
 npx prisma generate
+
+info_msg "Pushing database schema..."
 npx prisma db push
 
-if [ -f "$INSTALL_DIR/pilotpanel.db" ]; then
-    info_msg "Importing legacy database information into primary cockpit database..."
-    npm run migrate:pilot || warn_msg "Data migration experienced database conflicts. Please review logs."
-fi
-
-info_msg "[GROUND CREW] Compiling instrumentation display styling (CSS/JS)..."
+info_msg "Building panel CSS and TypeScript assets..."
 npm run build
 
-info_msg "Setting up local hypervisor monitoring node daemon..."
-cd "$INSTALL_DIR/airlink/daemon/daemon-main"
-if [ ! -f ".env" ]; then
-    cp example.env .env
-fi
-info_msg "[GROUND CREW] Installing daemon package bundles..."
+# ─── Daemon dependencies ───────────────────────────────────────────────────
+info_msg "Installing daemon Bun packages..."
+cd "$DAEMON_DIR"
 /usr/local/bin/bun install || bun install || true
 
-echo -e "\n${B_WHITE}✈ PHASE 6 — FINAL SYSTEM INSPECTION${NC}"
-info_msg "[TOWER] Authorizing PilotPanel systems for takeoff (systemd cockpit registration)..."
-sudo cp "$INSTALL_DIR/pilotpanel.service" /etc/systemd/system/pilotpanel.service
+# ═════════════════════════════════════════════════════════════════════════════
+echo -e "\n${B_WHITE}✈ PHASE 6 — CONFIGURATION VALIDATION${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
+info_msg "Validating required configuration variables..."
+
+MISSING_VARS=0
+
+check_var() {
+    local key="$1"
+    local val
+    val=$(grep -E "^${key}=" "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+    if [ -z "$val" ]; then
+        warn_msg "MISSING: ${key} is not set in $ENV_FILE"
+        MISSING_VARS=$((MISSING_VARS + 1))
+    fi
+}
+
+check_var "DISCORD_CLIENT_ID"
+check_var "DISCORD_CLIENT_SECRET"
+check_var "SESSION_SECRET"
+
+if [ "$MISSING_VARS" -gt 0 ]; then
+    echo ""
+    echo -e "${B_YELLOW}┌─────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${B_YELLOW}│  ⚠  ${MISSING_VARS} required variable(s) are missing from your .env file.      │${NC}"
+    echo -e "${B_YELLOW}│  PilotPanel will start but Discord login WILL NOT work until set.  │${NC}"
+    echo -e "${B_YELLOW}│  Edit: nano ${ENV_FILE}                        │${NC}"
+    echo -e "${B_YELLOW}└─────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+echo -e "\n${B_WHITE}✈ PHASE 7 — SERVICE REGISTRATION${NC}"
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ─── Write panel systemd service ──────────────────────────────────────────────
+info_msg "Registering PilotPanel panel service..."
+sudo bash -c "cat > /etc/systemd/system/pilotpanel.service" << SVCEOF
+[Unit]
+Description=PilotPanel Control Panel
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=${PANEL_DIR}
+EnvironmentFile=${ENV_FILE}
+ExecStart=/usr/bin/node dist/app.js
+Restart=always
+RestartSec=5
+Environment=PATH=/usr/bin:/usr/local/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+# ─── Write daemon systemd service ─────────────────────────────────────────────
+info_msg "Registering PilotPanel daemon service..."
+sudo bash -c "cat > /etc/systemd/system/pilotpanel-node.service" << SVCEOF
+[Unit]
+Description=PilotPanel LXC Node Daemon
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=${DAEMON_DIR}
+EnvironmentFile=${ENV_FILE}
+ExecStart=/usr/local/bin/bun src/app.ts
+Restart=always
+RestartSec=5
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+# ─── Discord Bot (Python) ──────────────────────────────────────────────────
+info_msg "Setting up Discord bot..."
+if [ -f "$BOT_DIR/requirements.txt" ]; then
+    python3 -m venv "$BOT_DIR/venv"
+    source "$BOT_DIR/venv/bin/activate"
+    pip install --upgrade pip -q
+    pip install -r "$BOT_DIR/requirements.txt" -q
+    deactivate
+
+    sudo bash -c "cat > /etc/systemd/system/pilotpanel-bot.service" << SVCEOF
+[Unit]
+Description=PilotPanel Discord Bot
+After=network.target pilotpanel.service
+
+[Service]
+User=root
+WorkingDirectory=${BOT_DIR}
+EnvironmentFile=${ENV_FILE}
+ExecStart=${BOT_DIR}/venv/bin/python bot.py
+Restart=always
+RestartSec=5
+Environment=PATH=${BOT_DIR}/venv/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+fi
+
+# ─── Enable and start services ─────────────────────────────────────────────
+info_msg "Loading service definitions..."
 sudo systemctl daemon-reload
+
+info_msg "Enabling and starting PilotPanel panel..."
 sudo systemctl enable pilotpanel.service
 sudo systemctl restart pilotpanel.service
 
-info_msg "Assembling auxiliary Discord communications link..."
-if [ ! -f "$INSTALL_DIR/bot/.env" ]; then
-    cp "$INSTALL_DIR/bot/.env.example" "$INSTALL_DIR/bot/.env"
-    warn_msg "Generated bot/.env config. Setup Discord credentials to activate bot telemetry links."
+info_msg "Enabling and starting PilotPanel daemon..."
+sudo systemctl enable pilotpanel-node.service
+sudo systemctl restart pilotpanel-node.service
+
+if [ -f "$BOT_DIR/requirements.txt" ]; then
+    info_msg "Enabling and starting Discord bot..."
+    sudo systemctl enable pilotpanel-bot.service
+    sudo systemctl restart pilotpanel-bot.service \
+        || warn_msg "Bot failed to start — fill Discord credentials first."
 fi
 
-python3 -m venv "$INSTALL_DIR/bot/venv"
-source "$INSTALL_DIR/bot/venv/bin/activate"
-pip install --upgrade pip
-pip install -r "$INSTALL_DIR/bot/requirements.txt"
-deactivate
-
-info_msg "[TOWER] Launching Discord communication services..."
-sudo cp "$INSTALL_DIR/bot/pilotpanel-bot.service" /etc/systemd/system/pilotpanel-bot.service
-sudo systemctl daemon-reload
-sudo systemctl enable pilotpanel-bot.service
-sudo systemctl restart pilotpanel-bot.service || warn_msg "Discord communications bot failed to launch. Verify credentials in bot/.env."
-
+# ═════════════════════════════════════════════════════════════════════════════
+# REQUIREMENT #3 — Post-Install Summary
+# ═════════════════════════════════════════════════════════════════════════════
 echo ""
-echo -e "${B_SKY_BLUE}╔══════════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${B_SKY_BLUE}║${NC}               ${B_WHITE}${BOLD}🛫 PILOTPANEL DEPLOYMENT COMPLETED 🛫${NC}              ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}╠══════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Flight Status:${NC}        ${B_NAV_GREEN}ONLINE 🛫${NC}                                          ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Control Panel URL:${NC}    ${B_SKY_BLUE}http://YOUR_SERVER_IP:5000${NC}                            ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Virtualization Engine:${NC} ${SILVER}LXC/LXD (OPERATIONAL)${NC}                                  ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Local Monitoring Node:${NC} ${SILVER}ACTIVE 🛰${NC}                                            ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Discord Telemetry Link:${NC} ${SILVER}ACTIVE 📡${NC}                                           ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}                                                                          ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Control Systemd Unit:${NC}  ${SILVER}systemctl status pilotpanel.service${NC}             ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Discord Bot Service:${NC}   ${SILVER}systemctl status pilotpanel-bot.service${NC}         ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Bot Config File:${NC}       ${SILVER}/var/www/pilotpanel/bot/.env${NC}                    ${B_SKY_BLUE}║${NC}"
-echo -e "${B_SKY_BLUE}╚══════════════════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${B_SKY_BLUE}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${B_SKY_BLUE}║${NC}             ${B_WHITE}🛫  PILOTPANEL DEPLOYMENT COMPLETE  🛫${NC}            ${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}╠══════════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Panel URL:${NC}       ${CYAN}http://${SERVER_IP}:5000${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}App Root:${NC}        ${SILVER}${APP_ROOT}${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Config File:${NC}     ${SILVER}${ENV_FILE}${NC}"
+echo -e "${B_SKY_BLUE}╠══════════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_RED}ACTION REQUIRED — Set these variables in your .env:${NC}"
+echo -e "${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}║${NC}    ${B_YELLOW}DISCORD_CLIENT_ID${NC}      = <from Discord Developer Portal>"
+echo -e "${B_SKY_BLUE}║${NC}    ${B_YELLOW}DISCORD_CLIENT_SECRET${NC}  = <from Discord Developer Portal>"
+echo -e "${B_SKY_BLUE}║${NC}    ${B_YELLOW}DISCORD_REDIRECT_URI${NC}   = http://${SERVER_IP}:5000/auth/discord/callback"
+echo -e "${B_SKY_BLUE}║${NC}    ${B_YELLOW}DISCORD_ADMIN_USER_ID${NC}  = <your Discord user ID>"
+echo -e "${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Step 1:${NC} Edit config:"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}nano ${ENV_FILE}${NC}"
+echo -e "${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Step 2:${NC} Restart panel:"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}systemctl restart pilotpanel${NC}"
+echo -e "${B_SKY_BLUE}║${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Discord App Setup:${NC}"
+echo -e "${B_SKY_BLUE}║${NC}    ${SILVER}https://discord.com/developers/applications${NC}"
+echo -e "${B_SKY_BLUE}║${NC}    Add redirect: ${CYAN}http://${SERVER_IP}:5000/auth/discord/callback${NC}"
+echo -e "${B_SKY_BLUE}║${NC}    Scopes: ${SILVER}identify, email${NC}"
+echo -e "${B_SKY_BLUE}╠══════════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${B_SKY_BLUE}║${NC}  ${B_WHITE}Service Commands:${NC}"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}systemctl status pilotpanel${NC}          — panel status"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}systemctl status pilotpanel-node${NC}      — daemon status"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}systemctl status pilotpanel-bot${NC}       — Discord bot status"
+echo -e "${B_SKY_BLUE}║${NC}    ${CYAN}journalctl -u pilotpanel -f${NC}           — panel logs"
+echo -e "${B_SKY_BLUE}╚══════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e " ${B_WHITE}🛫 Post-Flight Instructions:${NC}"
-echo -e "    1. Populate credentials and keys in the primary config file:"
-echo -e "       ${BOLD}/var/www/pilotpanel/airlink/panel/panel-main/.env${NC}"
-echo -e "    2. Set OAuth2 variables for client/admin log-ins:"
-echo -e "       - DISCORD_CLIENT_ID"
-echo -e "       - DISCORD_CLIENT_SECRET"
-echo -e "       - DISCORD_REDIRECT_URI"
-echo -e "       - DISCORD_ADMIN_USER_ID"
-echo -e "    3. Restart navigation services: ${CYAN}sudo systemctl restart pilotpanel.service${NC}"
-echo ""
-echo -e " ${B_WHITE}📡 Windows 10/11 VM Support:${NC}"
-echo -e "    To deploy Windows VMs on this node, pre-bake the OS image:"
-echo -e "    ${CYAN}bash $INSTALL_DIR/setup_windows_image.sh /path/to/windows.iso${NC}"
-echo -e "${B_SKY_BLUE}============================================================================${NC}"
-sudo systemctl status pilotpanel.service
