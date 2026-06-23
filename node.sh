@@ -35,7 +35,7 @@ error_msg() {
     echo -e "${B_RED}[✗]${NC} ${B_RED}ERROR: $1${NC}"
 }
 
-INSTALL_DIR="/var/www/lxc"
+INSTALL_DIR="/var/www/pilotpanel"
 REPO_URL="https://github.com/xAyan55/pilot.git"
 
 clear
@@ -54,6 +54,10 @@ sudo apt update -y
 
 info_msg "Installing system dependencies..."
 sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl iptables
+
+info_msg "Installing Bun runtime..."
+curl -fsSL https://bun.sh/install | bash
+sudo cp /root/.bun/bin/bun /usr/local/bin/bun || sudo cp "$HOME/.bun/bin/bun" /usr/local/bin/bun || true
 
 info_msg "Installing LXD snap..."
 sudo snap install lxd
@@ -96,15 +100,6 @@ else
     cd "$INSTALL_DIR"
 fi
 
-info_msg "Setting up virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
-
-info_msg "Installing Python packages..."
-pip install --upgrade pip
-pip install -r requirements.txt
-deactivate
-
 # Read config from environment variables passed during curl execution
 if [ -z "$NODE_ID" ] || [ "$NODE_ID" = "0" ]; then
     echo -ne "${B_YELLOW}[?] Enter Node ID (e.g. 2): ${NC}"
@@ -126,29 +121,37 @@ NODE_NAME=${NODE_NAME:-"Remote Node"}
 
 PANEL_URL=$(echo "$PANEL_URL" | sed 's/\/$//')
 
-info_msg "Writing configuration file config.yml..."
-cat <<EOF > config.yml
-port: $NODE_PORT
-api_key: "$NODE_API_KEY"
-node_id: $NODE_ID
-name: "$NODE_NAME"
-panel_url: "$PANEL_URL"
+info_msg "Writing configuration file .env..."
+cd "$INSTALL_DIR/airlink/daemon/daemon-main"
+cat <<EOF > .env
+remote="0.0.0.0"
+key="$NODE_API_KEY"
+port=$NODE_PORT
+DEBUG=false
+version=3.0.0
+STATS_INTERVAL=10000
+CONTAINER_RUNTIME=docker
+REQUIRE_HMAC=true
+ALLOWED_IPS=
+BEHIND_PROXY=false
 EOF
+
+info_msg "Installing daemon dependencies..."
+/usr/local/bin/bun install || bun install || true
 
 info_msg "Creating systemd service file..."
 sudo bash -c "cat > /etc/systemd/system/pilotpanel-node.service" <<SERVICEEOF
 [Unit]
-Description=PilotPanel LXC Node Daemon (Cloudflare Native)
+Description=PilotPanel LXC Node Daemon (Bun Core)
 After=network.target
 
 [Service]
 User=root
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python daemon.py
+WorkingDirectory=$INSTALL_DIR/airlink/daemon/daemon-main
+ExecStart=/usr/local/bin/bun src/app.ts
 Restart=always
 RestartSec=5
-Environment=PATH=$INSTALL_DIR/venv/bin:/usr/bin:/bin
-Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=LC_ALL=C
 
 [Install]
@@ -165,7 +168,7 @@ echo -e "${B_GREEN}┌───────────────────�
 echo -e "${B_GREEN}│${NC}                 ${B_GREEN}NODE INSTALLATION COMPLETE!${NC}            ${B_GREEN}│${NC}"
 echo -e "${B_GREEN}└────────────────────────────────────────────────────────┘${NC}"
 echo -e " The daemon will now connect to: ${B_CYAN}$PANEL_URL${NC}"
-echo -e " via WebSocket through Cloudflare Tunnel."
+echo -e " via WebSocket connection."
 echo ""
 echo -e "${BOLD} Container SSH Access:${NC}"
 echo -e "   Each container gets a forwarded port on this node's IP"

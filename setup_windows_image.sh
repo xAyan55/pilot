@@ -26,7 +26,7 @@ ALIAS_NAME="${WINDOWS_ALIAS:-windows/10}"
 DEFAULT_PASSWORD="${WINDOWS_DEFAULT_PASSWORD:-PilotPanel!2026}"
 LXC="/snap/bin/lxc"
 LOG_FILE="${WINDOWS_LOG_FILE:-/var/log/pilotpanel-win-build.log}"
-STATUS_FILE="${WINDOWS_STATUS_FILE:-/var/www/lxc/windows_build_status.json}"
+STATUS_FILE="${WINDOWS_STATUS_FILE:-/var/www/pilotpanel/windows_build_status.json}"
 
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 exec > >(tee -a "$LOG_FILE") 2>&1

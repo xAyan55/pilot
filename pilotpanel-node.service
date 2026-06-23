@@ -1,15 +1,14 @@
 [Unit]
-Description=PilotPanel LXC Node Daemon (Cloudflare Native)
+Description=PilotPanel LXC Node Daemon (Bun Core)
 After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/var/www/lxc
-ExecStart=/var/www/lxc/venv/bin/python daemon.py
+WorkingDirectory=/var/www/pilotpanel/airlink/daemon/daemon-main
+ExecStart=/usr/local/bin/bun src/app.ts
 Restart=always
 RestartSec=5
-Environment=PATH=/var/www/lxc/venv/bin:/usr/bin:/bin
-Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=LC_ALL=C
 
 [Install]

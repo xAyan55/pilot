@@ -35,7 +35,7 @@ error_msg() {
 }
 
 # Define variables
-INSTALL_DIR="/var/www/lxc"
+INSTALL_DIR="/var/www/pilotpanel"
 REPO_URL="https://github.com/xAyan55/pilot.git"
 
 clear
@@ -52,8 +52,16 @@ echo ""
 info_msg "Updating apt package lists..."
 sudo apt update -y
 
-info_msg "Installing system dependencies (Python, Git, LXC bridging, SSH, Curl)..."
-sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
+info_msg "Installing system dependencies (Node.js, Python, Git, LXC bridging, SSH, Curl)..."
+# Setup Node.js v20 repository
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+# Install dependencies (including python/venv for bot and tools)
+sudo apt install -y nodejs python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
+
+info_msg "Installing Bun runtime..."
+curl -fsSL https://bun.sh/install | bash
+sudo cp /root/.bun/bin/bun /usr/local/bin/bun || sudo cp "$HOME/.bun/bin/bun" /usr/local/bin/bun || true
 
 info_msg "Installing LXD snap..."
 sudo snap install lxd
@@ -97,17 +105,41 @@ else
     cd "$INSTALL_DIR"
 fi
 
-info_msg "Setting up virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
+# Check and copy legacy database if present
+if [ -f "/var/www/lxc/pilotpanel.db" ] && [ ! -f "$INSTALL_DIR/pilotpanel.db" ]; then
+    info_msg "Found existing pilotpanel.db database in legacy directory. Copying to $INSTALL_DIR..."
+    sudo cp "/var/www/lxc/pilotpanel.db" "$INSTALL_DIR/pilotpanel.db"
+    sudo chown -R "$USER":"$USER" "$INSTALL_DIR/pilotpanel.db" 2>/dev/null || true
+fi
 
-info_msg "Installing Python packages..."
-pip install --upgrade pip
-pip install -r requirements.txt
+info_msg "Setting up PilotPanel TypeScript web panel..."
+cd "$INSTALL_DIR/airlink/panel/panel-main"
+if [ ! -f ".env" ]; then
+    cp .env.example .env
+    # Configure production port to 5000 to match old configuration
+    sed -i 's/PORT=3000/PORT=5000/g' .env
+    sed -i 's/URL="http:\/\/localhost:3000"/URL="http:\/\/localhost:5000"/g' .env
+    sed -i 's/NAME="Airlink"/NAME="PilotPanel"/g' .env
+fi
 
-info_msg "Seeding database schema..."
-python seed.py
-deactivate
+npm install
+npx prisma generate
+npx prisma db push
+
+if [ -f "$INSTALL_DIR/pilotpanel.db" ]; then
+    info_msg "Existing pilotpanel.db database found! Migrating data into PilotPanel..."
+    npm run migrate:pilot || warn_msg "Database migration failed. You may need to run it manually."
+fi
+
+# Build typescript assets
+npm run build
+
+info_msg "Setting up PilotPanel Daemon node..."
+cd "$INSTALL_DIR/airlink/daemon/daemon-main"
+if [ ! -f ".env" ]; then
+    cp example.env .env
+fi
+/usr/local/bin/bun install || bun install || true
 
 info_msg "Registering and starting web panel systemd service..."
 sudo cp "$INSTALL_DIR/pilotpanel.service" /etc/systemd/system/pilotpanel.service
@@ -143,12 +175,13 @@ echo -e "    • Systemd Service:  ${CYAN}systemctl status pilotpanel.service${N
 echo -e ""
 echo -e " 🤖 ${B_CYAN}Discord Bot Status:${NC}"
 echo -e "    • Systemd Service:  ${CYAN}systemctl status pilotpanel-bot.service${NC}"
-echo -e "    • Configuration:    ${YELLOW}/var/www/lxc/bot/.env${NC}"
+echo -e "    • Configuration:    ${YELLOW}/var/www/pilotpanel/bot/.env${NC}"
 echo -e ""
 echo -e " 💡 ${B_YELLOW}Post-Installation Guide:${NC}"
-echo -e "    1. Configure your environment variables in ${BOLD}/var/www/lxc/.env${NC}"
+echo -e "    1. Configure your environment variables in ${BOLD}/var/www/pilotpanel/airlink/panel/panel-main/.env${NC}"
 echo -e "    2. Make sure Discord OAuth2 variables are populated for logins to work:"
 echo -e "       - DISCORD_CLIENT_ID"
+# Enforce line breaks / limits
 echo -e "       - DISCORD_CLIENT_SECRET"
 echo -e "       - DISCORD_REDIRECT_URI"
 echo -e "       - DISCORD_ADMIN_USER_ID"
