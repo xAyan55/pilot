@@ -1,4 +1,4 @@
-mintyhost.db
+pilotpanel.db
 __pycache__/
 *.pyc
 .system_generated/
@@ -8,3 +8,10 @@ venv/
 .env
 local_port_forwards.json
 port_forwards.json
+_ref_panel/
+*.zip
+*.bak
+*.db-shm
+*.db-wal
+node_modules/
+dist/

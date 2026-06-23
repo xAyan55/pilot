@@ -34,7 +34,7 @@ Returns safe public details about the panel (e.g. colors, logo, site name). Usef
     "color_secondary": "#CBF3BB",
     "favicon_url": "/static/branding/favicon.ico",
     "logo_url": "/static/branding/logo.png",
-    "site_name": "MintyHost LXC"
+    "site_name": "PilotPanel"
   }
   ```
 
@@ -58,7 +58,7 @@ Returns info about the logged-in owner of the API key.
   {
     "id": 2,
     "username": "client01",
-    "email": "client@mintyhost.net",
+    "email": "client@pilotpanel.net",
     "role": "client",
     "pfp": "/static/uploads/pfp_client.png"
   }

@@ -346,13 +346,13 @@ def get_branding():
                 logo_url = f"{PANEL_URL}/{logo_url.lstrip('/')}"
             
             return {
-                "site_name": data.get("site_name", "MintyHost LXC"),
+                "site_name": data.get("site_name", "PilotPanel"),
                 "color": discord.Color(color_int),
                 "logo_url": logo_url if logo_url else None
             }
     except Exception:
         return {
-            "site_name": "MintyHost LXC",
+            "site_name": "PilotPanel",
             "color": discord.Color.blue(),
             "logo_url": None
         }
@@ -1658,7 +1658,7 @@ async def admin_stats_cmd(interaction: discord.Interaction):
         embed.add_field(name="Allocated CPU Cores", value=f"`{res.get('allocated_cpu')} Cores`", inline=True)
         embed.add_field(name="Allocated Memory", value=f"`{res.get('allocated_ram')} MB`", inline=True)
         embed.add_field(name="Hypervisor Mode", value=f"`{'MOCK' if res.get('is_mock') else 'PRODUCTION'}`", inline=True)
-        embed.set_footer(text="MintyHost Cluster Management")
+        embed.set_footer(text="PilotPanel Cluster Management")
         await interaction.followup.send(embed=embed)
     else:
         await interaction.followup.send("❌ Failed to fetch cluster stats.")

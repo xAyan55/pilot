@@ -8,7 +8,7 @@ def test_api_v1():
 
     # Login as Admin via session to generate an API key
     print("\n--- 1. Login as Admin via Session ---")
-    login_data = {"email": "admin@mintyhost.local", "password": "admin123"}
+    login_data = {"email": "admin@pilotpanel.local", "password": "admin123"}
     resp = session.post(f"{BASE_URL}/login", data=login_data, allow_redirects=False)
     assert resp.status_code == 302
     print("[SUCCESS] Admin Session Established.")
@@ -95,7 +95,7 @@ def test_api_v1():
     rand_suffix = random.randint(1000, 9999)
     resp = requests.post(f"{BASE_URL}/api/v1/admin/users", headers=headers, json={
         "username": f"apitestuser{rand_suffix}",
-        "email": f"apiuser{rand_suffix}@mintyhost.local",
+        "email": f"apiuser{rand_suffix}@pilotpanel.local",
         "password": "strongpassword123",
         "role": "client",
         "discord_user_id": "123456789012345678"

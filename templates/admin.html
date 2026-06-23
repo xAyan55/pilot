@@ -173,9 +173,9 @@
         {% if settings.get('logo_url') %}
           <img src="{{ settings.get('logo_url') }}" alt="Logo" class="p-1 h-9 w-9 rounded-xl mr-3 shrink-0 inline-flex bg-neutral-900/90 dark:bg-transparent">
         {% else %}
-          <div class="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-md mr-3 shrink-0 inline-flex">M</div>
+          <div class="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-md mr-3 shrink-0 inline-flex">P</div>
         {% endif %}
-        <span class="text-neutral-700 dark:text-white font-semibold tracking-tight text-md truncate min-w-0">{{ settings.get('site_name', 'MintyHost') }}</span>
+        <span class="text-neutral-700 dark:text-white font-semibold tracking-tight text-md truncate min-w-0">{{ settings.get('site_name', 'PilotPanel') }}</span>
       </a>
     </div>
 
@@ -674,7 +674,7 @@
                 <form id="brandingForm" onsubmit="saveBranding(event)" class="space-y-4">
                   <div>
                     <label class="auth-label" for="brandSiteName">Hosting Brand Name</label>
-                    <input type="text" id="brandSiteName" class="auth-input" value="{{ settings.get('brandSiteName', 'MintyHost LXC') }}" required>
+                    <input type="text" id="brandSiteName" class="auth-input" value="{{ settings.get('brandSiteName', 'PilotPanel') }}" required>
                   </div>
 
                   <div>
@@ -851,7 +851,7 @@
 
                   <div>
                     <label class="auth-label" for="discordStatusTitle">Status Embed Title</label>
-                    <input type="text" id="discordStatusTitle" class="auth-input" value="{{ settings.get('discord_status_title', 'MintyHost Panel Status') }}">
+                    <input type="text" id="discordStatusTitle" class="auth-input" value="{{ settings.get('discord_status_title', 'PilotPanel Status') }}">
                   </div>
 
                   <button type="submit" class="auth-submit w-full mt-4">
@@ -1230,7 +1230,7 @@
           <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
           <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
           <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-          <span class="text-[10px] font-mono text-neutral-500 font-semibold ml-2">lxd-provisioner@mintyhost:~</span>
+          <span class="text-[10px] font-mono text-neutral-500 font-semibold ml-2">lxd-provisioner@pilotpanel:~</span>
         </div>
         <div class="bg-[#0f172a] text-[#38bdf8] p-4 font-mono text-xs overflow-y-auto leading-relaxed" style="height: 260px;" id="deploy-terminal-logs">
           <!-- stream lines -->
@@ -1399,7 +1399,7 @@
         <div class="grid grid-cols-4 gap-3">
           <div class="col-span-3">
             <label class="auth-label" for="nodeFqdn">FQDN / Public IP</label>
-            <input type="text" id="nodeFqdn" class="auth-input" placeholder="node1.mintyhost.net">
+            <input type="text" id="nodeFqdn" class="auth-input" placeholder="node1.pilotpanel.net">
           </div>
           <div>
             <label class="auth-label" for="nodePort">Port</label>

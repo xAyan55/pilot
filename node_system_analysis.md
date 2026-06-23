@@ -1,4 +1,4 @@
-# 🌐 MintyHost LXC: Node System Analysis (Updated FQDN-less Architecture)
+# 🌐 PilotPanel: Node System Analysis (Updated FQDN-less Architecture)
 
 This document provides a comprehensive structural and functional analysis of the **Node (Hypervisor) System** in the LXC Control Panel codebase. It details how the master control panel coordinates with multiple distributed Linux container nodes using a secure, FQDN-less daemon-client architecture.
 
@@ -122,7 +122,7 @@ Adding a new node requires zero manual configuration on the target server. The s
                                                                            |
                                                                 Installs LXD & PyEnv
                                                                            |
-                                                             Configures mintyhost-node.service
+                                                              Configures pilotpanel-node.service
 ```
 
 1. **Registration**: Administrator adds a new node name, location, and port in the Panel UI. The FQDN can be left blank (defaults to `dynamic`). A unique API Token is generated.
@@ -137,7 +137,7 @@ Adding a new node requires zero manual configuration on the target server. The s
    - Clones the daemon source code repository.
    - Spins up a Virtual Environment (`venv`) and installs pip dependencies from `requirements.txt`.
    - Writes `config.yml` mapping environment configuration parameters including `panel_url`.
-   - Installs and registers a `mintyhost-node.service` systemd service running `daemon.py` on boot.
+   - Installs and registers a `pilotpanel-node.service` systemd service running `daemon.py` on boot.
 
 ---
 

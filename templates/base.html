@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}{% endblock %} - {{ settings.get('site_name', 'MintyHost') }}</title>
+  <title>{% block title %}{% endblock %} - {{ settings.get('site_name', 'PilotPanel') }}</title>
   
   <!-- Favicon -->
   {% if settings.get('favicon_url') %}
@@ -82,9 +82,9 @@
       {% if settings.get('logo_url') %}
         <img src="{{ settings.get('logo_url') }}" alt="Logo" style="width:42px;height:42px;object-fit:contain;border-radius:10px;display:block;">
       {% else %}
-        <div style="width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--color-primary);color:var(--color-primary-text);font-weight:bold;font-size:20px;">M</div>
+        <div style="width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--color-primary);color:var(--color-primary-text);font-weight:bold;font-size:20px;">P</div>
       {% endif %}
-      <p style="margin:0;margin-top:-4px;font-size:14px;font-weight:600;letter-spacing:-0.015em;" id="pl-title">{{ settings.get('site_name', 'MintyHost') }}</p>
+      <p style="margin:0;margin-top:-4px;font-size:14px;font-weight:600;letter-spacing:-0.015em;" id="pl-title">{{ settings.get('site_name', 'PilotPanel') }}</p>
       <div style="width:128px;height:1.5px;border-radius:2px;overflow:hidden;" id="pl-track">
         <div id="pl-bar" style="height:100%;width:0%;border-radius:2px;transition:width 260ms cubic-bezier(0.4,0,0.2,1);"></div>
       </div>

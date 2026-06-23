@@ -1,5 +1,5 @@
 #!/bin/bash
-# MintyHost LXC Node Daemon - Cloudflare Native Installation Script
+# PilotPanel LXC Node Daemon - Cloudflare Native Installation Script
 # Node connects to the panel via WebSocket through Cloudflare Tunnel.
 # Made By VoidFlamer
 set -e
@@ -36,13 +36,17 @@ error_msg() {
 }
 
 INSTALL_DIR="/var/www/lxc"
-REPO_URL="https://github.com/xAyan55/lxc.git"
+REPO_URL="https://github.com/xAyan55/pilot.git"
 
 clear
-echo -e "${B_MAGENTA}┌────────────────────────────────────────────────────────┐${NC}"
-echo -e "${B_MAGENTA}│${NC}          ${B_CYAN}MINTYHOST LXC NODE INSTALLER${NC}                  ${B_MAGENTA}│${NC}"
-echo -e "${B_MAGENTA}│${NC}                 ${B_GREEN}Made By VoidFlamer${NC}                    ${B_MAGENTA}│${NC}"
-echo -e "${B_MAGENTA}└────────────────────────────────────────────────────────┘${NC}"
+echo -e "${B_CYAN}    ____  _ __      __     ____                  __${NC}"
+echo -e "${B_CYAN}   / __ \\(_) /___  / /_   / __ \\____ _____  ___ / /${NC}"
+echo -e "${B_CYAN}  / /_/ / / / __ \\/ __/  / /_/ / __ \`/ __ \\/ _ \\/ / ${NC}"
+echo -e "${B_CYAN} / ____/ / / /_/ / /_   / ____/ /_/ / / / /  __/ /  ${NC}"
+echo -e "${B_CYAN}/_/   /_/_/\\____/\\__/  /_/    \\__,_/_/ /_/\\___/_/   ${NC}"
+echo -e "         ${B_MAGENTA}⚡ Premium LXC Orchestration Node ⚡${NC}"
+echo -e "              ${B_GREEN}Created by VoidFlamer${NC}"
+echo -e "${B_BLUE}────────────────────────────────────────────────────────────${NC}"
 echo ""
 
 info_msg "Updating apt package lists..."
@@ -132,9 +136,9 @@ panel_url: "$PANEL_URL"
 EOF
 
 info_msg "Creating systemd service file..."
-sudo bash -c "cat > /etc/systemd/system/mintyhost-node.service" <<SERVICEEOF
+sudo bash -c "cat > /etc/systemd/system/pilotpanel-node.service" <<SERVICEEOF
 [Unit]
-Description=MintyHost LXC Node Daemon (Cloudflare Native)
+Description=PilotPanel LXC Node Daemon (Cloudflare Native)
 After=network.target
 
 [Service]
@@ -153,8 +157,8 @@ SERVICEEOF
 
 info_msg "Starting systemd service..."
 sudo systemctl daemon-reload
-sudo systemctl enable mintyhost-node.service
-sudo systemctl restart mintyhost-node.service
+sudo systemctl enable pilotpanel-node.service
+sudo systemctl restart pilotpanel-node.service
 
 echo ""
 echo -e "${B_GREEN}┌────────────────────────────────────────────────────────┐${NC}"
@@ -168,7 +172,7 @@ echo -e "   Each container gets a forwarded port on this node's IP"
 echo -e "   (range 22000-22999). Connect via:"
 echo -e "   ${CYAN}ssh root@<NODE_PUBLIC_IP> -p <FORWARDED_PORT>${NC}"
 echo ""
-echo -e " Check status: ${CYAN}systemctl status mintyhost-node.service${NC}"
-echo -e " View logs:    ${CYAN}journalctl -u mintyhost-node.service -f${NC}"
+echo -e " Check status: ${CYAN}systemctl status pilotpanel-node.service${NC}"
+echo -e " View logs:    ${CYAN}journalctl -u pilotpanel-node.service -f${NC}"
 echo -e "${B_GREEN}==========================================================${NC}"
-sudo systemctl status mintyhost-node.service
+sudo systemctl status pilotpanel-node.service

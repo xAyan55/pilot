@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# MintyHost — One-Click Windows 10 LXD Image Builder
+# PilotPanel — One-Click Windows 10 LXD Image Builder
 # ============================================================================
 # Fully automated: downloads Windows 10 via UUP dump (Microsoft Update CDN),
 # installs it unattended in an LXD VM, configures RDP/SSH/OpenSSH firewall,
@@ -9,13 +9,13 @@
 # Usage:
 #   bash setup_windows_image.sh                            # auto-download via UUP
 #   bash setup_windows_image.sh /path/to/Win10.iso         # use existing ISO
-#   sudo bash setup_windows_image.sh 2>&1 | tee /var/log/mintyhost-win-build.log
+#   sudo bash setup_windows_image.sh 2>&1 | tee /var/log/pilotpanel-win-build.log
 #
-# Build log is also streamed live to: /var/log/mintyhost-win-build.log
+# Build log is also streamed live to: /var/log/pilotpanel-win-build.log
 # ============================================================================
 set -uo pipefail
 
-WORK_DIR="/tmp/mintyhost-win10"
+WORK_DIR="/tmp/pilotpanel-win10"
 WIN_ISO="$WORK_DIR/Win10.iso"
 VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
 VIRTIO_ISO="$WORK_DIR/virtio-win.iso"
@@ -23,9 +23,9 @@ UNATTEND_DIR="$WORK_DIR/unattend"
 UNATTEND_ISO="$WORK_DIR/unattend.iso"
 VM_NAME="win10-builder"
 ALIAS_NAME="${WINDOWS_ALIAS:-windows/10}"
-DEFAULT_PASSWORD="${WINDOWS_DEFAULT_PASSWORD:-MintyHost!2026}"
+DEFAULT_PASSWORD="${WINDOWS_DEFAULT_PASSWORD:-PilotPanel!2026}"
 LXC="/snap/bin/lxc"
-LOG_FILE="${WINDOWS_LOG_FILE:-/var/log/mintyhost-win-build.log}"
+LOG_FILE="${WINDOWS_LOG_FILE:-/var/log/pilotpanel-win-build.log}"
 STATUS_FILE="${WINDOWS_STATUS_FILE:-/var/www/lxc/windows_build_status.json}"
 
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -80,7 +80,7 @@ progress() { echo "${CYAN}[$(date +%H:%M:%S)]${NC} $1" | tee -a "$LOG_FILE" >/de
 
 echo ""
 echo -e "${BOLD}============================================================${NC}"
-echo -e "${BOLD}  MintyHost — One-Click Windows 10 Image Builder${NC}"
+echo -e "${BOLD}  PilotPanel — One-Click Windows 10 Image Builder${NC}"
 echo -e "${BOLD}============================================================${NC}"
 echo ""
 log "Build log: $LOG_FILE"
@@ -352,8 +352,8 @@ cat > "$UNATTEND_DIR/autounattend.xml" << XMLEOF
             </ImageInstall>
             <UserData>
                 <AcceptEula>true</AcceptEula>
-                <FullName>MintyHost</FullName>
-                <Organization>MintyHost</Organization>
+                <FullName>PilotPanel</FullName>
+                <Organization>PilotPanel</Organization>
             </UserData>
         </component>
     </settings>
@@ -464,7 +464,7 @@ cat > "$UNATTEND_DIR/autounattend.xml" << XMLEOF
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
                     <Order>8</Order>
-                    <CommandLine>shutdown /s /t 15 /c "MintyHost: Windows image setup complete."</CommandLine>
+                    <CommandLine>shutdown /s /t 15 /c "PilotPanel: Windows image setup complete."</CommandLine>
                     <RequiresUserInput>false</RequiresUserInput>
                 </SynchronousCommand>
             </FirstLogonCommands>
@@ -554,7 +554,7 @@ $LXC image delete "$ALIAS_NAME" 2>/dev/null || true
 
 info "Publishing image as '$ALIAS_NAME' (may take 5-10 min)..."
 $LXC publish "$VM_NAME" --alias "$ALIAS_NAME" \
-    description="Windows 10 Pro VM (MintyHost) — default user 'Administrator', password set during deploy" || {
+    description="Windows 10 Pro VM (PilotPanel) — default user 'Administrator', password set during deploy" || {
     fail "Failed to publish. VM '$VM_NAME' still available for manual publish."
 }
 $LXC image set-property "$ALIAS_NAME" os windows 2>/dev/null || true
@@ -577,7 +577,7 @@ echo ""
 echo "  Verify:             $LXC image list | grep windows"
 echo ""
 echo "  Note: Windows VMs need at least 2 vCPU, 4GB RAM, 40GB disk."
-echo "  The MintyHost panel automatically enforces these minimums."
+echo "  The PilotPanel panel automatically enforces these minimums."
 echo ""
 log "Full build log: $LOG_FILE"
 write_status False True True "Build completed successfully — alias '$ALIAS_NAME' published."

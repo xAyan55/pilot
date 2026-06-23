@@ -1,6 +1,6 @@
 [Unit]
-Description=MintyHost VPS Management Discord Bot
-After=network.target mintyhost.service
+Description=PilotPanel VPS Management Discord Bot
+After=network.target pilotpanel.service
 
 [Service]
 User=root

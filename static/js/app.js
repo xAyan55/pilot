@@ -1,4 +1,4 @@
-// Global MintyHost JS Actions
+// Global PilotPanel JS Actions
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Initialize Lucide Icons

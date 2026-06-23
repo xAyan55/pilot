@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mintyhost.db')
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pilotpanel.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -20,13 +20,20 @@ def init_db():
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT DEFAULT 'client', -- 'admin' or 'client'
-            pfp TEXT DEFAULT NULL
+            pfp TEXT DEFAULT NULL,
+            discord_user_id TEXT UNIQUE DEFAULT NULL
         )
     ''')
 
     # Migration to add pfp to users table if it does not exist
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN pfp TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+
+    # Migration to add discord_user_id to users table if it does not exist
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN discord_user_id TEXT UNIQUE DEFAULT NULL")
     except sqlite3.OperationalError:
         pass
 
@@ -163,16 +170,16 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM settings")
     if cursor.fetchone()[0] == 0:
         default_settings = {
-            'site_name': 'MintyHost LXC',
+            'site_name': 'PilotPanel',
             'color_primary': '#ECF4E8',
             'color_secondary': '#CBF3BB',
             'color_accent': '#ABE7B2',
             'color_cool': '#93BFC7',
-            'about_intro': 'MintyHost was founded in 2026 with a single, clear objective: to provide developers with lightning-fast, ultra-reliable virtualized instances without the bloat, complexity, and resource-overselling typical of large cloud providers. We believe in simplicity, performance, and complete developer control.',
+            'about_intro': 'PilotPanel was founded in 2026 with a single, clear objective: to provide developers with lightning-fast, ultra-reliable virtualized instances without the bloat, complexity, and resource-overselling typical of large cloud providers. We believe in simplicity, performance, and complete developer control.',
             'about_mission': 'To democratize high-performance containerized VPS hosting by offering raw power, transparent pricing, and instant provisioning speeds on pure, dedicated hardware platforms.',
             'about_infra': 'Our hypervisors run on enterprise AMD EPYC processors, coupled with high-speed PCIe Gen4 NVMe storage arrays. We route traffic through multi-homed 10 Gbps uplinks directly to Tier III datacenters.',
             'about_why_trust': 'Every byte of RAM and CPU thread you allocate is dedicated to your container. We enforce zero overselling. Combined with our 24/7 hypervisor monitoring and automatic backup engines, your workloads remain secure and highly performant.',
-            'tos_content': '<h3>1. Acceptance of Terms</h3><p>By deploying or using any Virtual Private Server (VPS) instance on MintyHost LXC, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use our services.</p><h3>2. Dedicated Resource Allocation</h3><p>MintyHost guarantees that resources (CPU, RAM, storage) allocated to your VPS instances are dedicated solely to your use. Abuse of shared network pipes or attempting to disrupt host nodes will result in immediate suspension.</p><h3>3. Prohibited Activities</h3><p>You may not use MintyHost instances for illegal activities, including but not limited to: hosting malware, executing DDoS attacks, running unsolicited scanning tools, or mining cryptocurrencies without authorization.</p><h3>4. Limitation of Liability</h3><p>MintyHost is not liable for data loss or service interruptions. We strongly recommend configuring automatic snapshot rules and routine backups for production environments.</p>',
+            'tos_content': '<h3>1. Acceptance of Terms</h3><p>By deploying or using any Virtual Private Server (VPS) instance on PilotPanel, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use our services.</p><h3>2. Dedicated Resource Allocation</h3><p>PilotPanel guarantees that resources (CPU, RAM, storage) allocated to your VPS instances are dedicated solely to your use. Abuse of shared network pipes or attempting to disrupt host nodes will result in immediate suspension.</p><h3>3. Prohibited Activities</h3><p>You may not use PilotPanel instances for illegal activities, including but not limited to: hosting malware, executing DDoS attacks, running unsolicited scanning tools, or mining cryptocurrencies without authorization.</p><h3>4. Limitation of Liability</h3><p>PilotPanel is not liable for data loss or service interruptions. We strongly recommend configuring automatic snapshot rules and routine backups for production environments.</p>',
             'ssh_relay_enabled': '0',
             'ssh_relay_host': '',
             'ssh_relay_port': '22',
@@ -246,4 +253,4 @@ def init_db():
 
 if __name__ == '__main__':
     init_db()
-    print("LXC Panel database schema initialized successfully.")
+    print("PilotPanel database schema initialized successfully.")

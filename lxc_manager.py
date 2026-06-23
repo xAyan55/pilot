@@ -341,7 +341,7 @@ class LXCManager:
             return True
 
         if not site_name:
-            site_name = "MintyHost LXC"
+            site_name = "PilotPanel"
 
         motd_content = f"""
 =====================================================================

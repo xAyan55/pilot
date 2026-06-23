@@ -981,7 +981,7 @@ def admin_deploy_vps():
 
         cursor.execute("SELECT key, value FROM settings")
         settings = {row['key']: row['value'] for row in cursor.fetchall()}
-        site_name_val = settings.get('site_name', 'MintyHost LXC')
+        site_name_val = settings.get('site_name', 'PilotPanel')
 
         # Spawn unified background thread to handle remote/local setup and notify
         panel_url = request.url_root.rstrip('/')

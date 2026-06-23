@@ -50,90 +50,51 @@
     .auth-image { display: none; }
   }
 
-  /* Password Toggle Button */
-  .pw-wrapper { position: relative; }
-  .pw-toggle {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    color: #a3a3a3;
-    line-height: 0;
-    transition: color 0.15s;
-  }
-  .pw-toggle:hover { color: #737373; }
-  html.dark .pw-toggle:hover { color: #d4d4d4; }
-
-  /* Submit Button styling */
-  .auth-submit {
-    width: 100%;
-    padding: 11px;
-    border-radius: 10px;
-    background: #171717;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
-    font-family: inherit;
+  /* Premium Discord Button */
+  .discord-auth-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 14px;
+    background: #5865F2;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(88, 101, 242, 0.3);
+    text-decoration: none;
   }
-  html.dark .auth-submit { background: white; color: #0a0a0a; }
-  .auth-submit:hover:not(:disabled) { background: #404040; }
-  html.dark .auth-submit:hover:not(:disabled) { background: #e5e5e5; }
-  .auth-submit:disabled { opacity: 0.6; cursor: default; }
-
-  /* Custom tabs active styles */
-  .auth-tab.active {
-    border-bottom-color: #171717;
-    color: #171717;
+  .discord-auth-btn:hover {
+    background: #4752C4;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
   }
-  html.dark .auth-tab.active {
-    border-bottom-color: #ffffff;
-    color: #ffffff;
-  }
-
-  /* Form Panels visibility transition */
-  .auth-form-panel {
-    display: none;
-  }
-  .auth-form-panel.active {
-    display: block;
-    animation: form-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  .discord-auth-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(88, 101, 242, 0.2);
   }
 
-  @keyframes form-fade-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+  /* Info card */
+  .info-card {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #525252;
   }
-
-  .pw-strength { height: 3px; border-radius: 2px; background: #e5e5e5; margin-top: 8px; overflow: hidden; }
-  html.dark .pw-strength { background: rgba(255,255,255,0.08); }
-  .pw-bar { height: 100%; border-radius: 2px; width: 0%; transition: width 0.28s ease, background 0.28s ease; }
-  .pw-hint { font-size: 11px; color: #a3a3a3; margin-top: 5px; min-height: 14px; transition: color 0.2s; }
-
-  .spinner {
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
-    border: 2px solid rgba(255,255,255,0.08);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.65s linear infinite;
-    display: none;
+  html.dark .info-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.05);
+    color: #a3a3a3;
   }
-  html.dark .spinner { border-color: rgba(0,0,0,0.25); border-top-color: #0a0a0a; }
-  .auth-submit.loading .spinner { display: block; }
-  .auth-submit.loading .btn-label { display: none; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Entry animation for the panel */
   .auth-panel { opacity: 0; transform: translateX(-12px); transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -146,124 +107,39 @@
   <div class="auth-panel" id="authPanel">
 
     <!-- Branding Wrapper -->
-    <div class="mb-8 text-center sm:text-left">
+    <div class="mb-10 text-center sm:text-left">
       <a href="/" class="inline-flex items-center gap-3">
         {% if settings.get('logo_url') %}
           <img src="{{ settings.get('logo_url') }}" alt="Logo" class="h-10 w-10 rounded-xl object-contain">
         {% else %}
           <div class="w-10 h-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-lg">
-            {{ settings.get('site_name', 'MintyHost')[0]|upper }}
+            {{ settings.get('site_name', 'PilotPanel')[0]|upper }}
           </div>
         {% endif %}
-        <span class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">{{ settings.get('site_name', 'MintyHost') }}</span>
+        <span class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">{{ settings.get('site_name', 'PilotPanel') }}</span>
       </a>
-      <h2 class="text-2xl font-semibold text-neutral-800 dark:text-white mt-6" id="auth-heading-text">Login to Continue</h2>
+      <h2 class="text-2xl font-bold text-neutral-800 dark:text-white mt-8">Authentication Required</h2>
       <p class="text-sm text-neutral-500 mt-1">LXC VPS Management Platform</p>
     </div>
 
-    <!-- Switcher Tabs -->
-    <div class="auth-tabs flex border-b border-neutral-200 dark:border-neutral-800 mb-6">
-      <div class="auth-tab flex-1 text-center py-2.5 font-semibold text-sm cursor-pointer border-b-2 transition-all active" id="tab-login" onclick="switchAuthTab('login')">Sign In</div>
-      <div class="auth-tab flex-1 text-center py-2.5 font-semibold text-sm cursor-pointer border-b-2 transition-all text-neutral-400 dark:text-neutral-500" id="tab-signup" onclick="switchAuthTab('signup')">Create Account</div>
-    </div>
+    <!-- Login with Discord Options -->
+    <div class="space-y-6">
+      <div class="info-card">
+        To manage or allocate virtual servers, please log in with your Discord account. Account association and administrative roles will be mapped automatically based on configuration.
+      </div>
 
-    <!-- Login Form Panel -->
-    <div class="auth-form-panel active" id="panel-login">
-      <form action="/login" method="POST" id="loginForm" autocomplete="on" novalidate>
-        <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
-
-        <div class="space-y-4">
-          <div>
-            <label class="auth-label" for="loginEmail">Your ID (Username or Email)</label>
-            <input type="email" name="email" id="loginEmail" autocomplete="username" class="auth-input" placeholder="you@example.com" required>
-          </div>
-
-          <div>
-            <label class="auth-label" for="loginPassword">Password</label>
-            <div class="pw-wrapper">
-              <input type="password" name="password" id="loginPassword" autocomplete="current-password" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
-              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('loginPassword', this)" aria-label="Toggle password visibility">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <label class="cb-row" id="rememberLabel">
-            <input id="remember" name="remember" type="checkbox" value="yes" checked class="sr-only">
-            <span class="cb-box" id="cbBox" style="background: #171717; border-color: #171717;">
-              <svg class="cb-check" id="cbCheck" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" width="10" height="10" style="display: block;">
-                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            <span class="text-sm text-neutral-500 dark:text-neutral-400">Remember me</span>
-          </label>
-
-          <button type="submit" class="auth-submit" id="loginSubmitBtn">
-            <span class="btn-label">Sign in</span>
-            <span class="spinner"></span>
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Signup Form Panel -->
-    <div class="auth-form-panel" id="panel-signup">
-      <form action="/signup" method="POST" id="signupForm" autocomplete="on" novalidate>
-        <input type="hidden" name="redirect" value="{{ request.args.get('redirect', '') }}">
-
-        <div class="space-y-4">
-          <div>
-            <label class="auth-label" for="signupUsername">Username</label>
-            <input type="text" name="username" id="signupUsername" autocomplete="username" class="auth-input" placeholder="johndoe" required pattern="[a-zA-Z0-9]+">
-          </div>
-
-          <div>
-            <label class="auth-label" for="signupEmail">Email Address</label>
-            <input type="email" name="email" id="signupEmail" autocomplete="email" class="auth-input" placeholder="name@example.com" required>
-          </div>
-
-          <div>
-            <label class="auth-label" for="signupPassword">Password</label>
-            <div class="pw-wrapper">
-              <input type="password" name="password" id="signupPassword" autocomplete="new-password" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
-              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('signupPassword', this)" aria-label="Toggle password visibility">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
-                </svg>
-              </button>
-            </div>
-            <div class="pw-strength"><div class="pw-bar" id="pwBar"></div></div>
-            <p class="pw-hint" id="pwHint">8+ characters, one letter, one number.</p>
-          </div>
-
-          <div>
-            <label class="auth-label" for="signupConfirmPassword">Confirm Password</label>
-            <div class="pw-wrapper">
-              <input type="password" name="confirm_password" id="signupConfirmPassword" class="auth-input" placeholder="••••••••" style="padding-right: 40px" required>
-              <button type="button" class="pw-toggle" onclick="togglePasswordVisibility('signupConfirmPassword', this)" aria-label="Toggle password visibility">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <button type="submit" class="auth-submit" id="signupSubmitBtn">
-            <span class="btn-label">Create account</span>
-            <span class="spinner"></span>
-          </button>
-        </div>
-      </form>
+      <a href="/login/discord?redirect={{ request.args.get('redirect', '') }}" class="discord-auth-btn" id="discordLoginBtn">
+        <!-- Discord Logo SVG -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.05.05 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.593.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.544-6.446-2.515-9.106a.049.049 0 0 0-.02-.019Zm-7.348 7.37c-.785 0-1.43-0.723-1.43-1.611 0-.889.637-1.613 1.43-1.613.806 0 1.44.73 1.43 1.613 0 .888-.637 1.611-1.43 1.611Zm4.79 0c-.785 0-1.43-0.723-1.43-1.611 0-.889.637-1.613 1.43-1.613.806 0 1.44.73 1.43 1.613 0 .888-.646 1.611-1.43 1.611Z"/>
+        </svg>
+        <span>Continue with Discord</span>
+      </a>
     </div>
 
     <!-- Footer Copyright Branding -->
-    <div class="mt-12 text-center text-xs text-neutral-500">
-      <p>&copy; 2026 {{ settings.get('site_name', 'MintyHost') }}. All rights reserved.</p>
+    <div class="mt-16 text-center text-xs text-neutral-500">
+      <p>&copy; 2026 {{ settings.get('site_name', 'PilotPanel') }}. All rights reserved.</p>
       <p class="mt-1">Designed by KataBump</p>
     </div>
 
@@ -280,114 +156,14 @@
     });
   });
 
-  function switchAuthTab(type) {
-    const tabLogin = document.getElementById('tab-login');
-    const tabSignup = document.getElementById('tab-signup');
-    const panelLogin = document.getElementById('panel-login');
-    const panelSignup = document.getElementById('panel-signup');
-    const headingText = document.getElementById('auth-heading-text');
-
-    if (type === 'login') {
-      tabLogin.classList.add('active');
-      tabSignup.classList.remove('active');
-      tabSignup.classList.add('text-neutral-400', 'dark:text-neutral-500');
-      tabLogin.classList.remove('text-neutral-400', 'dark:text-neutral-500');
-      panelLogin.classList.add('active');
-      panelSignup.classList.remove('active');
-      if (headingText) headingText.innerText = "Login to Continue";
-    } else {
-      tabSignup.classList.add('active');
-      tabLogin.classList.remove('active');
-      tabLogin.classList.add('text-neutral-400', 'dark:text-neutral-500');
-      tabSignup.classList.remove('text-neutral-400', 'dark:text-neutral-500');
-      panelSignup.classList.add('active');
-      panelLogin.classList.remove('active');
-      if (headingText) headingText.innerText = "Create Account";
-    }
-  }
-
-  // Toggle Password Eye Icons
-  function togglePasswordVisibility(fieldId, btn) {
-    const input = document.getElementById(fieldId);
-    if (!input) return;
-    const show = input.type === 'password';
-    input.type = show ? 'text' : 'password';
-    
-    btn.innerHTML = show
-      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-          <path fill-rule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-4.38 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clip-rule="evenodd"/>
-          <path d="M10.748 13.93l2.523 2.524a10.065 10.065 0 0 1-5.27 0l-1.978-1.978a4 4 0 0 0 .005-5.53l-.738-.738A8.003 8.003 0 0 0 1.834 9.587a1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 0 10 17c1.09 0 2.14-.175 3.124-.497l-2.376-2.573Z"/>
-         </svg>`
-      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-          <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-          <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
-         </svg>`;
-  }
-
-  // Custom Checkbox Animation Helper
-  const cbInput = document.getElementById('remember');
-  const cbBox   = document.getElementById('cbBox');
-  const cbCheck = document.getElementById('cbCheck');
-  if (cbInput && cbBox && cbCheck) {
-    document.getElementById('rememberLabel').addEventListener('click', function (e) {
-      if (e.target === cbInput) return;
-      cbInput.checked = !cbInput.checked;
-      const isDark = document.documentElement.classList.contains('dark');
-      if (cbInput.checked) {
-        cbBox.style.background = isDark ? '#ffffff' : '#171717';
-        cbBox.style.borderColor = isDark ? '#ffffff' : '#171717';
-        cbCheck.style.display = 'block';
-      } else {
-        cbBox.style.background = '';
-        cbBox.style.borderColor = '';
-        cbCheck.style.display = 'none';
-      }
+  // Display loading indicator on click
+  const discordLoginBtn = document.getElementById('discordLoginBtn');
+  if (discordLoginBtn) {
+    discordLoginBtn.addEventListener('click', function() {
+      discordLoginBtn.style.opacity = '0.7';
+      discordLoginBtn.style.pointerEvents = 'none';
+      discordLoginBtn.querySelector('span').textContent = 'Connecting to Discord...';
     });
   }
-
-  // Password strength logic
-  const signupPassword = document.getElementById('signupPassword');
-  if (signupPassword) {
-    signupPassword.addEventListener('input', function () {
-      const v = signupPassword.value;
-      const score = [v.length >= 8, /[A-Za-z]/.test(v), /[0-9]/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length;
-      const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
-      const labels = ['Too short','Weak','Fair','Strong'];
-      const widths = ['25%','50%','75%','100%'];
-      const bar  = document.getElementById('pwBar');
-      const hint = document.getElementById('pwHint');
-      if (!v) {
-        bar.style.width = '0%';
-        hint.textContent = '8+ characters, one letter, one number.';
-        hint.style.color = '';
-        return;
-      }
-      const idx = Math.max(0, score - 1);
-      bar.style.width = widths[idx];
-      bar.style.background = colors[idx];
-      hint.textContent = labels[idx];
-      hint.style.color = colors[idx];
-    });
-  }
-
-  // Forms loading triggers
-  document.getElementById('loginForm').addEventListener('submit', function () {
-    const btn = document.getElementById('loginSubmitBtn');
-    btn.classList.add('loading');
-    btn.disabled = true;
-  });
-
-  document.getElementById('signupForm').addEventListener('submit', function (e) {
-    const pwd = document.getElementById('signupPassword').value;
-    const pwdConf = document.getElementById('signupConfirmPassword').value;
-    if (pwd !== pwdConf) {
-      e.preventDefault();
-      window.showToast("Passwords do not match.", "error");
-      return;
-    }
-    const btn = document.getElementById('signupSubmitBtn');
-    btn.classList.add('loading');
-    btn.disabled = true;
-  });
 </script>
 {% endblock %}

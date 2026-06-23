@@ -10,7 +10,7 @@ def test_lxc_lifecycle():
     
     print("\n--- 1. Login as Seeded Admin ---")
     login_data = {
-        "email": "admin@mintyhost.local",
+        "email": "admin@pilotpanel.local",
         "password": "admin123"
     }
     resp = session.post(f"{BASE_URL}/login", data=login_data, allow_redirects=False)
@@ -71,7 +71,7 @@ def test_lxc_lifecycle():
     session.get(f"{BASE_URL}/logout")
     
     login_data = {
-        "email": "client1@mintyhost.local",
+        "email": "client1@pilotpanel.local",
         "password": "password123"
     }
     resp = session.post(f"{BASE_URL}/login", data=login_data, allow_redirects=False)
@@ -181,7 +181,7 @@ def test_lxc_lifecycle():
     session.get(f"{BASE_URL}/logout")
     
     login_data = {
-        "email": "admin@mintyhost.local",
+        "email": "admin@pilotpanel.local",
         "password": "admin123"
     }
     resp = session.post(f"{BASE_URL}/login", data=login_data, allow_redirects=False)

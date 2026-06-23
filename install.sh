@@ -1,5 +1,5 @@
 #!/bin/bash
-# MintyHost LXC Control Panel - Ubuntu Installation Script
+# PilotPanel LXC Control Panel - Ubuntu Installation Script
 # Made By VoidFlamer
 set -e
 
@@ -36,13 +36,17 @@ error_msg() {
 
 # Define variables
 INSTALL_DIR="/var/www/lxc"
-REPO_URL="https://github.com/xAyan55/lxc.git"
+REPO_URL="https://github.com/xAyan55/pilot.git"
 
 clear
-echo -e "${B_MAGENTA}┌────────────────────────────────────────────────────────┐${NC}"
-echo -e "${B_MAGENTA}│${NC}        ${B_CYAN}MINTYHOST LXC CONTROL PANEL INSTALLER${NC}           ${B_MAGENTA}│${NC}"
-echo -e "${B_MAGENTA}│${NC}                 ${B_GREEN}Made By VoidFlamer${NC}                    ${B_MAGENTA}│${NC}"
-echo -e "${B_MAGENTA}└────────────────────────────────────────────────────────┘${NC}"
+echo -e "${B_CYAN}    ____  _ __      __     ____                  __${NC}"
+echo -e "${B_CYAN}   / __ \\(_) /___  / /_   / __ \\____ _____  ___ / /${NC}"
+echo -e "${B_CYAN}  / /_/ / / / __ \\/ __/  / /_/ / __ \`/ __ \\/ _ \\/ / ${NC}"
+echo -e "${B_CYAN} / ____/ / / /_/ / /_   / ____/ /_/ / / / /  __/ /  ${NC}"
+echo -e "${B_CYAN}/_/   /_/_/\\____/\\__/  /_/    \\__,_/_/ /_/\\___/_/   ${NC}"
+echo -e "         ${B_MAGENTA}⚡ Premium LXC Orchestration Panel ⚡${NC}"
+echo -e "              ${B_GREEN}Created by VoidFlamer${NC}"
+echo -e "${B_BLUE}────────────────────────────────────────────────────────────${NC}"
 echo ""
 
 info_msg "Updating apt package lists..."
@@ -106,10 +110,10 @@ python seed.py
 deactivate
 
 info_msg "Registering and starting web panel systemd service..."
-sudo cp "$INSTALL_DIR/mintyhost.service" /etc/systemd/system/mintyhost.service
+sudo cp "$INSTALL_DIR/pilotpanel.service" /etc/systemd/system/pilotpanel.service
 sudo systemctl daemon-reload
-sudo systemctl enable mintyhost.service
-sudo systemctl restart mintyhost.service
+sudo systemctl enable pilotpanel.service
+sudo systemctl restart pilotpanel.service
 
 info_msg "Setting up Discord Bot virtual environment..."
 if [ ! -f "$INSTALL_DIR/bot/.env" ]; then
@@ -124,22 +128,35 @@ pip install -r "$INSTALL_DIR/bot/requirements.txt"
 deactivate
 
 info_msg "Registering and starting Discord bot systemd service..."
-sudo cp "$INSTALL_DIR/bot/mintyhost-bot.service" /etc/systemd/system/mintyhost-bot.service
+sudo cp "$INSTALL_DIR/bot/pilotpanel-bot.service" /etc/systemd/system/pilotpanel-bot.service
 sudo systemctl daemon-reload
-sudo systemctl enable mintyhost-bot.service
-sudo systemctl restart mintyhost-bot.service || warn_msg "Discord bot service failed to start. Make sure to configure bot/.env first."
+sudo systemctl enable pilotpanel-bot.service
+sudo systemctl restart pilotpanel-bot.service || warn_msg "Discord bot service failed to start. Make sure to configure bot/.env first."
 
 echo ""
-echo -e "${B_GREEN}┌────────────────────────────────────────────────────────┐${NC}"
-echo -e "${B_GREEN}│${NC}               ${B_GREEN}INSTALLATION COMPLETE!${NC}                   ${B_GREEN}│${NC}"
-echo -e "${B_GREEN}└────────────────────────────────────────────────────────┘${NC}"
-echo -e "${BOLD} Web Panel running on:${NC} ${B_CYAN}http://YOUR_SERVER_IP:5000${NC}"
-echo -e "   - View status: ${CYAN}systemctl status mintyhost.service${NC}"
-echo -e "${BOLD} Discord Bot running under systemd.${NC}"
-echo -e "   - View status: ${CYAN}systemctl status mintyhost-bot.service${NC}"
-echo ""
+echo -e "${B_GREEN}┌──────────────────────────────────────────────────────────┐${NC}"
+echo -e "${B_GREEN}│${NC}             ${B_GREEN}${BOLD}PILOTPANEL INSTALLATION COMPLETE!${NC}            ${B_GREEN}│${NC}"
+echo -e "${B_GREEN}└──────────────────────────────────────────────────────────┘${NC}"
+echo -e " 🚀 ${B_CYAN}PilotPanel Service Status:${NC}"
+echo -e "    • Web Interface:    ${B_GREEN}http://YOUR_SERVER_IP:5000${NC}"
+echo -e "    • Systemd Service:  ${CYAN}systemctl status pilotpanel.service${NC}"
+echo -e ""
+echo -e " 🤖 ${B_CYAN}Discord Bot Status:${NC}"
+echo -e "    • Systemd Service:  ${CYAN}systemctl status pilotpanel-bot.service${NC}"
+echo -e "    • Configuration:    ${YELLOW}/var/www/lxc/bot/.env${NC}"
+echo -e ""
+echo -e " 💡 ${B_YELLOW}Post-Installation Guide:${NC}"
+echo -e "    1. Configure your environment variables in ${BOLD}/var/www/lxc/.env${NC}"
+echo -e "    2. Make sure Discord OAuth2 variables are populated for logins to work:"
+echo -e "       - DISCORD_CLIENT_ID"
+echo -e "       - DISCORD_CLIENT_SECRET"
+echo -e "       - DISCORD_REDIRECT_URI"
+echo -e "       - DISCORD_ADMIN_USER_ID"
+echo -e "    3. Restart services: ${CYAN}sudo systemctl restart pilotpanel.service${NC}"
+echo -e ""
+# Keep OPTIONAL Windows line but rename script is still setup_windows_image.sh
 echo -e "${B_YELLOW}[OPTIONAL] Windows 10 VPS Support:${NC}"
 echo -e "   To enable Windows VM deployment, import a Windows ISO:"
 echo -e "   ${CYAN}bash $INSTALL_DIR/setup_windows_image.sh /path/to/Win10.iso${NC}"
 echo -e "${B_GREEN}==========================================================${NC}"
-sudo systemctl status mintyhost.service
+sudo systemctl status pilotpanel.service

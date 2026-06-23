@@ -1389,7 +1389,7 @@ window.removeBrandingImage = async function(type) {
     
     if (type === 'logo') {
       const container = document.querySelector('.logo-preview-container');
-      const siteName = document.getElementById('brandSiteName')?.value || 'MintyHost';
+      const siteName = document.getElementById('brandSiteName')?.value || 'PilotPanel';
       const firstLetter = siteName.charAt(0).toUpperCase();
       container.innerHTML = `<div id="adminLogoFallback" class="logo-icon" style="font-size: 32px; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: none; border-radius: var(--radius-sm);">${firstLetter}</div>`;
       
@@ -2177,7 +2177,7 @@ window.loadWindowsImages = loadWindowsImages;
 async function startWindowsBuild() {
   const alias = document.getElementById('winBuildAlias').value.trim() || 'windows/10';
   const isoPath = document.getElementById('winBuildIso').value.trim();
-  const password = document.getElementById('winBuildPassword').value || 'MintyHost!2026';
+  const password = document.getElementById('winBuildPassword').value || 'PilotPanel!2026';
   const btn = document.getElementById('winBuildBtn');
   const status = document.getElementById('winBuildStatus');
   btn.disabled = true;

@@ -48,7 +48,7 @@ def fetch_discord_guild_members():
     headers = {
         "Authorization": f"Bot {token}",
         "Content-Type": "application/json",
-        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/pilot, 1.0.0) Python-urllib/3.12"
     }
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
@@ -83,7 +83,7 @@ def send_discord_dm_embed(discord_user_id, embed_dict):
     headers = {
         "Authorization": f"Bot {token}",
         "Content-Type": "application/json",
-        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/pilot, 1.0.0) Python-urllib/3.12"
     }
     
     # 1. Create DM channel
@@ -117,8 +117,8 @@ def send_discord_dm_embed(discord_user_id, embed_dict):
 def send_user_creation_dm(discord_user_id, username, email, password, panel_url):
     """Send user credential details via DM embed on account registration."""
     embed = {
-        "title": "🔐 MintyHost Control Panel Account Created",
-        "description": "An administrator has created an account for you on the MintyHost LXC Control Panel.",
+        "title": "🔐 PilotPanel Control Panel Account Created",
+        "description": "An administrator has created an account for you on the PilotPanel LXC Control Panel.",
         "color": 6512639, # HSL Primary theme blueish tone
         "fields": [
             {"name": "Panel Link", "value": f"🔗 [Go to Control Panel]({panel_url})", "inline": False},
@@ -127,7 +127,7 @@ def send_user_creation_dm(discord_user_id, username, email, password, panel_url)
             {"name": "Default Password", "value": f"`{password}`", "inline": False}
         ],
         "footer": {
-            "text": "MintyHost Infrastructure Services"
+            "text": "PilotPanel Infrastructure Services"
         }
     }
     return send_discord_dm_embed(discord_user_id, embed)
@@ -268,7 +268,7 @@ def send_vps_deploy_status_alert(discord_user_id, container_name, status_text, i
     headers = {
         "Authorization": f"Bot {token}",
         "Content-Type": "application/json",
-        "User-Agent": "DiscordBot (https://github.com/xAyan55/lxc, 1.0.0) Python-urllib/3.12"
+        "User-Agent": "DiscordBot (https://github.com/xAyan55/pilot, 1.0.0) Python-urllib/3.12"
     }
 
     # 1. Create DM channel
@@ -297,7 +297,7 @@ def send_vps_deploy_status_alert(discord_user_id, container_name, status_text, i
                 ],
                 "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                 "footer": {
-                    "text": "MintyHost Automated Deployments"
+                    "text": "PilotPanel Automated Deployments"
                 }
             }
 

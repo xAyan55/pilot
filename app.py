@@ -203,7 +203,7 @@ except ImportError:
     HAS_PTY = False
 
 app = Flask(__name__)
-app.secret_key = 'mintyhost-lxc-secret-key-928475'
+app.secret_key = 'pilotpanel-lxc-secret-key-928475'
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 node_namespace = None
 
@@ -241,7 +241,7 @@ def inject_settings():
         settings = {}
         
     defaults = {
-        'site_name': 'MintyHost LXC',
+        'site_name': 'PilotPanel',
         'color_primary': '#ECF4E8',
         'color_secondary': '#CBF3BB',
         'color_accent': '#ABE7B2',
@@ -251,7 +251,7 @@ def inject_settings():
         'discord_status_enabled': '0',
         'discord_status_webhook_url': '',
         'discord_status_health_url': '',
-        'discord_status_title': 'MintyHost Panel Status',
+        'discord_status_title': 'PilotPanel Status',
         'discord_status_message_id': ''
     }
     for k, v in defaults.items():
@@ -318,7 +318,7 @@ def log_audit(user_id, action):
                                     }
                                 ],
                                 "footer": {
-                                    "text": "MintyHost LXC Control Panel Logs"
+                                    "text": "PilotPanel LXC Control Panel Logs"
                                 }
                             }
                         ]
@@ -391,36 +391,141 @@ def admin_dashboard():
 
 # ----------------- AUTHENTICATION ENDPOINTS -----------------
 
-@app.route('/signup', methods=['POST'])
-def signup_handler():
-    username = request.form.get('username', '').strip().lower()
-    email = request.form.get('email', '').strip().lower()
-    password = request.form.get('password')
+@app.route('/login/discord')
+def login_discord():
+    client_id = os.getenv('DISCORD_CLIENT_ID')
+    redirect_uri = os.getenv('DISCORD_REDIRECT_URI')
+    if not client_id or not redirect_uri:
+        flash("Discord Auth is not configured. Please set DISCORD_CLIENT_ID and DISCORD_REDIRECT_URI in .env", "error")
+        return redirect(url_for('auth'))
+    
+    # Store dynamic redirect parameter if any
+    redirect_to = request.args.get('redirect', '')
+    if redirect_to:
+        session['oauth2_redirect'] = redirect_to
 
-    if not username or not email or not password:
-        flash("All fields are required.", "error")
+    import urllib.parse
+    scope = "identify email"
+    encoded_redirect = urllib.parse.quote(redirect_uri)
+    auth_url = f"https://discord.com/api/oauth2/authorize?client_id={client_id}&redirect_uri={encoded_redirect}&response_type=code&scope={urllib.parse.quote(scope)}"
+    return redirect(auth_url)
+
+@app.route('/login/discord/callback')
+def login_discord_callback():
+    code = request.args.get('code')
+    if not code:
+        flash("Authorization failed or was cancelled.", "error")
         return redirect(url_for('auth'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    client_id = os.getenv('DISCORD_CLIENT_ID')
+    client_secret = os.getenv('DISCORD_CLIENT_SECRET')
+    redirect_uri = os.getenv('DISCORD_REDIRECT_URI')
+    admin_discord_id = os.getenv('DISCORD_ADMIN_USER_ID')
 
-    cursor.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username, email))
-    if cursor.fetchone():
-        flash("Username or email already registered.", "error")
-        conn.close()
+    if not all([client_id, client_secret, redirect_uri]):
+        flash("Missing Discord OAuth2 configuration.", "error")
         return redirect(url_for('auth'))
 
-    hashed_pw = generate_password_hash(password)
+    import requests
+    # 1. Exchange authorization code for token
+    token_url = "https://discord.com/api/oauth2/token"
+    data = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': redirect_uri
+    }
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
     try:
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'client')",
-            (username, email, hashed_pw)
-        )
-        conn.commit()
+        resp = requests.post(token_url, data=data, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            flash(f"Failed to retrieve access token from Discord: {resp.text}", "error")
+            return redirect(url_for('auth'))
+        token_data = resp.json()
+        access_token = token_data.get('access_token')
 
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        # 2. Get user info
+        user_url = "https://discord.com/api/users/@me"
+        user_headers = {
+            'Authorization': f"Bearer {access_token}"
+        }
+        user_resp = requests.get(user_url, headers=user_headers, timeout=10)
+        if user_resp.status_code != 200:
+            flash("Failed to retrieve user profile from Discord.", "error")
+            return redirect(url_for('auth'))
+        
+        discord_user = user_resp.json()
+        discord_id = str(discord_user.get('id'))
+        discord_username = discord_user.get('username')
+        discord_email = discord_user.get('email')
+        avatar_hash = discord_user.get('avatar')
+
+        if not discord_email:
+            discord_email = f"{discord_username}@{discord_id}.discord"
+
+        pfp = None
+        if avatar_hash:
+            pfp = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png"
+        else:
+            pfp = "/static/uploads/pfp_client.png"
+
+        # Determine user role
+        role = 'client'
+        if admin_discord_id and str(discord_id) == str(admin_discord_id):
+            role = 'admin'
+
+        # Check if user exists with this discord_id
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE discord_user_id = ?", (discord_id,))
         user = cursor.fetchone()
 
+        if not user:
+            # Check if there is an existing user with the same email
+            cursor.execute("SELECT * FROM users WHERE email = ?", (discord_email,))
+            user = cursor.fetchone()
+            if user:
+                # Link account
+                cursor.execute(
+                    "UPDATE users SET discord_user_id = ?, username = ?, pfp = ?, role = ? WHERE id = ?",
+                    (discord_id, discord_username, pfp, role, user['id'])
+                )
+                conn.commit()
+                # Re-fetch user
+                cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
+                user = cursor.fetchone()
+                log_audit(user['id'], f"Linked Discord account {discord_username} ({discord_id}) to existing user")
+            else:
+                # Register new user
+                dummy_hash = generate_password_hash(os.urandom(24).hex())
+                cursor.execute(
+                    "INSERT INTO users (username, email, password_hash, role, pfp, discord_user_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (discord_username, discord_email, dummy_hash, role, pfp, discord_id)
+                )
+                conn.commit()
+                user_id = cursor.lastrowid
+                # Fetch created user
+                cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+                user = cursor.fetchone()
+                log_audit(user_id, f"Registered new user account via Discord login: {discord_username}")
+        else:
+            # Existing user, sync details
+            cursor.execute(
+                "UPDATE users SET username = ?, email = ?, pfp = ?, role = ? WHERE id = ?",
+                (discord_username, discord_email, pfp, role, user['id'])
+            )
+            conn.commit()
+            # Re-fetch user
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
+            user = cursor.fetchone()
+            log_audit(user['id'], f"Logged in via Discord OAuth2 as {discord_username}")
+
+        conn.close()
+
+        # Set up Flask session
         session['user_id'] = user['id']
         session['username'] = user['username']
         session['email'] = user['email']
@@ -428,47 +533,19 @@ def signup_handler():
         session['is_admin'] = (user['role'] == 'admin')
         session['pfp'] = user['pfp']
 
-        log_audit(user['id'], f"Registered user account: {username}")
-        conn.close()
+        flash("Welcome to PilotPanel! Logged in successfully.", "success")
+        
+        # Check dynamic redirect parameter stored in session
+        redirect_to = session.pop('oauth2_redirect', '')
+        if redirect_to:
+            return redirect(redirect_to)
 
-        flash("Welcome to MintyHost LXC Panel! Account created successfully.", "success")
-        return redirect(url_for('client_dashboard'))
-    except Exception:
-        flash("Registration failed. Please try again.", "error")
-        conn.close()
-        return redirect(url_for('auth'))
-
-@app.route('/login', methods=['POST'])
-def login_handler():
-    email = request.form.get('email', '').strip().lower()
-    password = request.form.get('password')
-
-    if not email or not password:
-        flash("Please fill in all credentials.", "error")
-        return redirect(url_for('auth'))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email = ? OR username = ?", (email, email))
-    user = cursor.fetchone()
-    conn.close()
-
-    if user and check_password_hash(user['password_hash'], password):
-        session['user_id'] = user['id']
-        session['username'] = user['username']
-        session['email'] = user['email']
-        session['role'] = user['role']
-        session['is_admin'] = (user['role'] == 'admin')
-        session['pfp'] = user['pfp']
-
-        log_audit(user['id'], "Logged into control panel")
-
-        flash("Logged in successfully. Welcome back!", "success")
         if user['role'] == 'admin':
             return redirect(url_for('admin_dashboard'))
         return redirect(url_for('client_dashboard'))
-    else:
-        flash("Invalid credentials.", "error")
+
+    except Exception as e:
+        flash(f"An error occurred during Discord authentication: {str(e)}", "error")
         return redirect(url_for('auth'))
 
 @app.route('/logout')
@@ -767,7 +844,7 @@ def client_vps_reinstall(vps_id):
     # Fetch settings for MOTD and relay configurations
     cursor.execute("SELECT key, value FROM settings")
     settings = {row['key']: row['value'] for row in cursor.fetchall()}
-    site_name_val = settings.get('site_name', 'MintyHost LXC')
+    site_name_val = settings.get('site_name', 'PilotPanel')
 
     # Determine dynamic tunnel_port
     tunnel_port = vps['tunnel_port']
@@ -1721,7 +1798,7 @@ def admin_vps_deploy_stream():
             # Fetch all settings
             cursor.execute("SELECT key, value FROM settings")
             settings = {row['key']: row['value'] for row in cursor.fetchall()}
-            site_name_val = settings.get('site_name', 'MintyHost LXC')
+            site_name_val = settings.get('site_name', 'PilotPanel')
 
             # Set up port forwarding for local node containers
             if node_id == 1:
@@ -2070,7 +2147,7 @@ def admin_settings_discord():
     discord_status_enabled = data.get('discord_status_enabled', '0').strip()
     discord_status_webhook_url = data.get('discord_status_webhook_url', '').strip()
     discord_status_health_url = data.get('discord_status_health_url', '').strip()
-    discord_status_title = data.get('discord_status_title', 'MintyHost Panel Status').strip()
+    discord_status_title = data.get('discord_status_title', 'PilotPanel Status').strip()
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -3034,7 +3111,7 @@ def admin_nodes_config(node_id):
         return jsonify({"message": "Node not found."}), 404
 
     panel_url = request.host_url.rstrip('/')
-    config_yaml = f"""# MintyHost LXC Node Config File
+    config_yaml = f"""# PilotPanel LXC Node Config File
 port: {node['port']}
 api_key: "{node['api_key']}"
 node_id: {node['id']}
@@ -3233,7 +3310,7 @@ def admin_windows_build_image():
     data = request.get_json() or {}
     iso_path = (data.get('iso_path') or '').strip()
     alias = (data.get('alias') or 'windows/10').strip()
-    default_password = (data.get('default_password') or 'MintyHost!2026').strip()
+    default_password = (data.get('default_password') or 'PilotPanel!2026').strip()
 
     state = _load_build_status()
     if state.get('running'):
@@ -3247,7 +3324,7 @@ def admin_windows_build_image():
         env = os.environ.copy()
         env['WINDOWS_ALIAS'] = alias
         env['WINDOWS_DEFAULT_PASSWORD'] = default_password
-        env['WINDOWS_LOG_FILE'] = '/var/log/mintyhost-win-build.log'
+        env['WINDOWS_LOG_FILE'] = '/var/log/pilotpanel-win-build.log'
         env['WINDOWS_STATUS_FILE'] = WINDOWS_BUILD_LOG
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'setup_windows_image.sh')
         cmd = ['sudo', '--preserve-env=WINDOWS_ALIAS,WINDOWS_DEFAULT_PASSWORD,WINDOWS_LOG_FILE,WINDOWS_STATUS_FILE',
@@ -3291,7 +3368,7 @@ def admin_windows_build_status():
 def admin_windows_build_log():
     if not is_admin():
         return jsonify({"message": "Forbidden"}), 403
-    log_path = '/var/log/mintyhost-win-build.log'
+    log_path = '/var/log/pilotpanel-win-build.log'
     if not os.path.exists(log_path):
         return jsonify({"content": "Log file not yet created. Build may not have started.", "tail": False})
     try:

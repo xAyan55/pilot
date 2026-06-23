@@ -133,7 +133,7 @@ def send_discord_status(status_type="online"):
     if not enabled and status_type != "offline":
         return
 
-    title = settings.get('discord_status_title', 'MintyHost Panel Status').strip()
+    title = settings.get('discord_status_title', 'PilotPanel Status').strip()
     health_url = settings.get('discord_status_health_url', '').strip()
     message_id = settings.get('discord_status_message_id', '').strip()
 

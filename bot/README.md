@@ -20,7 +20,7 @@ This directory contains a pre-built, premium, **multi-user Discord bot** that al
 ### 1. Register a Discord Application
 
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Click **New Application** and enter a name (e.g. `MintyHost Bot`).
+2. Click **New Application** and enter a name (e.g. `PilotPanel Bot`).
 3. Under the **Bot** tab on the left sidebar:
    - Click **Add Bot** or generate a token.
    - Click **Reset Token** and copy the resulting string. Keep it safe (this is your `DISCORD_BOT_TOKEN`).

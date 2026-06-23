@@ -856,5 +856,5 @@ if __name__ == '__main__':
         _reapply_port_forwards_from_disk()
     except Exception as e:
         print(f"[!] Could not re-apply port forwards on startup: {e}")
-    print(f"[*] Starting MintyHost Node Daemon v2.0 (Cloudflare Native) on port {port}...")
+    print(f"[*] Starting PilotPanel Node Daemon v2.0 (Cloudflare Native) on port {port}...")
     app.run(host='0.0.0.0', port=port)
