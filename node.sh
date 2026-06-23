@@ -53,7 +53,7 @@ info_msg "Updating apt package lists..."
 sudo apt update -y
 
 info_msg "Installing system dependencies..."
-sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl iptables
+sudo apt install -y python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl iptables unzip
 
 info_msg "Installing Bun runtime..."
 curl -fsSL https://bun.sh/install | bash

@@ -80,7 +80,7 @@ info_msg "Fetching Node.js v20 package repository blueprints..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 
 info_msg "[GROUND CREW] Loading required system utilities (Python, Git, LXC bridges, SSH, Curl)..."
-sudo apt install -y nodejs python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl
+sudo apt install -y nodejs python3 python3-pip python3-venv git snapd bridge-utils uidmap openssh-client curl unzip
 
 info_msg "[GROUND CREW] Provisioning Bun runtime compiler engine..."
 curl -fsSL https://bun.sh/install | bash
