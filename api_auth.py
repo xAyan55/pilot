@@ -33,7 +33,8 @@ def _lookup_key(raw_key: str):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT ak.*, u.username, u.email
+        SELECT ak.id, ak.user_id, ak.name, ak.key, ak.created_at, ak.last_used,
+               u.role AS role, u.username, u.email
         FROM api_keys ak
         JOIN users u ON ak.user_id = u.id
         WHERE ak.key = ?

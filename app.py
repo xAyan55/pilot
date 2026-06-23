@@ -549,6 +549,49 @@ def login_discord_callback():
         flash(f"An error occurred during Discord authentication: {str(e)}", "error")
         return redirect(url_for('auth'))
 
+@app.route('/login', methods=['POST'])
+def login_handler():
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password')
+
+    if not email or not password:
+        data = request.get_json() or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "validation", "message": "Please fill in all credentials."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email = ? OR username = ?", (email, email))
+    user = cursor.fetchone()
+    conn.close()
+
+    from werkzeug.security import check_password_hash
+    if user and check_password_hash(user['password_hash'], password):
+        session['user_id'] = user['id']
+        session['username'] = user['username']
+        session['email'] = user['email']
+        session['role'] = user['role']
+        session['is_admin'] = (user['role'] == 'admin')
+        session['pfp'] = user['pfp']
+
+        log_audit(user['id'], "Programmatic login successful")
+        
+        if request.is_json or request.headers.get('Accept') == 'application/json':
+            return jsonify({"status": "success", "message": "Logged in successfully.", "user": {"id": user['id'], "role": user['role']}})
+            
+        flash("Logged in successfully. Welcome back!", "success")
+        if user['role'] == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('client_dashboard'))
+    else:
+        if request.is_json or request.headers.get('Accept') == 'application/json':
+            return jsonify({"status": "error", "message": "Invalid credentials."}), 401
+        flash("Invalid credentials.", "error")
+        return redirect(url_for('auth'))
+
 @app.route('/logout')
 def logout_handler():
     user_id = session.get('user_id')
