@@ -142,11 +142,11 @@ info_msg "Initializing PilotPanel TypeScript cockpit modules..."
 cd "$INSTALL_DIR/airlink/panel/panel-main"
 if [ ! -f ".env" ]; then
     cp example.env .env
-    # Configure production port to 5000 to match old configuration
-    sed -i 's/PORT=3000/PORT=5000/g' .env
-    sed -i 's/URL="http:\/\/localhost:3000"/URL="http:\/\/localhost:5000"/g' .env
-    sed -i 's/NAME="Airlink"/NAME="PilotPanel"/g' .env
 fi
+# Configure production port to 5000 to match old configuration
+sed -i 's/PORT=3000/PORT=5000/g' .env
+sed -i 's/URL="http:\/\/localhost:3000"/URL="http:\/\/localhost:5000"/g' .env
+sed -i 's/NAME="Airlink"/NAME="PilotPanel"/g' .env
 
 info_msg "[GROUND CREW] Loading node packages for cockpit interface..."
 npm install
