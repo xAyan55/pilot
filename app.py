@@ -23,8 +23,9 @@ from api_v1 import bp as api_v1_bp
 
 import os
 from dotenv import load_dotenv
-load_dotenv()
-load_dotenv(os.path.join(os.path.dirname(__file__), 'bot', '.env'))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+load_dotenv(os.path.join(BASE_DIR, 'bot', '.env'))
 import discord_notify
 
 # Metrics history cache to keep the line graphs pre-populated and real-time

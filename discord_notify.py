@@ -9,8 +9,9 @@ from lxc_manager import LXCManager
 from dotenv import load_dotenv
 
 # Load bot environment variables
-load_dotenv()
-load_dotenv(os.path.join(os.path.dirname(__file__), 'bot', '.env'))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+load_dotenv(os.path.join(BASE_DIR, 'bot', '.env'))
 
 def get_config_setting(key, env_name=None):
     """Retrieve config value from sqlite database settings first, then from environment variable."""
