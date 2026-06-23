@@ -29,13 +29,17 @@ const dashboardModule: Module = {
       const errorMessage: ErrorMessage = {};
       const userId = req.session?.user?.id;
       try {
-        const [user, settings] = await Promise.all([
+        const [user, settings, vpsList] = await Promise.all([
           prisma.users.findUnique({ where: { id: userId } }),
           prisma.settings.findUnique({ where: { id: 1 } }),
+          prisma.vps.findMany({
+            where: { ownerId: userId },
+            include: { node: true }
+          }),
         ]);
         if (!user) {
           errorMessage.message = 'User not found.';
-          res.render('user/dashboard', { errorMessage, user, req });
+          res.render('user/dashboard', { errorMessage, user, req, vpsList: [] });
           return;
         }
 
@@ -106,6 +110,7 @@ const dashboardModule: Module = {
             servers,
             allServers: servers,
             folders,
+            vpsList,
             canCreateServer,
             currentPage: 1,
             totalPages: 1,
@@ -240,6 +245,7 @@ const dashboardModule: Module = {
           servers: paginatedServers,
           allServers: serversWithStats,
           folders,
+          vpsList,
           canCreateServer,
           currentPage: page,
           totalPages: Math.ceil(servers.length / perPage),
@@ -253,6 +259,7 @@ const dashboardModule: Module = {
           user: getUser(req),
           req,
           settings: null,
+          vpsList: [],
         });
       }
     });

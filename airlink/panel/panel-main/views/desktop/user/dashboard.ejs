@@ -51,6 +51,16 @@
           </div>
         </div>
 
+        <!-- Dashboard Tabs -->
+        <div class="flex items-center gap-4 border-b border-neutral-200 dark:border-white/5 pb-px mb-6">
+          <button id="tabGameServers" class="pb-3 text-sm font-medium text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white transition-all cursor-pointer focus:outline-none">
+            Game Servers
+          </button>
+          <button id="tabLxcVps" class="pb-3 text-sm font-medium text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 border-b-2 border-transparent transition-all cursor-pointer focus:outline-none">
+            LXC VPS Containers
+          </button>
+        </div>
+
         <!-- Alerts -->
         <% if (req.query.err === 'NOTACTIVEYET') { %>
         <div class="rounded-xl bg-amber-50 dark:bg-amber-800/10 border border-amber-200 dark:border-amber-500/20 px-4 py-3 mb-5">
@@ -72,6 +82,7 @@
         </div>
         <% } %>
 
+        <div id="gameServersContent">
         <% if (servers.length === 0 && (!folders || folders.length === 0)) { %>
         <div class="flex flex-col items-center justify-center mt-32 text-center">
           <%- icon('server', { class: 'h-16 w-16 text-neutral-200 dark:text-neutral-700 mb-4' }) %>
@@ -229,6 +240,99 @@
         <% } %>
 
         <% } %>
+        </div>
+
+        <!-- ── LXC VPS Containers ────────────────────────── -->
+        <div id="lxcVpsContent" class="hidden">
+          <% if (vpsList.length === 0) { %>
+            <div class="flex flex-col items-center justify-center mt-20 text-center">
+              <%- icon('server', { class: 'h-16 w-16 text-neutral-200 dark:text-neutral-700 mb-4' }) %>
+              <h2 class="text-base font-medium text-neutral-800 dark:text-white font-[inherit]">No VPS instances active yet.</h2>
+              <p class="text-sm text-neutral-500 mt-1">
+                <% if (user.isAdmin) { %>
+                  <a href="/admin/vps/create" class="text-blue-500 hover:underline">Deploy your first container now</a>.
+                <% } else { %>
+                  Contact an administrator to allocate a virtual private server to your account.
+                <% } %>
+              </p>
+            </div>
+          <% } else { %>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              <% vpsList.forEach(vps => { %>
+                <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/[0.07] rounded-2xl p-5 relative transition duration-200 hover:shadow-md hover:border-neutral-300 dark:hover:border-white/[0.12]">
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                      <span class="p-2 rounded-xl bg-neutral-100 dark:bg-white/[0.05] text-neutral-700 dark:text-neutral-300">
+                        <%- icon(vps.os.includes('win') ? 'monitor' : 'terminal', { class: 'h-5 w-5' }) %>
+                      </span>
+                      <div>
+                        <h3 class="text-sm font-semibold text-neutral-800 dark:text-white"><%= vps.containerName %></h3>
+                        <p class="text-xs text-neutral-500"><%= vps.os %></p>
+                      </div>
+                    </div>
+                    <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+                      <%= vps.status === 'running' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                          vps.status === 'suspended' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                          'bg-neutral-100 dark:bg-white/5 text-neutral-600 dark:text-neutral-400' %>">
+                      <span class="h-1.5 w-1.5 rounded-full 
+                        <%= vps.status === 'running' ? 'bg-emerald-500' :
+                            vps.status === 'suspended' ? 'bg-amber-500' :
+                            'bg-neutral-500' %>"></span>
+                      <%= vps.status.toUpperCase() %>
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-3 gap-2 border-y border-neutral-100 dark:border-white/5 py-3.5 my-4 text-center">
+                    <div>
+                      <p class="text-[10px] uppercase font-semibold text-neutral-400">vCPU</p>
+                      <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.cpu %> Cores</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] uppercase font-semibold text-neutral-400">Memory</p>
+                      <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.ram >= 1024 ? (vps.ram/1024).toFixed(0) + ' GB' : vps.ram + ' MB' %></p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] uppercase font-semibold text-neutral-400">Storage</p>
+                      <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.disk %> GB</p>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2 mb-6">
+                    <div class="flex justify-between text-xs">
+                      <span class="text-neutral-400">IP Address:</span>
+                      <span class="font-mono text-neutral-600 dark:text-neutral-300"><%= vps.ipAddress || 'N/A' %></span>
+                    </div>
+                    <% if (vps.tunnelHost && vps.tunnelPort) { %>
+                    <div class="flex justify-between text-xs">
+                      <span class="text-neutral-400">SSH Tunnel:</span>
+                      <span class="font-mono text-neutral-600 dark:text-neutral-300"><%= vps.tunnelHost %>:<%= vps.tunnelPort %></span>
+                    </div>
+                    <% } %>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <a href="/vps/console/<%= vps.id %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                      <%- icon('terminal', { class: 'h-3.5 w-3.5' }) %>
+                      Console
+                    </a>
+                    <a href="/vps/files/<%= vps.id %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                      <%- icon('folder', { class: 'h-3.5 w-3.5' }) %>
+                      Files
+                    </a>
+                    <a href="/vps/backups/<%= vps.id %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                      <%- icon('save', { class: 'h-3.5 w-3.5' }) %>
+                      Backups
+                    </a>
+                    <a href="/vps/network/<%= vps.id %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                      <%- icon('shield', { class: 'h-3.5 w-3.5' }) %>
+                      Firewall
+                    </a>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+        </div>
       </div>
     </div>
   </div>
@@ -295,5 +399,30 @@
 </script>
 
 <script nonce="<%- nonce %>" src="/javascript/dashboard.js"></script>
+
+<script nonce="<%- nonce %>">
+  (function() {
+    const tabGameServers = document.getElementById('tabGameServers');
+    const tabLxcVps = document.getElementById('tabLxcVps');
+    const gameServersContent = document.getElementById('gameServersContent');
+    const lxcVpsContent = document.getElementById('lxcVpsContent');
+
+    if (tabGameServers && tabLxcVps && gameServersContent && lxcVpsContent) {
+      tabGameServers.addEventListener('click', () => {
+        tabGameServers.className = 'pb-3 text-sm font-medium text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white transition-all cursor-pointer focus:outline-none';
+        tabLxcVps.className = 'pb-3 text-sm font-medium text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 border-b-2 border-transparent transition-all cursor-pointer focus:outline-none';
+        gameServersContent.classList.remove('hidden');
+        lxcVpsContent.classList.add('hidden');
+      });
+
+      tabLxcVps.addEventListener('click', () => {
+        tabLxcVps.className = 'pb-3 text-sm font-medium text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white transition-all cursor-pointer focus:outline-none';
+        tabGameServers.className = 'pb-3 text-sm font-medium text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 border-b-2 border-transparent transition-all cursor-pointer focus:outline-none';
+        lxcVpsContent.classList.remove('hidden');
+        gameServersContent.classList.add('hidden');
+      });
+    }
+  })();
+</script>
 
 <%- include('../components/footer') %>

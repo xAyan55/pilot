@@ -2447,6 +2447,9 @@
   .pb-24 {
     padding-bottom: calc(var(--spacing) * 24);
   }
+  .pb-px {
+    padding-bottom: 1px;
+  }
   .pl-3 {
     padding-left: calc(var(--spacing) * 3);
   }
