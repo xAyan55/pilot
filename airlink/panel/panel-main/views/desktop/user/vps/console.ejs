@@ -1,4 +1,4 @@
-<%- include('../components/header', { title: 'VPS Console' }) %>
+<%- include('../../components/header', { title: 'VPS Console' }) %>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
@@ -30,7 +30,7 @@
 
 <main class="h-screen m-auto">
   <div class="flex h-screen">
-    <div class="w-60 h-full"><%- include('../components/template') %></div>
+    <div class="w-60 h-full"><%- include('../../components/template') %></div>
 
     <div id="page-content" class="flex-1 overflow-y-auto pt-16">
       <div class="px-12 pt-6 pb-8">
@@ -171,4 +171,4 @@
   document.addEventListener('DOMContentLoaded', initTerminal);
 </script>
 
-<%- include('../components/footer') %>
+<%- include('../../components/footer') %>
