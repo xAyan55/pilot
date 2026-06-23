@@ -141,7 +141,7 @@ echo -e "\n${B_WHITE}✈ PHASE 5 — FLIGHT SERVICES ACTIVATION${NC}"
 info_msg "Initializing PilotPanel TypeScript cockpit modules..."
 cd "$INSTALL_DIR/airlink/panel/panel-main"
 if [ ! -f ".env" ]; then
-    cp .env.example .env
+    cp example.env .env
     # Configure production port to 5000 to match old configuration
     sed -i 's/PORT=3000/PORT=5000/g' .env
     sed -i 's/URL="http:\/\/localhost:3000"/URL="http:\/\/localhost:5000"/g' .env
