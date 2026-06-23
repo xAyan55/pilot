@@ -50,50 +50,30 @@
     .auth-image { display: none; }
   }
 
-  /* Premium Discord Button */
+  /* Minimalist Discord Button */
   .discord-auth-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
-    padding: 14px 20px;
-    border-radius: 14px;
+    padding: 12px 20px;
+    border-radius: 10px;
     background: #5865F2;
     color: white;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     border: none;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 14px rgba(88, 101, 242, 0.3);
+    transition: background 0.15s ease;
     text-decoration: none;
+    box-shadow: none;
   }
   .discord-auth-btn:hover {
     background: #4752C4;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
   }
   .discord-auth-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 10px rgba(88, 101, 242, 0.2);
-  }
-
-  /* Info card */
-  .info-card {
-    background: rgba(0, 0, 0, 0.03);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    border-radius: 16px;
-    padding: 18px;
-    margin-bottom: 24px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: #525252;
-  }
-  html.dark .info-card {
-    background: rgba(255, 255, 255, 0.02);
-    border-color: rgba(255, 255, 255, 0.05);
-    color: #a3a3a3;
+    background: #3c45a5;
   }
 
   /* Entry animation for the panel */
@@ -124,10 +104,6 @@
 
     <!-- Login with Discord Options -->
     <div class="space-y-6">
-      <div class="info-card">
-        To manage or allocate virtual servers, please log in with your Discord account. Account association and administrative roles will be mapped automatically based on configuration.
-      </div>
-
       <a href="/login/discord?redirect={{ request.args.get('redirect', '') }}" class="discord-auth-btn" id="discordLoginBtn">
         <!-- Discord Logo SVG -->
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
