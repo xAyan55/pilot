@@ -132,61 +132,25 @@
     <% if (req.query.err) { %>
     <div class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-4 py-3 mb-5">
       <p class="text-sm font-medium text-red-700 dark:text-red-400">
-        <% if (req.query.err === 'missing_credentials') { %>Missing username or password.
-        <% } else if (['invalid_credentials','incorrect_password','user_not_found'].includes(req.query.err)) { %>Incorrect username or password.
-        <% } else if (req.query.err === 'database_error') { %>Server error — try again shortly.
-        <% } else if (req.query.err === 'account_locked') { %>Account temporarily locked. Try again in <%= req.query.wait || 'a few' %> minute<%= req.query.wait == 1 ? '' : 's' %>.
-        <% } else { %>Something went wrong. Try again.<% } %>
+        <% if (req.query.err === 'discord_config_error') { %>Discord settings are missing in environment configuration.
+        <% } else if (req.query.err === 'discord_auth_failed') { %>Discord authorization request was denied or cancelled.
+        <% } else if (req.query.err === 'discord_token_error') { %>Failed to exchange Discord authorization code.
+        <% } else if (req.query.err === 'discord_user_error') { %>Failed to fetch user profile details from Discord.
+        <% } else if (req.query.err === 'discord_invalid_user') { %>Invalid Discord user profile.
+        <% } else if (req.query.err === 'discord_only') { %>Please authorize via Discord to sign in.
+        <% } else { %>Something went wrong with Discord authentication. Try again.<% } %>
       </p>
     </div>
     <% } %>
 
-    <form id="loginForm" method="POST" action="/login" autocomplete="on" novalidate>
-      <%- include('../components/csrf') %>
-      <div class="space-y-4">
-        <div>
-          <label class="auth-label" for="identifier">Username or email</label>
-          <input id="identifier" name="identifier" type="text" autocomplete="username"
-            required spellcheck="false" autocapitalize="none"
-            class="auth-input" placeholder="you@example.com">
-        </div>
-        <div>
-          <label class="auth-label" for="password">Password</label>
-          <div class="pw-wrapper">
-            <input id="password" name="password" type="password" autocomplete="current-password"
-              required class="auth-input" placeholder="••••••••" style="padding-right:40px">
-            <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password">
-              <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-                <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <label class="cb-row" id="rememberLabel">
-          <input id="remember" name="remember-me" type="checkbox" class="sr-only">
-          <span class="cb-box" id="cbBox">
-            <svg class="cb-check" id="cbCheck" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" fill="none" width="10" height="10">
-              <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </span>
-          <span class="text-sm text-neutral-500 dark:text-neutral-400">Remember me</span>
-        </label>
-
-        <button type="submit" class="auth-submit" id="submitBtn">
-          <span class="btn-label">Sign in</span>
-          <span class="spinner"></span>
-        </button>
-      </div>
-    </form>
-
-    <% if (settings.allowRegistration) { %>
-    <p class="text-sm text-neutral-500 dark:text-neutral-400 text-center mt-6">
-      Don't have an account?
-      <a href="/register" class="font-medium text-neutral-800 dark:text-neutral-200 hover:underline">Create one</a>
-    </p>
-    <% } %>
+    <div class="space-y-4">
+      <a href="/auth/discord" class="auth-submit" id="submitBtn" style="background: #5865F2; color: white !important; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none;">
+        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="margin-right: 4px;">
+          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.094 13.094 0 0 1-1.873-.894.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .077-.011c3.92 1.793 8.18 1.793 12.061 0a.073.073 0 0 1 .078.009c.12.099.246.195.373.289a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.156 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.156 2.418z"/>
+        </svg>
+        <span>Authorize Cockpit via Discord</span>
+      </a>
+    </div>
 
   </div>
   <div class="auth-image"></div>
@@ -199,38 +163,9 @@
     });
   });
 
-  var pwToggle = document.getElementById('pwToggle');
-  var pwInput  = document.getElementById('password');
-  pwToggle.addEventListener('click', function () {
-    var show = pwInput.type === 'password';
-    pwInput.type = show ? 'text' : 'password';
-    document.getElementById('eyeIcon').innerHTML = show
-      ? '<path fill-rule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-4.38 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clip-rule="evenodd"/><path d="M10.748 13.93l2.523 2.524a10.065 10.065 0 0 1-5.27 0l-1.978-1.978a4 4 0 0 0 .005-5.53l-.738-.738A8.003 8.003 0 0 0 1.834 9.587a1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 0 10 17c1.09 0 2.14-.175 3.124-.497l-2.376-2.573Z"/>'
-      : '<path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clip-rule="evenodd"/>';
-  });
-
-  // Custom checkbox behavior
-  var cbInput = document.getElementById('remember');
-  var cbBox   = document.getElementById('cbBox');
-  var cbCheck = document.getElementById('cbCheck');
-  document.getElementById('rememberLabel').addEventListener('click', function (e) {
-    if (e.target === cbInput) return;
-    cbInput.checked = !cbInput.checked;
-    var isDark = document.documentElement.classList.contains('dark');
-    if (cbInput.checked) {
-      cbBox.style.background   = isDark ? 'white' : '#171717';
-      cbBox.style.borderColor  = isDark ? 'white' : '#171717';
-      cbCheck.style.display    = 'block';
-    } else {
-      cbBox.style.background  = '';
-      cbBox.style.borderColor = '';
-      cbCheck.style.display   = 'none';
-    }
-  });
-
-  document.getElementById('loginForm').addEventListener('submit', function () {
-    document.getElementById('submitBtn').classList.add('loading');
-    document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').addEventListener('click', function () {
+    this.classList.add('loading');
+    this.style.pointerEvents = 'none';
   });
 </script>
 
