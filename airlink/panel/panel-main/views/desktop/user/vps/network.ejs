@@ -1,0 +1,173 @@
+<%- include('../components/header', { title: 'Network & Firewall' }) %>
+
+<main class="h-screen m-auto">
+  <div class="flex h-screen">
+    <div class="w-60 h-full"><%- include('../components/template') %></div>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="px-12 pt-6 pb-8">
+        
+        <!-- Server Title Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-base font-medium text-neutral-800 dark:text-white"><%= vps.name %></h1>
+            <p class="text-sm text-neutral-500 mt-0.5"><%= vps.os %> • Private IP: <%= vps.ip || 'N/A' %></p>
+          </div>
+        </div>
+
+        <!-- Inner Navigation Menu -->
+        <div class="flex items-center gap-2 border-b border-neutral-200 dark:border-white/5 pb-3 mb-6">
+          <a href="/vps/console/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Console</a>
+          <a href="/vps/files/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Files</a>
+          <a href="/vps/backups/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Backups</a>
+          <a href="/vps/network/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold menu-btn-active text-neutral-800 dark:text-white transition">Firewall</a>
+          <a href="/vps/settings/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Settings</a>
+        </div>
+
+        <!-- Port Forwarding info -->
+        <div class="mb-8 bg-neutral-50 dark:bg-white/[0.02] border border-neutral-200 dark:border-white/5 p-5 rounded-2xl">
+          <h2 class="text-sm font-semibold text-neutral-800 dark:text-white mb-2 flex items-center gap-2">
+            <%- icon('link', { class: 'h-4 w-4' }) %>
+            Node Port Relays
+          </h2>
+          <p class="text-xs text-neutral-500 mb-4">Traffic on these node host ports routes directly back to your private container network interfaces.</p>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-[#18181b] border border-neutral-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-[10px] uppercase font-semibold text-neutral-400">SSH / SFTP Relay</p>
+                <p class="text-xs font-bold text-neutral-800 dark:text-white mt-1">Port: <span class="font-mono"><%= vps.tunnelPort %></span></p>
+              </div>
+              <code class="text-xs bg-neutral-100 dark:bg-white/5 px-2 py-1 rounded select-all text-neutral-600 dark:text-neutral-300">ssh root@<%= vps.tunnelHost %> -p <%= vps.tunnelPort %></code>
+            </div>
+            <% if (vps.os.includes('win')) { %>
+            <div class="bg-white dark:bg-[#18181b] border border-neutral-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-[10px] uppercase font-semibold text-neutral-400">RDP Relay (Windows Remote Desktop)</p>
+                <p class="text-xs font-bold text-neutral-800 dark:text-white mt-1">Port: <span class="font-mono"><%= vps.tunnelPort + 10000 %></span></p>
+              </div>
+              <code class="text-xs bg-neutral-100 dark:bg-white/5 px-2 py-1 rounded select-all text-neutral-600 dark:text-neutral-300"><%= vps.tunnelHost %>:<%= vps.tunnelPort + 10000 %></code>
+            </div>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Add Firewall Rule Form -->
+        <div class="grid md:grid-cols-3 gap-6 items-start">
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl p-5 md:col-span-1">
+            <h3 class="text-xs font-bold text-neutral-800 dark:text-white mb-4 uppercase tracking-wider">Add Firewall Rule</h3>
+            <form id="addRuleForm" onsubmit="addRule(event)" class="space-y-4">
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">Protocol</label>
+                <select id="protocol" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                  <option value="TCP">TCP</option>
+                  <option value="UDP">UDP</option>
+                  <option value="ICMP">ICMP</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">Port Range</label>
+                <input id="port" type="number" min="0" max="65535" placeholder="e.g. 80 (0 for all)" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500" required />
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">Action</label>
+                <select id="action" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                  <option value="ALLOW">ALLOW</option>
+                  <option value="DENY">DENY</option>
+                </select>
+              </div>
+              <button type="submit" class="w-full py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 transition">
+                Apply Rule
+              </button>
+            </form>
+          </div>
+
+          <!-- Rules List Table -->
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl overflow-hidden md:col-span-2">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-neutral-50 dark:bg-white/[0.02] border-b border-neutral-200 dark:border-white/5 text-neutral-500 uppercase tracking-wider font-semibold">
+                <tr>
+                  <th class="py-3 px-5">Protocol</th>
+                  <th class="py-3 px-4">Port</th>
+                  <th class="py-3 px-4">Action</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100 dark:divide-white/5 text-neutral-700 dark:text-neutral-300 font-medium">
+                <% firewallRules.forEach(rule => { %>
+                <tr class="hover:bg-neutral-50 dark:hover:bg-white/[0.02]">
+                  <td class="py-3 px-5 font-bold"><%= rule.protocol %></td>
+                  <td class="py-3 px-4 font-mono"><%= rule.port === 0 ? 'ALL' : rule.port %></td>
+                  <td class="py-3 px-4">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold 
+                      <%= rule.action === 'ALLOW' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-red-50 dark:bg-red-500/10 text-red-600' %>">
+                      <%= rule.action %>
+                    </span>
+                  </td>
+                  <td class="py-3 px-4 text-right">
+                    <button onclick="removeRule(<%= rule.id %>)" class="p-1 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 rounded transition" title="Delete Rule">
+                      <%- icon('trash', { class: 'h-4 w-4' }) %>
+                    </button>
+                  </td>
+                </tr>
+                <% }); %>
+
+                <% if (firewallRules.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="py-8 text-center text-neutral-400">
+                    No active firewall rules defined. Defaulting to ALLOW all traffic.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  async function addRule(e) {
+    e.preventDefault();
+    const protocol = document.getElementById('protocol').value;
+    const port = parseInt(document.getElementById('port').value);
+    const action = document.getElementById('action').value;
+
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/firewall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocol, port, action })
+      });
+      const data = await response.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to add firewall rule: ' + data.error);
+      }
+    } catch {
+      alert('Network error while adding firewall rule');
+    }
+  }
+
+  async function removeRule(ruleId) {
+    if (!confirm('Are you sure you want to remove this rule?')) return;
+    try {
+      const response = await fetch(`/api/vps/<%= vps.UUID %>/firewall/${ruleId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to delete firewall rule: ' + data.error);
+      }
+    } catch {
+      alert('Network error while deleting firewall rule');
+    }
+  }
+</script>
+
+<%- include('../components/footer') %>

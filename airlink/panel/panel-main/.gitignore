@@ -1,0 +1,38 @@
+# Node.js modules
+node_modules/
+
+# Build outputs
+dist/
+
+# Prisma files
+prisma/*
+!prisma/schema.prisma
+!prisma/migrations/
+
+# Lock file
+/package-lock.json
+/bun.lockb
+bun.lock
+.DS_Store
+
+# Logs
+/logs
+*.log
+
+# Coverage reports
+coverage/
+
+# .env
+.env
+*.env.*
+
+# Database
+storage/dev.db
+storage/dev.db-wal
+storage/dev.db-shm
+
+# Storage (keep structure, ignore data)
+storage/eggs
+
+.agents/
+.codex/

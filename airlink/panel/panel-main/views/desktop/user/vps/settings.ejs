@@ -1,0 +1,134 @@
+<%- include('../components/header', { title: 'VPS Settings' }) %>
+
+<main class="h-screen m-auto">
+  <div class="flex h-screen">
+    <div class="w-60 h-full"><%- include('../components/template') %></div>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="px-12 pt-6 pb-8">
+        
+        <!-- Server Title Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-base font-medium text-neutral-800 dark:text-white"><%= vps.name %></h1>
+            <p class="text-sm text-neutral-500 mt-0.5"><%= vps.os %> • Private IP: <%= vps.ip || 'N/A' %></p>
+          </div>
+        </div>
+
+        <!-- Inner Navigation Menu -->
+        <div class="flex items-center gap-2 border-b border-neutral-200 dark:border-white/5 pb-3 mb-6">
+          <a href="/vps/console/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Console</a>
+          <a href="/vps/files/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Files</a>
+          <a href="/vps/backups/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Backups</a>
+          <a href="/vps/network/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Firewall</a>
+          <a href="/vps/settings/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold menu-btn-active text-neutral-800 dark:text-white transition">Settings</a>
+        </div>
+
+        <!-- Settings Cards Container -->
+        <div class="grid md:grid-cols-2 gap-8 items-start">
+          
+          <!-- Root Password Card -->
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl p-6">
+            <h2 class="text-sm font-semibold text-neutral-800 dark:text-white mb-2 flex items-center gap-2">
+              <%- icon('key', { class: 'h-4 w-4' }) %>
+              Update Credentials
+            </h2>
+            <p class="text-xs text-neutral-500 mb-6">Change the root password of your container instantly. This requires the container to be running.</p>
+            <form onsubmit="changePassword(event)" class="space-y-4">
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">New Root Password</label>
+                <input id="password" type="password" minlength="6" placeholder="Enter new password" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+              </div>
+              <button type="submit" class="py-2.5 px-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 transition">
+                Change Password
+              </button>
+            </form>
+          </div>
+
+          <!-- Reinstall OS Card -->
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl p-6">
+            <h2 class="text-sm font-semibold text-neutral-800 dark:text-white mb-2 flex items-center gap-2">
+              <%- icon('rotate-ccw', { class: 'h-4 w-4' }) %>
+              Reinstall Operating System
+            </h2>
+            <p class="text-xs text-red-500 mb-6 flex items-start gap-1">
+              <%- icon('alert-triangle', { class: 'h-4 w-4 shrink-0' }) %>
+              <span>Warning: Reinstalling will completely destroy all data inside your container disk! This action is irreversible.</span>
+            </p>
+            <form onsubmit="reinstallOs(event)" class="space-y-4">
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">Select OS Image</label>
+                <select id="os" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-blue-500">
+                  <option value="ubuntu/22.04" <%= vps.os === 'ubuntu/22.04' ? 'selected' : '' %>>Ubuntu 22.04 LTS</option>
+                  <option value="ubuntu/24.04" <%= vps.os === 'ubuntu/24.04' ? 'selected' : '' %>>Ubuntu 24.04 LTS</option>
+                  <option value="debian/11" <%= vps.os === 'debian/11' ? 'selected' : '' %>>Debian 11</option>
+                  <option value="debian/12" <%= vps.os === 'debian/12' ? 'selected' : '' %>>Debian 12</option>
+                  <option value="alpine/3.18" <%= vps.os === 'alpine/3.18' ? 'selected' : '' %>>Alpine Linux 3.18</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-neutral-400 mb-1">New Root Password</label>
+                <input id="reinstall_password" type="password" minlength="6" placeholder="Secure root password" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+              </div>
+              <button type="submit" class="py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold transition">
+                Reinstall OS
+              </button>
+            </form>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  async function changePassword(e) {
+    e.preventDefault();
+    const password = document.getElementById('password').value;
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Root password changed successfully.');
+        document.getElementById('password').value = '';
+      } else {
+        alert('Failed to change password: ' + data.error);
+      }
+    } catch {
+      alert('Network error while changing password');
+    }
+  }
+
+  async function reinstallOs(e) {
+    e.preventDefault();
+    const os = document.getElementById('os').value;
+    const password = document.getElementById('reinstall_password').value;
+
+    if (!confirm('Are you absolutely sure? This will wipe the VPS completely.')) return;
+
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/reinstall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ os, password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('OS reinstallation started. The container will boot up in a moment.');
+        window.location.href = '/vps/console/<%= vps.UUID %>';
+      } else {
+        alert('Failed to reinstall OS: ' + data.error);
+      }
+    } catch {
+      alert('Network error while reinstalling OS');
+    }
+  }
+</script>
+
+<%- include('../components/footer') %>

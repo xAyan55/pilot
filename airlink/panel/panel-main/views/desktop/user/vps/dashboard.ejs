@@ -1,0 +1,132 @@
+<%- include('../components/header', { title: 'LXC VPS Dashboard' }) %>
+
+<main class="h-screen m-auto">
+  <div class="flex h-screen">
+    <div class="w-60 h-full"><%- include('../components/template') %></div>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="px-12 pt-6 pb-8">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+          <div>
+            <h1 class="text-base font-medium text-neutral-800 dark:text-white">LXC VPS Infrastructure</h1>
+            <p class="text-sm text-neutral-500 mt-0.5">Deploy, manage, and monitor your isolated Linux container servers.</p>
+          </div>
+          <% if (user.isAdmin) { %>
+          <div class="flex items-center gap-2">
+            <a href="/admin/vps/create" class="flex min-h-10 items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-700 dark:hover:bg-neutral-200 transition">
+              <%- icon('plus', { class: 'h-4 w-4' }) %>
+              Provision VPS
+            </a>
+          </div>
+          <% } %>
+        </div>
+
+        <% if (vpsList.length === 0) { %>
+        <div class="flex flex-col items-center justify-center mt-32 text-center">
+          <%- icon('server', { class: 'h-16 w-16 text-neutral-200 dark:text-neutral-700 mb-4' }) %>
+          <h2 class="text-base font-medium text-neutral-800 dark:text-white">No VPS instances active yet.</h2>
+          <p class="text-sm text-neutral-500 mt-1">
+            <% if (user.isAdmin) { %>
+              <a href="/admin/vps/create" class="text-blue-500 hover:underline">Deploy your first container now</a>.
+            <% } else { %>
+              Contact an administrator to allocate a virtual private server to your account.
+            <% } %>
+          </p>
+        </div>
+        <% } else { %>
+
+        <!-- VPS Grid -->
+        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <% vpsList.forEach(vps => { %>
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/[0.07] rounded-2xl p-5 relative transition duration-200 hover:shadow-md hover:border-neutral-300 dark:hover:border-white/[0.12]">
+            <!-- Status Badge -->
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="p-2 rounded-xl bg-neutral-100 dark:bg-white/[0.05] text-neutral-700 dark:text-neutral-300">
+                  <%- icon(vps.os.includes('win') ? 'monitor' : 'terminal', { class: 'h-5 w-5' }) %>
+                </span>
+                <div>
+                  <h3 class="text-sm font-semibold text-neutral-800 dark:text-white"><%= vps.name %></h3>
+                  <p class="text-xs text-neutral-500"><%= vps.os %></p>
+                </div>
+              </div>
+              
+              <!-- State indicator -->
+              <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+                <%= vps.status === 'running' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                    vps.status === 'suspended' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                    'bg-neutral-100 dark:bg-white/5 text-neutral-600 dark:text-neutral-400' %>">
+                <span class="h-1.5 w-1.5 rounded-full 
+                  <%= vps.status === 'running' ? 'bg-emerald-500' :
+                      vps.status === 'suspended' ? 'bg-amber-500' :
+                      'bg-neutral-500' %>"></span>
+                <%= vps.status.toUpperCase() %>
+              </span>
+            </div>
+
+            <!-- Specs & Details -->
+            <div class="grid grid-cols-3 gap-2 border-y border-neutral-100 dark:border-white/5 py-3.5 my-4 text-center">
+              <div>
+                <p class="text-[10px] uppercase font-semibold text-neutral-400">vCPU</p>
+                <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.cpu %> Cores</p>
+              </div>
+              <div>
+                <p class="text-[10px] uppercase font-semibold text-neutral-400">Memory</p>
+                <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.ram >= 1024 ? (vps.ram/1024).toFixed(0) + ' GB' : vps.ram + ' MB' %></p>
+              </div>
+              <div>
+                <p class="text-[10px] uppercase font-semibold text-neutral-400">Storage</p>
+                <p class="text-xs font-bold text-neutral-700 dark:text-neutral-200 mt-0.5"><%= vps.disk %> GB</p>
+              </div>
+            </div>
+
+            <!-- Stats & Connection Info -->
+            <div class="space-y-2 mb-6">
+              <div class="flex justify-between text-xs">
+                <span class="text-neutral-400">IP Address:</span>
+                <span class="font-mono text-neutral-600 dark:text-neutral-300"><%= vps.ip || 'N/A' %></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-neutral-400">SSH Forward:</span>
+                <span class="font-mono text-neutral-600 dark:text-neutral-300"><%= vps.tunnelHost %>:<%= vps.tunnelPort %></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-neutral-400">CPU Usage:</span>
+                <span class="text-neutral-600 dark:text-neutral-300"><%= vps.cpuUsage %>%</span>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="grid grid-cols-2 gap-2">
+              <a href="/vps/console/<%= vps.UUID %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                <%- icon('terminal', { class: 'h-3.5 w-3.5' }) %>
+                Console
+              </a>
+              <a href="/vps/files/<%= vps.UUID %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                <%- icon('folder', { class: 'h-3.5 w-3.5' }) %>
+                Files
+              </a>
+              <a href="/vps/backups/<%= vps.UUID %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                <%- icon('save', { class: 'h-3.5 w-3.5' }) %>
+                Backups
+              </a>
+              <a href="/vps/network/<%= vps.UUID %>" class="flex items-center justify-center gap-1 py-2 px-3 border border-neutral-200 dark:border-white/5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition">
+                <%- icon('shield', { class: 'h-3.5 w-3.5' }) %>
+                Firewall
+              </a>
+            </div>
+
+          </div>
+          <% }); %>
+        </div>
+
+        <% } %>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('../components/footer') %>

@@ -1,0 +1,132 @@
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v3.0.0-beta.rc1)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: true
+        type: boolean
+        default: true
+      draft:
+        description: 'Mark as draft'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: bun-linux-x64
+            runner: ubuntu-latest
+            platform: linux
+            arch: x64
+            windows: false
+          - target: bun-linux-arm64
+            runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            windows: false
+          - target: bun-darwin-arm64
+            runner: macos-latest
+            platform: macos
+            arch: arm64
+            windows: false
+          - target: bun-windows-x64
+            runner: ubuntu-latest
+            platform: windows
+            arch: x64
+            windows: true
+          - target: bun-windows-arm64
+            runner: ubuntu-latest
+            platform: windows
+            arch: arm64
+            windows: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install deps
+        run: bun install --frozen-lockfile
+
+      - name: build binary (non-windows)
+        if: matrix.windows == false
+        run: |
+          mkdir -p dist
+          bun build --compile --target ${{ matrix.target }} --outfile dist/airlinkd src/app.ts src/server.ts
+
+      - name: build binary (windows)
+        if: matrix.windows == true
+        run: |
+          mkdir -p dist
+          bun build --compile --target ${{ matrix.target }} --outfile dist/airlinkd src/app.ts src/server.ts
+          mv dist/airlinkd.exe dist/airlinkd
+
+      - name: zip binary
+        run: |
+          cd dist
+          zip airlinkd-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.inputs.version }}.zip airlinkd
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: airlinkd-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.inputs.version }}
+          path: dist/airlinkd-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.event.inputs.version }}.zip
+          if-no-files-found: error
+
+  release:
+    name: create release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: list artifacts
+        run: ls -lh dist/
+
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: ${{ github.event.inputs.version }}
+          body: |
+            ## AirlinkD ${{ github.event.inputs.version }}
+
+            ### Installation
+            Download the binary for your platform and architecture below, extract the zip, and run `airlinkd`.
+
+            | Platform | Architecture | Download |
+            |----------|-------------|---------|
+            | Linux | x64 | `airlinkd-linux-x64-${{ github.event.inputs.version }}.zip` |
+            | Linux | arm64 | `airlinkd-linux-arm64-${{ github.event.inputs.version }}.zip` |
+            | macOS | arm64 (Apple Silicon) | `airlinkd-macos-arm64-${{ github.event.inputs.version }}.zip` |
+            | Windows | x64 | `airlinkd-windows-x64-${{ github.event.inputs.version }}.zip` |
+            | Windows | arm64 | `airlinkd-windows-arm64-${{ github.event.inputs.version }}.zip` |
+
+            ### Changelog
+            <!-- Add changelog notes here before publishing -->
+
+            ### Notes
+            <!-- Add any additional notes, breaking changes, or upgrade instructions here -->
+          files: dist/*
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}

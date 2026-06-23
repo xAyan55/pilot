@@ -1,0 +1,72 @@
+import { Router, Request } from 'express';
+import { Module } from '../../handlers/moduleInit';
+import prisma from '../../db';
+import { WebSocket } from 'ws';
+import logger from '../../handlers/logger';
+
+export const onlineUsers: Set<string> = new Set();
+export const userTimeouts: Map<string, NodeJS.Timeout> = new Map();
+
+
+const wsUsersModule: Module = {
+  info: {
+    name: 'WS Users Module',
+    description: 'This file is for the users functionality.',
+    version: '2.0.0',
+    moduleVersion: '1.0.0',
+    author: 'AirLinkLab',
+    license: 'MIT',
+  },
+
+  router: (applyWs?: (router: Router) => void) => {
+    const router = Router();
+    if (applyWs) applyWs(router);
+
+    router.ws('/online-check', async (ws: WebSocket, req: Request) => {
+      const userId = req.session?.user?.id;
+      if (!userId) {
+        ws.close();
+        return;
+      }
+
+      try {
+        const user = await prisma.users.findUnique({ where: { id: userId } });
+        if (!user || !user.username) {
+          ws.close();
+          return;
+        }
+
+        const username = user.username;
+
+        if (onlineUsers.has(username)) {
+          const existingTimeout = userTimeouts.get(username);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+            userTimeouts.delete(username);
+          }
+        }
+
+        onlineUsers.add(username);
+
+        ws.send(JSON.stringify({ online: true }));
+
+        ws.on('close', () => {
+          const timeout = setTimeout(() => {
+            onlineUsers.delete(username);
+            userTimeouts.delete(username);
+          }, 1000);
+
+          userTimeouts.set(username, timeout);
+        });
+      } catch (error) {
+        logger.error('Error fetching user:', error);
+        ws.close();
+      }
+    });
+
+    return router;
+  },
+};
+
+
+export default wsUsersModule;

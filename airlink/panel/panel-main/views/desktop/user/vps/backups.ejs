@@ -1,0 +1,199 @@
+<%- include('../components/header', { title: 'Backups & Snapshots' }) %>
+
+<main class="h-screen m-auto">
+  <div class="flex h-screen">
+    <div class="w-60 h-full"><%- include('../components/template') %></div>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="px-12 pt-6 pb-8">
+        
+        <!-- Server Title Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-base font-medium text-neutral-800 dark:text-white"><%= vps.name %></h1>
+            <p class="text-sm text-neutral-500 mt-0.5"><%= vps.os %> • Private IP: <%= vps.ip || 'N/A' %></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="createSnapshot()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-200 hover:bg-neutral-300 dark:bg-white/5 dark:hover:bg-white/10 text-neutral-800 dark:text-neutral-200 transition flex items-center gap-1.5 shadow-sm">
+              <%- icon('camera', { class: 'h-4 w-4' }) %>
+              Create Snapshot
+            </button>
+            <button onclick="createBackup()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-200 transition flex items-center gap-1.5 shadow-sm">
+              <%- icon('save', { class: 'h-4 w-4' }) %>
+              Generate Backup
+            </button>
+          </div>
+        </div>
+
+        <!-- Inner Navigation Menu -->
+        <div class="flex items-center gap-2 border-b border-neutral-200 dark:border-white/5 pb-3 mb-6">
+          <a href="/vps/console/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Console</a>
+          <a href="/vps/files/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Files</a>
+          <a href="/vps/backups/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold menu-btn-active text-neutral-800 dark:text-white transition">Backups</a>
+          <a href="/vps/network/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Firewall</a>
+          <a href="/vps/settings/<%= vps.UUID %>" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white transition">Settings</a>
+        </div>
+
+        <!-- Snapshots List Section -->
+        <div class="mb-8">
+          <h2 class="text-sm font-semibold text-neutral-800 dark:text-white mb-3 flex items-center gap-2">
+            <%- icon('camera', { class: 'h-4 w-4' }) %>
+            Snapshots
+          </h2>
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl overflow-hidden">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-neutral-50 dark:bg-white/[0.02] border-b border-neutral-200 dark:border-white/5 text-neutral-500 uppercase tracking-wider font-semibold">
+                <tr>
+                  <th class="py-3 px-5">Name</th>
+                  <th class="py-3 px-4">Created At</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100 dark:divide-white/5 text-neutral-700 dark:text-neutral-300 font-medium">
+                <% snapshots.forEach(snap => { %>
+                <tr class="hover:bg-neutral-50 dark:hover:bg-white/[0.02]">
+                  <td class="py-3.5 px-5 font-mono"><%= snap.name %></td>
+                  <td class="py-3.5 px-4 text-neutral-400"><%= snap.createdAt.toLocaleString() %></td>
+                  <td class="py-3.5 px-4 text-right flex items-center justify-end gap-2">
+                    <button onclick="restoreSnapshot('<%= snap.name %>')" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-500 rounded-lg font-semibold transition">
+                      Restore
+                    </button>
+                    <button onclick="deleteSnapshot('<%= snap.name %>')" class="p-1 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 rounded transition" title="Delete">
+                      <%- icon('trash', { class: 'h-4 w-4' }) %>
+                    </button>
+                  </td>
+                </tr>
+                <% }); %>
+
+                <% if (snapshots.length === 0) { %>
+                <tr>
+                  <td colspan="3" class="py-8 text-center text-neutral-400">
+                    No snapshots captured yet.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Backups List Section -->
+        <div>
+          <h2 class="text-sm font-semibold text-neutral-800 dark:text-white mb-3 flex items-center gap-2">
+            <%- icon('save', { class: 'h-4 w-4' }) %>
+            Full Backups
+          </h2>
+          <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl overflow-hidden">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-neutral-50 dark:bg-white/[0.02] border-b border-neutral-200 dark:border-white/5 text-neutral-500 uppercase tracking-wider font-semibold">
+                <tr>
+                  <th class="py-3 px-5">Filename</th>
+                  <th class="py-3 px-4">Size</th>
+                  <th class="py-3 px-4">Created At</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100 dark:divide-white/5 text-neutral-700 dark:text-neutral-300 font-medium">
+                <% backups.forEach(backup => { %>
+                <tr class="hover:bg-neutral-50 dark:hover:bg-white/[0.02]">
+                  <td class="py-3.5 px-5 font-mono text-neutral-600 dark:text-neutral-300"><%= backup.filename %></td>
+                  <td class="py-3.5 px-4 font-mono text-neutral-500"><%= backup.size %></td>
+                  <td class="py-3.5 px-4 text-neutral-400"><%= backup.createdAt.toLocaleString() %></td>
+                  <td class="py-3.5 px-4 text-right">
+                    <span class="text-xs text-neutral-400 italic">Protected</span>
+                  </td>
+                </tr>
+                <% }); %>
+
+                <% if (backups.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="py-8 text-center text-neutral-400">
+                    No backups generated yet.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  async function createSnapshot() {
+    const name = prompt('Enter snapshot name (optional):');
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to create snapshot: ' + data.error);
+      }
+    } catch {
+      alert('Network error while creating snapshot');
+    }
+  }
+
+  async function restoreSnapshot(name) {
+    if (!confirm(`Are you sure you want to restore snapshot '${name}'? This will replace your current container state.`)) return;
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/snapshots/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Snapshot restored successfully.');
+        window.location.reload();
+      } else {
+        alert('Failed to restore snapshot: ' + data.error);
+      }
+    } catch {
+      alert('Network error while restoring snapshot');
+    }
+  }
+
+  async function deleteSnapshot(name) {
+    if (!confirm(`Delete snapshot '${name}'?`)) return;
+    try {
+      const response = await fetch(`/api/vps/<%= vps.UUID %>/snapshots/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to delete snapshot: ' + data.error);
+      }
+    } catch {
+      alert('Network error while deleting snapshot');
+    }
+  }
+
+  async function createBackup() {
+    try {
+      const response = await fetch('/api/vps/<%= vps.UUID %>/backups', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to create backup: ' + data.error);
+      }
+    } catch {
+      alert('Network error while creating backup');
+    }
+  }
+</script>
+
+<%- include('../components/footer') %>

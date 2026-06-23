@@ -1,0 +1,300 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Users {
+  id            Int              @id @default(autoincrement())
+  email         String           @unique
+  username      String?          @unique
+  password      String
+  isAdmin       Boolean          @default(false)
+  description   String?          @default("No About Me")
+  avatar        String?
+  permissions   String?          @default("[]")
+  serverLimit   Int?             @default(0)
+  maxMemory     Int?             @default(0)
+  maxCpu        Int?             @default(0)
+  maxStorage    Int?             @default(0)
+  loginAttempts Int              @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  servers       Server[]
+  folders       ServerFolder[]
+  apiKeys       ApiKey[]
+  loginHistory  LoginHistory[]
+  vpsServers    Vps[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  session_id String   @unique
+  data       String
+  expires    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Server {
+  id               Int                @id @default(autoincrement())
+  UUID             String             @unique @default(uuid())
+  name             String
+  description      String?
+  createdAt        DateTime           @default(now())
+  Ports            String
+  Memory           Int
+  Cpu              Int
+  Storage          Int
+  Variables        String?
+  StartCommand     String?
+  dockerImage      String?
+  sftpCredential   SftpCredential?
+  allowStartupEdit Boolean            @default(false)
+  Installing       Boolean            @default(true)
+  Queued           Boolean            @default(true)
+  Suspended        Boolean            @default(false)
+  ownerId          Int
+  nodeId           Int
+  imageId          Int
+  node             Node               @relation(fields: [nodeId], references: [id])
+  owner            Users              @relation(fields: [ownerId], references: [id])
+  image            Images             @relation(fields: [imageId], references: [id])
+  backups          Backup[]
+  folder           ServerFolderMember?
+}
+
+model Images {
+  id              Int      @id @default(autoincrement())
+  UUID            String   @unique @default(uuid())
+  name            String?
+  description     String?
+  author          String?
+  authorName      String?
+  createdAt       DateTime @default(now())
+  meta            String?
+  dockerImages    String?
+  startup         String?
+  stop            String?
+  startup_done    String?
+  config_files    String?
+  info            String?
+  scripts         String?
+  variables       String?
+  portRequirements String  @default("[]")
+
+  servers         Server[]
+}
+
+model Node {
+  id             Int      @id @default(autoincrement())
+  name           String
+  ram            Int      @default(0)
+  cpu            Int      @default(0)
+  disk           Int      @default(0)
+  address        String   @default("127.0.0.1")
+  port           Int      @default(3001)
+  key            String
+  createdAt      DateTime @default(now())
+  allocatedPorts String?  @default("[]")
+  sftpPort       Int      @default(3003)
+  servers        Server[]
+  supportDocker  Boolean  @default(true)
+  supportLxc     Boolean  @default(false)
+  vpsServers     Vps[]
+}
+
+model settings {
+  id                        Int      @id @default(autoincrement())
+  title                     String   @default("Airlink")
+  description               String   @default("AirLink is a free and open source project by AirlinkLabs")
+  logo                      String   @default("../assets/logo.png")
+  favicon                   String   @default("../assets/favicon.ico")
+  theme                     String   @default("default")
+  lightTheme                String   @default("default")
+  darkTheme                 String   @default("default")
+  language                  String   @default("en")
+  allowRegistration         Boolean  @default(false)
+  uploadLimit               Int      @default(100)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  sftpPort                  Int      @default(3003)
+  virusTotalApiKey          String?
+  rateLimitEnabled          Boolean  @default(true)
+  rateLimitRpm              Int      @default(100)
+  bannedIps                 String   @default("[]")
+  allowUserCreateServer     Boolean  @default(false)
+  allowUserDeleteServer     Boolean  @default(false)
+  defaultServerLimit        Int      @default(0)
+  defaultMaxMemory          Int      @default(512)
+  defaultMaxCpu             Int      @default(100)
+  defaultMaxStorage         Int      @default(5120)
+  loginWallpaper            String?
+  registerWallpaper         String?
+  loginMaxAttempts          Int      @default(5)
+  loginLockoutMinutes       Int      @default(15)
+  enforceDaemonHttps        Boolean  @default(false)
+  behindReverseProxy        Boolean  @default(false)
+  hashApiKeys               Boolean  @default(false)
+  airlinkCloudApiKey        String?
+  airlinkCloudBackupEnabled Boolean  @default(false)
+}
+
+model ServerFolder {
+  id        Int                  @id @default(autoincrement())
+  name      String
+  ownerId   Int
+  createdAt DateTime             @default(now())
+  owner     Users                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members   ServerFolderMember[]
+
+  @@index([ownerId])
+}
+
+model ServerFolderMember {
+  id         Int          @id @default(autoincrement())
+  folderId   Int
+  serverUUID String       @unique
+  folder     ServerFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  server     Server       @relation(fields: [serverUUID], references: [UUID], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          Int      @id @default(autoincrement())
+  name        String
+  key         String   @unique
+  description String?
+  permissions String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  active      Boolean  @default(true)
+  userId      Int?
+  user        Users?   @relation(fields: [userId], references: [id])
+}
+
+model LoginHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      Users    @relation(fields: [userId], references: [id])
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+}
+
+model PlayerStats {
+  id           Int      @id @default(autoincrement())
+  timestamp    DateTime @default(now())
+  totalPlayers Int      @default(0)
+  maxPlayers   Int      @default(0)
+  onlineServers Int     @default(0)
+  totalServers  Int     @default(0)
+
+  @@index([timestamp])
+}
+
+model Addon {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?
+  version     String
+  author      String?
+  enabled     Boolean  @default(true)
+  mainFile    String   @default("index.ts")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AddonSetting {
+  id        Int      @id @default(autoincrement())
+  addonSlug String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([addonSlug, key])
+}
+
+model Backup {
+  id            Int      @id @default(autoincrement())
+  UUID          String   @unique @default(uuid())
+  name          String
+  serverId      String
+  filePath      String
+  size          BigInt?
+  createdAt     DateTime @default(now())
+  server        Server   @relation(fields: [serverId], references: [UUID], onDelete: Cascade)
+  airlinkCloudId String?
+
+  @@index([serverId])
+  @@index([createdAt])
+}
+
+model SftpCredential {
+  id        Int      @id @default(autoincrement())
+  serverId  String   @unique
+  username  String
+  password  String
+  host      String
+  port      Int
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  server    Server   @relation(fields: [serverId], references: [UUID], onDelete: Cascade)
+}
+
+model Vps {
+  id             Int             @id @default(autoincrement())
+  UUID           String          @unique @default(uuid())
+  name           String
+  containerName  String          @unique @default("")
+  description    String?
+  createdAt      DateTime        @default(now())
+  status         String          @default("stopped")
+  os             String
+  cpu            Int
+  ram            Int
+  disk           Int
+  rootPassword   String
+  tunnelHost     String?
+  tunnelPort     Int?
+
+  ownerId        Int
+  nodeId         Int
+  owner          Users           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  node           Node            @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  snapshots      VpsSnapshot[]
+  backups        VpsBackup[]
+  firewallRules  VpsFirewallRule[]
+}
+
+model VpsSnapshot {
+  id             Int      @id @default(autoincrement())
+  vpsId          Int
+  name           String
+  createdAt      DateTime @default(now())
+  vps            Vps      @relation(fields: [vpsId], references: [id], onDelete: Cascade)
+}
+
+model VpsBackup {
+  id             Int      @id @default(autoincrement())
+  vpsId          Int
+  filename       String
+  size           String
+  createdAt      DateTime @default(now())
+  vps            Vps      @relation(fields: [vpsId], references: [id], onDelete: Cascade)
+}
+
+model VpsFirewallRule {
+  id             Int      @id @default(autoincrement())
+  vpsId          Int
+  protocol       String
+  port           Int
+  action         String
+  vps            Vps      @relation(fields: [vpsId], references: [id], onDelete: Cascade)
+}

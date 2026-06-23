@@ -1,0 +1,119 @@
+<%- include('../components/header', { title: 'Provision VPS' }) %>
+
+<main class="h-screen m-auto">
+  <div class="flex h-screen">
+    <div class="w-60 h-full"><%- include('../components/template') %></div>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-16">
+      <div class="px-12 pt-6 pb-8">
+        
+        <!-- Header -->
+        <div class="mb-8">
+          <h1 class="text-base font-medium text-neutral-800 dark:text-white">Provision LXC VPS</h1>
+          <p class="text-sm text-neutral-500 mt-0.5">Spin up a brand new virtual machine / Linux container on a host node.</p>
+        </div>
+
+        <!-- Provision Form Card -->
+        <div class="bg-white dark:bg-white/[0.03] border border-neutral-200 dark:border-white/5 rounded-2xl p-8 max-w-3xl">
+          <form action="/admin/vps/create" method="POST" class="space-y-6">
+            
+            <div class="grid sm:grid-cols-2 gap-6">
+              <!-- Name -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">VPS Name</label>
+                <input name="name" type="text" placeholder="e.g. My Ubuntu VPS" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+              </div>
+              
+              <!-- Description -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">Description</label>
+                <input name="description" type="text" placeholder="e.g. Production Database" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" />
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-6">
+              <!-- Owner -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">Assign Owner</label>
+                <select name="ownerId" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500">
+                  <% users.forEach(usr => { %>
+                  <option value="<%= usr.id %>"><%= usr.username %> (<%= usr.email %>)</option>
+                  <% }); %>
+                </select>
+              </div>
+
+              <!-- Node -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">Select Node</label>
+                <select name="nodeId" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500">
+                  <% nodes.forEach(nd => { %>
+                  <option value="<%= nd.id %>"><%= nd.name %> (<%= nd.address %>)</option>
+                  <% }); %>
+                  <% if (nodes.length === 0) { %>
+                  <option value="">No LXC-enabled nodes configured yet.</option>
+                  <% } %>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-6">
+              <!-- OS Image -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">OS Template</label>
+                <select name="os" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500">
+                  <option value="ubuntu/22.04">Ubuntu 22.04 LTS</option>
+                  <option value="ubuntu/24.04">Ubuntu 24.04 LTS</option>
+                  <option value="debian/11">Debian 11</option>
+                  <option value="debian/12">Debian 12</option>
+                  <option value="alpine/3.18">Alpine Linux 3.18</option>
+                  <option value="windows/10">Windows 10 VM</option>
+                </select>
+              </div>
+
+              <!-- Root Password -->
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">Root Password</label>
+                <input name="rootPassword" type="password" minlength="6" placeholder="Enter root password" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+              </div>
+            </div>
+
+            <!-- Resource Limits Section -->
+            <div class="border-t border-neutral-100 dark:border-white/5 pt-6">
+              <h3 class="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider mb-4">Resource Allocation</h3>
+              <div class="grid sm:grid-cols-3 gap-6">
+                <!-- CPU Cores -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">vCPU Cores</label>
+                  <input name="cpu" type="number" min="1" max="64" value="1" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+                </div>
+                
+                <!-- RAM -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">RAM limit (MB)</label>
+                  <input name="ram" type="number" min="128" max="131072" value="1024" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+                </div>
+                
+                <!-- Disk -->
+                <div>
+                  <label class="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-2">Disk Allocation (GB)</label>
+                  <input name="disk" type="number" min="5" max="2048" value="20" class="w-full bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/5 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500" required />
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-neutral-100 dark:border-white/5">
+              <a href="/admin/vps" class="py-2.5 px-4 bg-neutral-100 dark:bg-white/5 text-neutral-800 dark:text-neutral-200 rounded-xl text-xs font-semibold hover:bg-neutral-200 transition">Cancel</a>
+              <button type="submit" class="py-2.5 px-5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 transition shadow-sm">
+                Deploy VPS
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('../components/footer') %>
