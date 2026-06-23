@@ -63,21 +63,9 @@ const name = process.env.NAME || 'AirLink';
 const airlinkVersion = config.meta.version;
 
 // Always trust the first proxy hop so req.ip is correct behind Nginx/Caddy/Cloudflare.
-// This is safe when your panel is behind any reverse proxy (which it always is in production).
+// This must be set synchronously before any middleware (especially express-rate-limit)
+// or the rate limiter will throw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request.
 app.set('trust proxy', 1);
-
-// Also update DB-driven setting in background (for future reference / advanced config).
-(async () => {
-  try {
-    const s = await prisma.settings.findUnique({ where: { id: 1 } });
-    if (s && !s.behindReverseProxy) {
-      // If admin explicitly disabled proxy trust in settings, respect it.
-      app.set('trust proxy', false);
-    }
-  } catch {
-    // DB not ready — keep trust proxy = 1 (set above)
-  }
-})();
 
 // Load websocket
 const expressWsInstance = expressWs(app);
