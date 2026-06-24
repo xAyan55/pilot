@@ -32,7 +32,29 @@ const authModule: Module = {
       res.redirect('/login');
     });
 
-    router.get('/login/discord', (req: Request, res: Response) => {
+    const initiatePaths = ['/login/discord', '/auth/discord'];
+    const callbackPaths = ['/login/discord/callback', '/auth/discord/callback'];
+
+    if (process.env.DISCORD_REDIRECT_URI) {
+      try {
+        const customPath = new URL(process.env.DISCORD_REDIRECT_URI).pathname;
+        if (customPath) {
+          if (!callbackPaths.includes(customPath)) {
+            callbackPaths.push(customPath);
+          }
+          if (customPath.endsWith('/callback')) {
+            const initPath = customPath.substring(0, customPath.length - '/callback'.length);
+            if (initPath && !initiatePaths.includes(initPath)) {
+              initiatePaths.push(initPath);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const initiateHandler = (req: Request, res: Response) => {
       const clientId = process.env.DISCORD_CLIENT_ID;
       const redirectUri = process.env.DISCORD_REDIRECT_URI;
       if (!clientId || !redirectUri) {
@@ -47,9 +69,9 @@ const authModule: Module = {
 
       const authorizationUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify%20email&state=${state}`;
       res.redirect(authorizationUrl);
-    });
+    };
 
-    router.get('/login/discord/callback', async (req: Request, res: Response) => {
+    const callbackHandler = async (req: Request, res: Response) => {
       const { code, state, error } = req.query;
 
       // Handle OAuth errors first (e.g. access_denied)
@@ -221,7 +243,10 @@ const authModule: Module = {
         logger.error('[Login failed] Discord authentication callback database/session error:', error);
         res.redirect('/login?err=discord_error');
       }
-    });
+    };
+
+    router.get(initiatePaths, initiateHandler);
+    router.get(callbackPaths, callbackHandler);
 
     return router;
   },
