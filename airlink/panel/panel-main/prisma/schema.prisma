@@ -9,10 +9,14 @@ datasource db {
 
 model Users {
   id            Int              @id @default(autoincrement())
-  discordId     String?          @unique
-  email         String           @unique
-  username      String?          @unique
-  password      String
+  discordId         String?          @unique
+  discordUsername   String?
+  discordGlobalName String?
+  discordAvatar     String?
+  discordAvatarUrl  String?
+  email             String           @unique
+  username          String?          @unique
+  password          String
   isAdmin       Boolean          @default(false)
   description   String?          @default("No About Me")
   avatar        String?

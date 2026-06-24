@@ -114,6 +114,7 @@
       <p class="text-sm font-medium text-red-700 dark:text-red-400">
         <% if (req.query.err === 'discord_config_error') { %>Discord settings are missing in environment configuration.
         <% } else if (req.query.err === 'discord_auth_failed') { %>Discord authorization request was denied or cancelled.
+        <% } else if (req.query.err === 'discord_access_denied') { %>Access was denied. Please authorize the application on Discord.
         <% } else if (req.query.err === 'discord_token_error') { %>Failed to exchange Discord authorization code.
         <% } else if (req.query.err === 'discord_user_error') { %>Failed to fetch user profile details from Discord.
         <% } else if (req.query.err === 'discord_invalid_user') { %>Invalid Discord user profile.

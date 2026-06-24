@@ -64,11 +64,16 @@ const authServiceModule: Module = {
       res.redirect('/login?err=discord_only');
     });
 
-    // ── GET /logout ──────────────────────────────────────────────────────────
-    router.get('/logout', (req: Request, res: Response) => {
+    // ── ALL /logout ──────────────────────────────────────────────────────────
+    router.all('/logout', (req: Request, res: Response) => {
       res.clearCookie('connect.sid');
       if (req.session) {
-        req.session.destroy(() => res.redirect('/login'));
+        req.session.destroy((err) => {
+          if (err) {
+            logger.error('[Logout failed] Session destruction error:', err);
+          }
+          res.redirect('/login');
+        });
       } else {
         res.redirect('/login');
       }

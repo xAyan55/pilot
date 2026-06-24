@@ -10,10 +10,18 @@
 import fs from 'fs';
 import path from 'path';
 import logger from './logger';
+import dotenv from 'dotenv';
 
 // Required env vars that must be set for the panel to function.
 // If any are missing after .env load, the panel exits immediately.
-const REQUIRED_ENV_VARS = ['SESSION_SECRET', 'DATABASE_URL'];
+const REQUIRED_ENV_VARS = [
+  'SESSION_SECRET',
+  'DATABASE_URL',
+  'DISCORD_CLIENT_ID',
+  'DISCORD_CLIENT_SECRET',
+  'DISCORD_REDIRECT_URI',
+  'DISCORD_OWNER_ID'
+];
 
 // Optional vars from example.env — warn if not set, don't exit.
 const EXAMPLE_ENV_PATH = path.resolve(process.cwd(), 'example.env');
@@ -23,21 +31,29 @@ export function loadEnv() {
 
   try {
     const data = fs.readFileSync(envPath, 'utf8');
-
-    data.split('\n').forEach((line) => {
-      const eqIndex = line.indexOf('=');
-      if (eqIndex === -1) return;
-
-      const key = line.slice(0, eqIndex).trim();
-      const value = line.slice(eqIndex + 1).trim().replace(/^["']|["']$/g, '');
-
-      if (key && process.env[key] === undefined) {
+    const parsed = dotenv.parse(data);
+    for (const [key, value] of Object.entries(parsed)) {
+      if (process.env[key] === undefined) {
         process.env[key] = value;
       }
-    });
+    }
   } catch (error) {
     logger.error('Error loading .env file:', error);
   }
+
+  // Print startup diagnostics for Discord OAuth variables
+  console.log('\nDiscord OAuth Diagnostics:');
+  const varsToCheck = [
+    'DISCORD_CLIENT_ID',
+    'DISCORD_CLIENT_SECRET',
+    'DISCORD_REDIRECT_URI',
+    'DISCORD_OWNER_ID'
+  ];
+  varsToCheck.forEach((key) => {
+    const status = process.env[key] ? 'LOADED' : 'MISSING';
+    console.log(`  ${key}: ${status}`);
+  });
+  console.log();
 
   // Fail-fast: ensure required env vars are set
   for (const key of REQUIRED_ENV_VARS) {
