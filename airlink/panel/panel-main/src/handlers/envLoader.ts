@@ -33,7 +33,7 @@ export function loadEnv() {
     const data = fs.readFileSync(envPath, 'utf8');
     const parsed = dotenv.parse(data);
     for (const [key, value] of Object.entries(parsed)) {
-      if (process.env[key] === undefined) {
+      if (process.env[key] === undefined || process.env[key] === '') {
         process.env[key] = value;
       }
     }
@@ -41,9 +41,11 @@ export function loadEnv() {
     logger.error('Error loading .env file:', error);
   }
 
-  // Print startup diagnostics for Discord OAuth variables
-  console.log('\nDiscord OAuth Diagnostics:');
+  // Print startup diagnostics for core variables
+  console.log('\nStartup Diagnostics:');
   const varsToCheck = [
+    'DATABASE_URL',
+    'SESSION_SECRET',
     'DISCORD_CLIENT_ID',
     'DISCORD_CLIENT_SECRET',
     'DISCORD_REDIRECT_URI',
