@@ -41,6 +41,14 @@ export function loadEnv() {
     logger.error('Error loading .env file:', error);
   }
 
+  // Provide safe defaults/fallbacks for core database and session config if missing or empty
+  if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
+    process.env.DATABASE_URL = 'file:./storage/dev.db';
+  }
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.trim() === '') {
+    process.env.SESSION_SECRET = 'change_me_super_secret';
+  }
+
   // Print startup diagnostics for core variables
   console.log('\nStartup Diagnostics:');
   const varsToCheck = [
