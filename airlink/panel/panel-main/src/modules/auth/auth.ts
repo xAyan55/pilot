@@ -32,7 +32,7 @@ const authModule: Module = {
       res.redirect('/login');
     });
 
-    router.get('/auth/discord', (req: Request, res: Response) => {
+    router.get('/login/discord', (req: Request, res: Response) => {
       const clientId = process.env.DISCORD_CLIENT_ID;
       const redirectUri = process.env.DISCORD_REDIRECT_URI;
       if (!clientId || !redirectUri) {
@@ -49,7 +49,7 @@ const authModule: Module = {
       res.redirect(authorizationUrl);
     });
 
-    router.get('/auth/discord/callback', async (req: Request, res: Response) => {
+    router.get('/login/discord/callback', async (req: Request, res: Response) => {
       const { code, state, error } = req.query;
 
       // Handle OAuth errors first (e.g. access_denied)
