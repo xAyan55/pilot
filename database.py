@@ -17,11 +17,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
+            email TEXT DEFAULT NULL,
+            password_hash TEXT DEFAULT NULL,
             role TEXT DEFAULT 'client', -- 'admin' or 'client'
             pfp TEXT DEFAULT NULL,
-            discord_user_id TEXT UNIQUE DEFAULT NULL
+            discord_user_id TEXT UNIQUE DEFAULT NULL,
+            discord_username TEXT DEFAULT NULL,
+            discord_global_name TEXT DEFAULT NULL,
+            discord_avatar TEXT DEFAULT NULL,
+            discord_avatar_url TEXT DEFAULT NULL
         )
     ''')
 
@@ -37,6 +41,13 @@ def init_db():
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_discord_user_id ON users(discord_user_id)")
     except sqlite3.OperationalError:
         pass
+
+    # Migration to add Discord profile columns if they do not exist
+    for col in ['discord_username', 'discord_global_name', 'discord_avatar', 'discord_avatar_url']:
+        try:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass
 
     # Nodes Table
     cursor.execute('''

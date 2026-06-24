@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Client Authentication{% endblock %}
+{% block title %}Sign In{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -50,14 +50,14 @@
     .auth-image { display: none; }
   }
 
-  /* Minimalist Discord Button */
+  /* Discord login button */
   .discord-auth-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
     width: 100%;
-    padding: 12px 20px;
+    padding: 13px 20px;
     border-radius: 10px;
     background: #5865F2;
     color: white;
@@ -65,16 +65,60 @@
     font-weight: 500;
     border: none;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
     text-decoration: none;
-    box-shadow: none;
+    box-shadow: 0 1px 3px rgba(88, 101, 242, 0.25);
   }
   .discord-auth-btn:hover {
     background: #4752C4;
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+    transform: translateY(-1px);
   }
   .discord-auth-btn:active {
     background: #3c45a5;
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(88, 101, 242, 0.2);
   }
+
+  /* Loading state */
+  .discord-auth-btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .discord-auth-btn .spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: btn-spin 0.6s linear infinite;
+  }
+  .discord-auth-btn.loading .spinner { display: block; }
+  .discord-auth-btn.loading .discord-icon { display: none; }
+  @keyframes btn-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Error alert */
+  .auth-error {
+    display: none;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.18);
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 450;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  html.dark .auth-error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+  }
+  .auth-error.visible { display: block; }
 
   /* Entry animation for the panel */
   .auth-panel { opacity: 0; transform: translateX(-12px); transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -98,18 +142,22 @@
         {% endif %}
         <span class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">{{ settings.get('site_name', 'PilotPanel') }}</span>
       </a>
-      <h2 class="text-2xl font-bold text-neutral-800 dark:text-white mt-8">Authentication Required</h2>
-      <p class="text-sm text-neutral-500 mt-1">LXC VPS Management Platform</p>
+      <h2 class="text-2xl font-bold text-neutral-800 dark:text-white mt-8">Welcome Back</h2>
+      <p class="text-sm text-neutral-500 mt-1">Sign in to your account using Discord</p>
     </div>
 
-    <!-- Login with Discord Options -->
+    <!-- Error Display Area -->
+    <div class="auth-error" id="authError"></div>
+
+    <!-- Discord Login -->
     <div class="space-y-6">
       <a href="/login/discord?redirect={{ request.args.get('redirect', '') }}" class="discord-auth-btn" id="discordLoginBtn">
         <!-- Discord Logo SVG -->
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+        <svg class="discord-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
           <path d="M13.545 2.907a13.227 13.227 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.19 12.19 0 0 0-3.658 0 8.258 8.258 0 0 0-.412-.833.051.051 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.041.041 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032c.001.014.01.028.021.037a13.276 13.276 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019c.308-.42.582-.863.818-1.329a.05.05 0 0 0-.01-.059.05.05 0 0 0-.018-.011 8.875 8.875 0 0 1-1.248-.595.05.05 0 0 1-.02-.066.051.051 0 0 1 .015-.019c.084-.063.168-.129.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.052.052 0 0 1 .053.007c.08.066.164.132.248.195a.051.051 0 0 1-.004.085 8.254 8.254 0 0 1-1.249.593.05.05 0 0 0-.03.03.052.052 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.235 13.235 0 0 0 4.001-2.02.049.049 0 0 0 .021-.037c.334-3.451-.544-6.446-2.515-9.106a.049.049 0 0 0-.02-.019Zm-7.348 7.37c-.785 0-1.43-0.723-1.43-1.611 0-.889.637-1.613 1.43-1.613.806 0 1.44.73 1.43 1.613 0 .888-.637 1.611-1.43 1.611Zm4.79 0c-.785 0-1.43-0.723-1.43-1.611 0-.889.637-1.613 1.43-1.613.806 0 1.44.73 1.43 1.613 0 .888-.646 1.611-1.43 1.611Z"/>
         </svg>
-        <span>Continue with Discord</span>
+        <span class="spinner"></span>
+        <span class="btn-label">Continue with Discord</span>
       </a>
     </div>
 
@@ -126,19 +174,34 @@
 
 {% block extra_js %}
 <script>
+  // Entry animation
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
       document.getElementById('authPanel').classList.add('visible');
     });
   });
 
-  // Display loading indicator on click
-  const discordLoginBtn = document.getElementById('discordLoginBtn');
+  // Show flash errors in the styled error box
+  (function() {
+    var errorBox = document.getElementById('authError');
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        {% if category == 'error' %}
+          if (errorBox) {
+            errorBox.textContent = "{{ message }}";
+            errorBox.classList.add('visible');
+          }
+        {% endif %}
+      {% endfor %}
+    {% endwith %}
+  })();
+
+  // Loading state on click
+  var discordLoginBtn = document.getElementById('discordLoginBtn');
   if (discordLoginBtn) {
     discordLoginBtn.addEventListener('click', function() {
-      discordLoginBtn.style.opacity = '0.7';
-      discordLoginBtn.style.pointerEvents = 'none';
-      discordLoginBtn.querySelector('span').textContent = 'Connecting to Discord...';
+      discordLoginBtn.classList.add('loading');
+      discordLoginBtn.querySelector('.btn-label').textContent = 'Connecting to Discord...';
     });
   }
 </script>

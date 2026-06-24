@@ -5,6 +5,9 @@ eventlet.debug.hub_prevent_multiple_readers(False)
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+import secrets
+import urllib.parse
 from flask_socketio import SocketIO, Namespace, emit
 import json
 import time
@@ -204,7 +207,41 @@ except ImportError:
     HAS_PTY = False
 
 app = Flask(__name__)
-app.secret_key = 'pilotpanel-lxc-secret-key-928475'
+
+# --------------- DISCORD OAUTH STARTUP VALIDATION ---------------
+
+logger = logging.getLogger('pilotpanel.auth')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(levelname)s: %(message)s')
+
+DISCORD_CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
+DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
+DISCORD_REDIRECT_URI = os.getenv('DISCORD_REDIRECT_URI')
+DISCORD_OWNER_ID = os.getenv('DISCORD_OWNER_ID')
+SESSION_SECRET = os.getenv('SESSION_SECRET')
+
+_required_vars = {
+    'CLIENT_ID': DISCORD_CLIENT_ID,
+    'CLIENT_SECRET': DISCORD_CLIENT_SECRET,
+    'REDIRECT_URI': DISCORD_REDIRECT_URI,
+    'OWNER_ID': DISCORD_OWNER_ID,
+    'SESSION_SECRET': SESSION_SECRET,
+}
+
+print("\nDiscord OAuth Validation\n")
+_all_ok = True
+for _name, _value in _required_vars.items():
+    _status = "OK" if _value else "MISSING"
+    print(f"  {_name:<16} {_status}")
+    if not _value:
+        _all_ok = False
+
+if not _all_ok:
+    print("\nStartup aborted. Set all required environment variables in .env\n")
+    sys.exit(1)
+
+print()
+
+app.secret_key = SESSION_SECRET
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 node_namespace = None
 
@@ -394,203 +431,206 @@ def admin_dashboard():
 
 @app.route('/login/discord')
 def login_discord():
-    client_id = os.getenv('DISCORD_CLIENT_ID')
-    redirect_uri = os.getenv('DISCORD_REDIRECT_URI')
-    if not client_id or not redirect_uri:
-        flash("Discord Auth is not configured. Please set DISCORD_CLIENT_ID and DISCORD_REDIRECT_URI in .env", "error")
-        return redirect(url_for('auth'))
-    
-    # Store dynamic redirect parameter if any
+    """Start Discord OAuth2 flow with state protection."""
+    logger.info("OAuth flow started")
+
+    # Generate cryptographically secure state
+    state = secrets.token_urlsafe(32)
+    session['oauth2_state'] = state
+    logger.info("Generated OAuth state")
+
+    # Store optional redirect destination
     redirect_to = request.args.get('redirect', '')
     if redirect_to:
         session['oauth2_redirect'] = redirect_to
 
-    import urllib.parse
-    scope = "identify email"
-    encoded_redirect = urllib.parse.quote(redirect_uri)
-    auth_url = f"https://discord.com/api/oauth2/authorize?client_id={client_id}&redirect_uri={encoded_redirect}&response_type=code&scope={urllib.parse.quote(scope)}"
+    params = urllib.parse.urlencode({
+        'client_id': DISCORD_CLIENT_ID,
+        'redirect_uri': DISCORD_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'identify email',
+        'state': state,
+    })
+    auth_url = f"https://discord.com/api/oauth2/authorize?{params}"
+    logger.info("Redirecting to Discord")
     return redirect(auth_url)
+
 
 @app.route('/login/discord/callback')
 def login_discord_callback():
+    """Handle Discord OAuth2 callback: verify state, exchange token, upsert user."""
+    import requests as http_requests
+
+    logger.info("OAuth callback received")
+
+    # --- Step 1: Verify state ---
+    returned_state = request.args.get('state')
+    stored_state = session.pop('oauth2_state', None)
+    if not returned_state or returned_state != stored_state:
+        logger.warning("State validation failed: returned=%s stored=%s", returned_state, stored_state)
+        flash("Invalid OAuth state", "error")
+        return redirect(url_for('auth'))
+    logger.info("State validation successful")
+
+    # Check for authorization code
     code = request.args.get('code')
-    if not code:
-        flash("Authorization failed or was cancelled.", "error")
+    error = request.args.get('error')
+    if error or not code:
+        logger.warning("Authorization cancelled or denied: error=%s", error)
+        flash("Authorization was cancelled or denied", "error")
         return redirect(url_for('auth'))
 
-    client_id = os.getenv('DISCORD_CLIENT_ID')
-    client_secret = os.getenv('DISCORD_CLIENT_SECRET')
-    redirect_uri = os.getenv('DISCORD_REDIRECT_URI')
-    admin_discord_id = os.getenv('DISCORD_ADMIN_USER_ID')
-
-    if not all([client_id, client_secret, redirect_uri]):
-        flash("Missing Discord OAuth2 configuration.", "error")
-        return redirect(url_for('auth'))
-
-    import requests
-    # 1. Exchange authorization code for token
-    token_url = "https://discord.com/api/oauth2/token"
-    data = {
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'grant_type': 'authorization_code',
-        'code': code,
-        'redirect_uri': redirect_uri
-    }
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    # --- Step 2: Exchange code for token ---
     try:
-        resp = requests.post(token_url, data=data, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            flash(f"Failed to retrieve access token from Discord: {resp.text}", "error")
+        token_resp = http_requests.post(
+            'https://discord.com/api/oauth2/token',
+            data={
+                'client_id': DISCORD_CLIENT_ID,
+                'client_secret': DISCORD_CLIENT_SECRET,
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': DISCORD_REDIRECT_URI,
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            timeout=15,
+        )
+        if token_resp.status_code != 200:
+            logger.error("Token exchange failed: %s %s", token_resp.status_code, token_resp.text)
+            flash("Discord token exchange failed", "error")
             return redirect(url_for('auth'))
-        token_data = resp.json()
-        access_token = token_data.get('access_token')
+        access_token = token_resp.json().get('access_token')
+        logger.info("Token exchange successful")
+    except Exception:
+        logger.exception("Token exchange failed due to exception")
+        flash("Discord token exchange failed", "error")
+        return redirect(url_for('auth'))
 
-        # 2. Get user info
-        user_url = "https://discord.com/api/users/@me"
-        user_headers = {
-            'Authorization': f"Bearer {access_token}"
-        }
-        user_resp = requests.get(user_url, headers=user_headers, timeout=10)
-        if user_resp.status_code != 200:
-            flash("Failed to retrieve user profile from Discord.", "error")
+    # --- Step 3: Fetch Discord user profile ---
+    try:
+        profile_resp = http_requests.get(
+            'https://discord.com/api/users/@me',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=15,
+        )
+        if profile_resp.status_code != 200:
+            logger.error("Discord API unavailable: %s %s", profile_resp.status_code, profile_resp.text)
+            flash("Discord API unavailable", "error")
             return redirect(url_for('auth'))
-        
-        discord_user = user_resp.json()
-        discord_id = str(discord_user.get('id'))
-        discord_username = discord_user.get('username')
-        discord_email = discord_user.get('email')
-        avatar_hash = discord_user.get('avatar')
+        discord_user = profile_resp.json()
+        logger.info("Discord profile retrieved: %s#%s", discord_user.get('username'), discord_user.get('id'))
+    except Exception:
+        logger.exception("Failed to fetch Discord profile")
+        flash("Discord API unavailable", "error")
+        return redirect(url_for('auth'))
 
-        if not discord_email:
-            discord_email = f"{discord_username}@{discord_id}.discord"
+    # --- Step 4: Extract profile data ---
+    discord_id = str(discord_user.get('id'))
+    discord_username = discord_user.get('username', '')
+    discord_global_name = discord_user.get('global_name') or discord_username
+    discord_email = discord_user.get('email')
+    avatar_hash = discord_user.get('avatar')
 
-        pfp = None
-        if avatar_hash:
-            pfp = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png"
-        else:
-            pfp = "/static/uploads/pfp_client.png"
+    # Generate avatar URL
+    if avatar_hash:
+        ext = 'gif' if avatar_hash.startswith('a_') else 'png'
+        discord_avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.{ext}?size=256"
+    else:
+        # Discord default avatar
+        default_idx = (int(discord_id) >> 22) % 6
+        discord_avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_idx}.png"
 
-        # Determine user role
-        role = 'client'
-        if admin_discord_id and str(discord_id) == str(admin_discord_id):
-            role = 'admin'
+    # Determine role: owner gets admin, everyone else gets client
+    role = 'admin' if str(discord_id) == str(DISCORD_OWNER_ID) else 'client'
 
-        # Check if user exists with this discord_id
+    # --- Step 5: Lookup by discord_user_id ONLY ---
+    try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE discord_user_id = ?", (discord_id,))
         user = cursor.fetchone()
 
-        if not user:
-            # Check if there is an existing user with the same email
-            cursor.execute("SELECT * FROM users WHERE email = ?", (discord_email,))
-            user = cursor.fetchone()
-            if user:
-                # Link account
-                cursor.execute(
-                    "UPDATE users SET discord_user_id = ?, username = ?, pfp = ?, role = ? WHERE id = ?",
-                    (discord_id, discord_username, pfp, role, user['id'])
-                )
-                conn.commit()
-                # Re-fetch user
-                cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
-                user = cursor.fetchone()
-                log_audit(user['id'], f"Linked Discord account {discord_username} ({discord_id}) to existing user")
-            else:
-                # Register new user
-                dummy_hash = generate_password_hash(os.urandom(24).hex())
-                cursor.execute(
-                    "INSERT INTO users (username, email, password_hash, role, pfp, discord_user_id) VALUES (?, ?, ?, ?, ?, ?)",
-                    (discord_username, discord_email, dummy_hash, role, pfp, discord_id)
-                )
-                conn.commit()
-                user_id = cursor.lastrowid
-                # Fetch created user
-                cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-                user = cursor.fetchone()
-                log_audit(user_id, f"Registered new user account via Discord login: {discord_username}")
-        else:
-            # Existing user, sync details
+        if user:
+            # Existing user — sync profile
+            logger.info("Existing user found: id=%s", user['id'])
             cursor.execute(
-                "UPDATE users SET username = ?, email = ?, pfp = ?, role = ? WHERE id = ?",
-                (discord_username, discord_email, pfp, role, user['id'])
+                """UPDATE users SET
+                    username = ?, email = ?, pfp = ?, role = ?,
+                    discord_username = ?, discord_global_name = ?,
+                    discord_avatar = ?, discord_avatar_url = ?
+                WHERE id = ?""",
+                (discord_username, discord_email, discord_avatar_url, role,
+                 discord_username, discord_global_name,
+                 avatar_hash, discord_avatar_url, user['id'])
             )
             conn.commit()
-            # Re-fetch user
             cursor.execute("SELECT * FROM users WHERE id = ?", (user['id'],))
             user = cursor.fetchone()
             log_audit(user['id'], f"Logged in via Discord OAuth2 as {discord_username}")
+        else:
+            # New user — create account
+            logger.info("No existing user for discord_id=%s — creating account", discord_id)
+            cursor.execute(
+                """INSERT INTO users
+                    (username, email, password_hash, role, pfp,
+                     discord_user_id, discord_username, discord_global_name,
+                     discord_avatar, discord_avatar_url)
+                VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)""",
+                (discord_username, discord_email, role, discord_avatar_url,
+                 discord_id, discord_username, discord_global_name,
+                 avatar_hash, discord_avatar_url)
+            )
+            conn.commit()
+            new_user_id = cursor.lastrowid
+            cursor.execute("SELECT * FROM users WHERE id = ?", (new_user_id,))
+            user = cursor.fetchone()
+            logger.info("New user created: id=%s discord=%s", new_user_id, discord_id)
+            log_audit(new_user_id, f"Registered new account via Discord: {discord_username} ({discord_id})")
 
         conn.close()
+    except Exception:
+        logger.exception("User account creation failed")
+        flash("User account creation failed", "error")
+        return redirect(url_for('auth'))
 
-        # Set up Flask session
+    # --- Step 6: Establish session ---
+    try:
         session['user_id'] = user['id']
         session['username'] = user['username']
-        session['email'] = user['email']
+        session['email'] = user['email'] or ''
         session['role'] = user['role']
         session['is_admin'] = (user['role'] == 'admin')
         session['pfp'] = user['pfp']
-
-        flash("Welcome to PilotPanel! Logged in successfully.", "success")
-        
-        # Check dynamic redirect parameter stored in session
-        redirect_to = session.pop('oauth2_redirect', '')
-        if redirect_to:
-            return redirect(redirect_to)
-
-        if user['role'] == 'admin':
-            return redirect(url_for('admin_dashboard'))
-        return redirect(url_for('client_dashboard'))
-
-    except Exception as e:
-        flash(f"An error occurred during Discord authentication: {str(e)}", "error")
+        logger.info("Session established for user %s", user['id'])
+    except Exception:
+        logger.exception("Session creation failed")
+        flash("Session creation failed", "error")
         return redirect(url_for('auth'))
 
-@app.route('/login', methods=['POST'])
-def login_handler():
-    email = request.form.get('email', '').strip().lower()
-    password = request.form.get('password')
+    logger.info("Login successful: %s (role=%s)", user['username'], user['role'])
+    flash("Welcome to PilotPanel! Logged in successfully.", "success")
 
-    if not email or not password:
-        data = request.get_json() or {}
-        email = data.get('email', '').strip().lower()
-        password = data.get('password')
+    # Honor pre-login redirect destination
+    redirect_to = session.pop('oauth2_redirect', '')
+    if redirect_to:
+        return redirect(redirect_to)
 
-    if not email or not password:
-        return jsonify({"error": "validation", "message": "Please fill in all credentials."}), 400
+    if user['role'] == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('client_dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email = ? OR username = ?", (email, email))
-    user = cursor.fetchone()
-    conn.close()
 
-    from werkzeug.security import check_password_hash
-    if user and check_password_hash(user['password_hash'], password):
-        session['user_id'] = user['id']
-        session['username'] = user['username']
-        session['email'] = user['email']
-        session['role'] = user['role']
-        session['is_admin'] = (user['role'] == 'admin')
-        session['pfp'] = user['pfp']
-
-        log_audit(user['id'], "Programmatic login successful")
-        
-        if request.is_json or request.headers.get('Accept') == 'application/json':
-            return jsonify({"status": "success", "message": "Logged in successfully.", "user": {"id": user['id'], "role": user['role']}})
-            
-        flash("Logged in successfully. Welcome back!", "success")
-        if user['role'] == 'admin':
-            return redirect(url_for('admin_dashboard'))
-        return redirect(url_for('client_dashboard'))
-    else:
-        if request.is_json or request.headers.get('Accept') == 'application/json':
-            return jsonify({"status": "error", "message": "Invalid credentials."}), 401
-        flash("Invalid credentials.", "error")
-        return redirect(url_for('auth'))
+@app.route('/debug/oauth')
+def debug_oauth():
+    """Admin-only: show which OAuth env vars are loaded (never expose values)."""
+    if not is_logged_in() or not is_admin():
+        return jsonify({"message": "Forbidden"}), 403
+    return jsonify({
+        "discord_client_id": bool(DISCORD_CLIENT_ID),
+        "discord_client_secret": bool(DISCORD_CLIENT_SECRET),
+        "discord_redirect_uri": bool(DISCORD_REDIRECT_URI),
+        "discord_owner_id": bool(DISCORD_OWNER_ID),
+        "session_secret": bool(SESSION_SECRET),
+    })
 
 @app.route('/logout')
 def logout_handler():
@@ -2783,39 +2823,8 @@ def profile_update():
 
 @app.route('/api/profile/update-password', methods=['POST'])
 def profile_update_password():
-    if not is_logged_in():
-        return jsonify({"message": "Unauthorized"}), 401
-
-    data = request.get_json() or {}
-    current_password = data.get('current_password')
-    new_password = data.get('new_password')
-
-    if not current_password or not new_password:
-        return jsonify({"message": "Current password and new password are required."}), 400
-
-    if len(new_password) < 6:
-        return jsonify({"message": "New password must be at least 6 characters."}), 400
-
-    user_id = session['user_id']
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-
-    if not user or not check_password_hash(user['password_hash'], current_password):
-        conn.close()
-        return jsonify({"message": "Incorrect current password."}), 400
-
-    hashed_pw = generate_password_hash(new_password)
-    try:
-        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_pw, user_id))
-        conn.commit()
-        log_audit(user_id, "Changed account password")
-        conn.close()
-        return jsonify({"status": "success", "message": "Password updated successfully."})
-    except Exception as e:
-        conn.close()
-        return jsonify({"message": f"Failed to update password: {str(e)}"}), 500
+    """Password authentication is disabled — Discord-only auth."""
+    return jsonify({"message": "Password authentication is disabled. Use Discord login."}), 410
 
 
 # ----------------- ADMIN USER MANAGEMENT API -----------------
